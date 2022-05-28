@@ -1,5 +1,5 @@
 # LoL Maya - a plugin for Maya 2023
-An attemp to update RiotFileTranslator to maya 2023
+An attemp to update RiotFileTranslator to Maya 2023
 
 
 How to use:

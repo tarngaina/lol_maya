@@ -1,10 +1,9 @@
-from maya.OpenMaya import *
-from maya.OpenMayaAnim import *
-from maya.OpenMayaMPx import *
-from maya import cmds as cmds
-
-from struct import pack, unpack
 from random import choice, uniform
+from struct import pack, unpack
+from maya import cmds as cmds
+from maya.OpenMayaMPx import *
+from maya.OpenMayaAnim import *
+from maya.OpenMaya import *
 
 # plugin register
 
@@ -18,6 +17,9 @@ class SKNTranslator(MPxFileTranslator):
 
     def haveReadMethod(self):
         return True
+
+    def canBeOpened(self):
+        return False
 
     def defaultExtension(self):
         return self.extension
@@ -45,6 +47,9 @@ class SKLTranslator(MPxFileTranslator):
     def haveReadMethod(self):
         return True
 
+    def canBeOpened(self):
+        return False
+
     def defaultExtension(self):
         return self.extension
 
@@ -71,6 +76,9 @@ class SkinTranslator(MPxFileTranslator):
     def haveWriteMethod(self):
         return True
 
+    def canBeOpened(self):
+        return False
+
     def defaultExtension(self):
         return self.extension
 
@@ -87,24 +95,30 @@ class SkinTranslator(MPxFileTranslator):
             skn = SKN()
 
             # dump from scene
-            skl.dump()
-            skn.dump(skl)
-
+            res, msg = skl.dump()
+            if not res:
+                raise RuntimeError(msg)
+            res, msg = skn.dump(skl)
+            if not res:
+                raise RuntimeError(msg)
+            # ay yo, do a flip!
             skl.flip()
             skn.flip()
 
             path = fileObject.rawFullName()
+            # fix for file with mutiple '.', this api is just meh
             if not path.endswith('.skn'):
                 path += '.skn'
             skl.write(path.split('.skn')[0] + '.skl')
             skn.write(path)
         else:
-            error('stop! u violated the law, use "export selection" or i violate u')
+            raise RuntimeError(error(
+                'stop! u violated the law, use "export selection" or i violate u UwU'))
 
 
 def initializePlugin(obj):
     # totally not copied code
-    plugin = MFnPlugin(obj)
+    plugin = MFnPlugin(obj, 'tarngaina', '1.0')
     try:
         plugin.registerFileTranslator(
             SKNTranslator.typeName,
@@ -172,6 +186,7 @@ def uninitializePlugin(obj):
             f'Can\'t deregister plug-in node {SkinTranslator.typeName}: {e}')
 
 
+# helper funcs and structures
 class BinaryStream:
     def __init__(self, f):
         self.stream = f
@@ -271,36 +286,77 @@ def error(message):
              'stop', 'get some help', 'haha', 'lmao', 'ay yo', 'SUS']
         )
     )
-    return -1
+    return message
+
+
+# skl
 
 
 class SKLJoint:
     def __init__(self):
         self.name = None
         self.parent = None  # just id, not actual parent, especially not asian parent
-        # self.local_transform = None # for update skl
-        self.global_transform = None
-        self.radius = 0.1  # or 2.1?
-
-    def write(self, bs):
-        bs.write_padded_string(32, self.name)
-        bs.write_int32(self.parent)  # -1, cant be uint
-        bs.write_float(self.radius)
-        for i in range(0, 3):
-            for j in range(0, 4):
-                bs.write_float(self.global_transform.asMatrix()(j, i))
+        # fuck transform matrix
+        self.local_translation = None
+        self.local_scale = None
+        self.local_rotation = None
+        # yeah its actually inversed global, not global
+        self.iglobal_translation = None
+        self.iglobal_scale = None
+        self.iglobal_rotation = None
 
 
 class SKL:
     def __init__(self):
         self.joints = []
         self.dag_paths = []
-        #self.influences = []
 
         # for dumping
         self.dag_paths = None
 
+    def read(self):
+        pass
+
+    def load(self):
+        pass
+
     def dump(self):
+        def unpack_transform(transform, space):
+            # unpack translation, scale and rotation (quaternion) out of transformation matrix
+
+            # get scale by cursed api
+            util = MScriptUtil()
+            util.createFromDouble(0.0, 0.0, 0.0)
+            ptr = util.asDoublePtr()
+            transform.getScale(ptr, space)
+
+            # get roration in quaternion by cursed api
+            util_x = MScriptUtil()
+            ptr_x = util_x.asDoublePtr()
+            util_y = MScriptUtil()
+            ptr_y = util_y.asDoublePtr()
+            util_z = MScriptUtil()
+            ptr_z = util_z.asDoublePtr()
+            util_w = MScriptUtil()
+            ptr_w = util_w.asDoublePtr()
+            transform.getRotationQuaternion(ptr_x, ptr_y, ptr_z, ptr_w, space)
+
+            # (translation, scale, rotation)
+            return (
+                transform.getTranslation(space),
+                MVector(
+                    util.getDoubleArrayItem(ptr, 0),
+                    util.getDoubleArrayItem(ptr, 1),
+                    util.getDoubleArrayItem(ptr, 2)
+                ),
+                MQuaternion(
+                    util_x.getDouble(ptr_x),
+                    util_y.getDouble(ptr_y),
+                    util_z.getDouble(ptr_z),
+                    util_w.getDouble(ptr_w)
+                )
+            )
+
         self.dag_paths = MDagPathArray()
         dag_path = MDagPath()
         ik_joint = MFnIkJoint()
@@ -312,18 +368,17 @@ class SKL:
             self.dag_paths.append(dag_path)  # identify joint by DAG path
             ik_joint.setObject(dag_path)  # to get the joint transform
 
-            rotation = MQuaternion()
-            ik_joint.getRotation(rotation, MSpace.kWorld)
-            rotation = ik_joint.rotateOrientation(MSpace.kTransform) * rotation
-            translation = ik_joint.getTranslation(MSpace.kWorld)
-            transform = MTransformationMatrix()
-            transform.setRotationQuaternion(
-                rotation.x, rotation.y, rotation.z, rotation.w, MSpace.kWorld)
-            transform.setTranslation(translation, MSpace.kWorld)
-            # am i high or those code just create a same transform matrix of ik_joint transform matrix
             joint = SKLJoint()
             joint.name = ik_joint.name()
-            joint.global_transform = transform  # local for update skl
+            # mama mia
+            joint.local_translation, joint.local_scale, joint.local_rotation = unpack_transform(
+                MTransformationMatrix(ik_joint.transformationMatrix()),
+                MSpace.kTransform
+            )
+            joint.global_translation, joint.global_scale, joint.global_rotation = unpack_transform(
+                MTransformationMatrix(dag_path.inclusiveMatrixInverse()),
+                MSpace.kWorld
+            )
             self.joints.append(joint)
 
             iterator.next()
@@ -350,38 +405,107 @@ class SKL:
                 # must be batman
                 self.joints[i].parent = -1
 
-        print('dumped skl')
+        return True, ''
 
     def flip(self):
-        # flip the L with R: #https://youtu.be/2yzMUs3badc
+        # flip the L with R: https://youtu.be/2yzMUs3badc
         for joint in self.joints:
-            transform = joint.global_transform
-            rotation = transform.rotation()
-            transform.setRotationQuaternion(
-                rotation.x, -rotation.y, -rotation.z, rotation. w)
-            matrix = transform.asMatrix()
-            # i cant replace matrix[3][0] with -matrix[3][0] because of this cursed api
-            py_list = []
-            for i in range(0, 4):
-                for j in range(0, 4):
-                    py_list.append(matrix(i, j))
-            py_list[12] = -py_list[12]
-            matrix = MMatrix()
-            # create the matrix bacc from the list
-            MScriptUtil.createMatrixFromList(py_list, matrix)
-            joint.global_transform = MTransformationMatrix(matrix)
+            # local
+            joint.local_translation.x = -joint.local_translation.x
+            joint.local_rotation.y = -joint.local_rotation.y
+            joint.local_rotation.z = -joint.local_rotation.z
+            # global
+            joint.global_translation.x = -joint.global_translation.x
+            joint.global_rotation.y = -joint.global_rotation.y
+            joint.global_rotation.z = -joint.global_rotation.z
 
     def write(self, path):
+        # ay yo check out this elf: https://i.imgur.com/Cvl8PFu.png
+        def elf_hash(s):
+            s = s.lower()
+            h = 0
+            for c in s:
+                h = (h << 4) + ord(c)
+                t = (h & 0xF0000000)
+                if t != 0:
+                    h ^= (t >> 24)
+                h &= ~t
+            return h
+
         with open(path, 'wb') as f:
             bs = BinaryStream(f)
 
-            bs.write_bytes('r3d2sklt'.encode('ascii'))  # magic
-            bs.write_uint32(1)  # version
-            bs.write_uint32(0)  # padding
+            bs.write_uint32(0)
+            bs.write_uint32(0x22FD4FC3)  # format token
+            bs.write_uint32(0)  # version
 
-            bs.write_uint32(len(self.joints))
-            for joint in self.joints:
-                joint.write(bs)
+            bs.write_uint16(0)  # flags
+            bs.write_uint16(len(self.joints))
+            bs.write_uint32(len(self.joints))  # influences
+
+            joints_offset = 64
+            joint_indices_offset = joints_offset + len(self.joints) * 100
+            influences_offset = joint_indices_offset + len(self.joints) * 8
+            joint_names_offset = influences_offset + len(self.joints) * 2
+
+            bs.write_uint32(joints_offset)
+            bs.write_uint32(joint_indices_offset)
+            bs.write_uint32(influences_offset)
+            bs.write_uint32(0)  # name
+            bs.write_uint32(0)  # asset name
+            bs.write_uint32(joint_names_offset)
+
+            bs.write_uint32(0xFFFFFFFF)  # reserved offset field
+            bs.write_uint32(0xFFFFFFFF)
+            bs.write_uint32(0xFFFFFFFF)
+            bs.write_uint32(0xFFFFFFFF)
+            bs.write_uint32(0xFFFFFFFF)
+
+            joint_offset = {}
+            bs.stream.seek(joint_names_offset)
+            for i in range(0, len(self.joints)):
+                joint_offset[i] = bs.stream.tell()
+                bs.write_bytes(self.joints[i].name.encode('ascii'))
+                bs.write_bytes(bytes([0]))  # pad
+
+            bs.stream.seek(joints_offset)
+            for i in range(0, len(self.joints)):
+                joint = self.joints[i]
+                # write skljoint in this func
+                bs.write_uint16(0)  # flags
+                bs.write_uint16(i)  # id
+                bs.write_int16(joint.parent)  # -1, cant be uint
+                bs.write_uint16(0)  # pad
+                bs.write_uint32(elf_hash(joint.name))
+                bs.write_float(2.1)  # scale
+                # local first
+                bs.write_vec3(joint.local_translation)
+                bs.write_vec3(joint.local_scale)
+                bs.write_quat(joint.local_rotation)
+                # inversed global
+                bs.write_vec3(joint.global_translation)
+                bs.write_vec3(joint.global_scale)
+                bs.write_quat(joint.global_rotation)
+
+                bs.write_uint32(joint_offset[i] - bs.stream.tell())
+
+            bs.stream.seek(influences_offset)
+            for i in range(0, len(self.joints)):
+                bs.write_uint16(i)
+
+            bs.stream.seek(joint_indices_offset)
+            for i in range(0, len(self.joints)):
+                bs.write_uint32(elf_hash(joint.name))
+                bs.write_uint16(0)  # pad
+                bs.write_uint16(i)
+
+            bs.stream.seek(0, 2)
+            fsize = bs.stream.tell()
+            bs.stream.seek(0)
+            bs.write_uint32(fsize)
+
+
+# skn
 
 
 class SKNVertex:
@@ -396,15 +520,6 @@ class SKNVertex:
         self.uv_index = None
         self.data_index = None
 
-    def write(self, bs):
-        bs.write_vec3(self.position)
-        for byte in self.bones_indices:
-            bs.write_bytes(byte)
-        for weight in self.weights:
-            bs.write_float(weight)
-        bs.write_vec3(self.normal)
-        bs.write_vec2(self.uv)
-
 
 class SKNSubmesh:
     def __init__(self):
@@ -414,19 +529,18 @@ class SKNSubmesh:
         self.index_start = None
         self.index_count = None
 
-    def write(self, bs):
-        bs.write_padded_string(64, self.name)
-        bs.write_uint32(self.vertex_start)
-        bs.write_uint32(self.vertex_count)
-        bs.write_uint32(self.index_start)
-        bs.write_uint32(self.index_count)
-
 
 class SKN:
     def __init__(self):
         self.indices = []
         self.vertices = []
         self.submeshes = []
+
+    def read(self, path):
+        pass
+
+    def load(self, path):
+        pass
 
     def dump(self, skl):
         # get mesh in selections
@@ -435,12 +549,12 @@ class SKN:
         iterator = MItSelectionList(selections, MFn.kMesh)
         iterator.reset()
         if iterator.isDone():
-            return error('no mesh selected, please select a mesh')
+            return False, error('no mesh selected, please select a mesh')
         mesh_dag_path = MDagPath()
         iterator.getDagPath(mesh_dag_path)  # get first mesh
         iterator.next()
         if not iterator.isDone():
-            return error('more than 1 meshes selected\nin case u don\'t know: u must combine all mesh into 1')
+            return False, error('more than 1 meshes selected\nin case u don\'t know: u must combine all mesh into 1')
         mesh = MFnMesh(mesh_dag_path)
 
         # find skin cluster
@@ -448,7 +562,7 @@ class SKN:
         in_mesh_connections = MPlugArray()
         in_mesh.connectedTo(in_mesh_connections, True, False)
         if in_mesh_connections.length() == 0:
-            return error('failed to find skin cluster, make sure u binded the skin')
+            return False, error('failed to find skin cluster, make sure u binded the skin')
         output_geometry = in_mesh_connections[0]
         skin_cluster = MFnSkinCluster(output_geometry.node())
         influence_dag_paths = MDagPathArray()
@@ -475,7 +589,7 @@ class SKN:
         hole_vertex = MIntArray()
         mesh.getHoles(hole_info, hole_vertex)
         if hole_info.length() != 0:
-            return error('mesh contains holes, idk how to fix just get rid of the holes')
+            return False, error('mesh contains holes, idk how to fix just get rid of the holes')
 
         # check non-triangulated polygons
         # check polygon has multiple shaders
@@ -484,20 +598,20 @@ class SKN:
         iterator.reset()
         while not iterator.isDone():
             if not iterator.hasValidTriangulation():
-                return error(
+                return False, error(
                     'mesh contains a non-triangulated polygon, use Mesh -> Triangualate maybe?')
 
             index = iterator.index()
             shader_index = poly_shaders[index]
             if shader_index == -1:
-                return error('mesh contains a face with no shader, no idea how')
+                return False, error('mesh contains a face with no shader, no idea how')
 
             vertices = MIntArray()
             iterator.getVertices(vertices)
             len69 = vertices.length()
             for i in range(0, len69):
                 if shader_count > 1 and vertex_shaders[vertices[i]] not in [-1, shader_index]:
-                    return error('mesh contains a vertex with multiple shaders')
+                    return False, error('mesh contains a vertex with multiple shaders')
                 vertex_shaders[vertices[i]] = shader_index
 
             iterator.next()
@@ -526,7 +640,7 @@ class SKN:
                     temp_count += 1
                     weight_sum += weight
             if temp_count > 4:
-                return error('ay yo, the 4 influences incident, prune weight 0.05 or set max influences to 4 idk')
+                return False, error('ay yo, the 4 influences incident, prune weight 0.05 or set max influences to 4 idk')
 
             # normalize weights
             for j in range(0, weight_influence_count):
@@ -615,7 +729,7 @@ class SKN:
 
                         seen.append(uv_index)
             else:
-                return error('mesh contains a vertex with no UVs')
+                return False, error('mesh contains a vertex with no UVs')
             iterator.next()
 
         # idk what this block does, must be not important
@@ -658,11 +772,11 @@ class SKN:
 
                     data_index = data_indices[vertices[i]]
                     if data_index == -1 or data_index >= len(self.vertices):
-                        return error('data index out of range')
+                        return False, error('data index out of range')
 
                     for j in range(data_index, len(self.vertices)):
                         if self.vertices[j].data_index != data_index:
-                            return error('can\'t find corresponding face vertex in data')
+                            return False, error('can\'t find corresponding face vertex in data')
                         elif self.vertices[j].uv_index == uv_index:
                             for k in range(0, lenDOGE):
                                 if indices[k] == vertices[i]:
@@ -707,7 +821,7 @@ class SKN:
             index_start += index_count
             vertex_start += vertex_count
 
-        print('dumped skn')
+        return True, ''
         # ay yo finally
 
     def flip(self):
@@ -727,7 +841,11 @@ class SKN:
 
             bs.write_uint32(len(self.submeshes))
             for submesh in self.submeshes:
-                submesh.write(bs)
+                bs.write_padded_string(64, submesh.name)
+                bs.write_uint32(submesh.vertex_start)
+                bs.write_uint32(submesh.vertex_count)
+                bs.write_uint32(submesh.index_start)
+                bs.write_uint32(submesh.index_count)
 
             bs.write_uint32(len(self.indices))
             bs.write_uint32(len(self.vertices))
@@ -735,4 +853,25 @@ class SKN:
             for index in self.indices:
                 bs.write_uint16(index)
             for vertex in self.vertices:
-                vertex.write(bs)
+                bs.write_vec3(vertex.position)
+                for byte in vertex.bones_indices:  # must have for, this is a list of bytes, not an array of byte
+                    bs.write_bytes(byte)
+                for weight in vertex.weights:
+                    bs.write_float(weight)
+                bs.write_vec3(vertex.normal)
+                bs.write_vec2(vertex.uv)
+
+
+def debug_fast():
+    # just a fast test
+    skl = SKL()
+    skn = SKN()
+
+    skl.dump()
+    skn.dump(skl)
+
+    skl.flip2()
+    skn.flip()
+
+    skl.write('D:\\test.skl')
+    skn.write('D:\\test.skn')

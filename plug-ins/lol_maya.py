@@ -1,7 +1,8 @@
 
 from random import choice, uniform
 from struct import pack, unpack
-from math import sqrt
+from math import sqrt, isclose
+
 
 from maya import cmds as cmds
 from maya.OpenMayaMPx import *
@@ -398,53 +399,67 @@ class Hash:
         return h
 
 
-# for v5 anm read/write
-class QQuaternion():
-    def decompress(bytes):
-        first = bytes[0] | (bytes[1] << 8)
-        second = bytes[2] | (bytes[3] << 8)
-        third = bytes[4] | (bytes[5] << 8)
+# for v5 anm compress/decompress transform properties
+class CTransform:
+    class Quat:
+        def decompress(bytes):
+            first = bytes[0] | (bytes[1] << 8)
+            second = bytes[2] | (bytes[3] << 8)
+            third = bytes[4] | (bytes[5] << 8)
 
-        bits = first | second << 16 | third << 32
+            bits = first | second << 16 | third << 32
 
-        max_index = (bits >> 45) & 3
+            max_index = (bits >> 45) & 3
 
-        v_a = (bits >> 30) & 32767
-        v_b = (bits >> 15) & 32767
-        v_c = bits & 32767
+            v_a = (bits >> 30) & 32767
+            v_b = (bits >> 15) & 32767
+            v_c = bits & 32767
 
-        sqrt2 = 1.41421356237
-        a = (v_a / 32767.0) * sqrt2 - 1 / sqrt2
-        b = (v_b / 32767.0) * sqrt2 - 1 / sqrt2
-        c = (v_c / 32767.0) * sqrt2 - 1 / sqrt2
-        d = sqrt(max(0.0, 1.0 - (a * a + b * b + c * c)))
+            sqrt2 = 1.41421356237
+            a = (v_a / 32767.0) * sqrt2 - 1 / sqrt2
+            b = (v_b / 32767.0) * sqrt2 - 1 / sqrt2
+            c = (v_c / 32767.0) * sqrt2 - 1 / sqrt2
+            d = sqrt(max(0.0, 1.0 - (a * a + b * b + c * c)))
 
-        if max_index == 0:
-            return MQuaternion(d, a, b, c)
-        elif max_index == 1:
-            return MQuaternion(a, d, b, c)
-        elif max_index == 2:
-            return MQuaternion(a, b, d, c)
-        else:
-            return MQuaternion(a, b, c, d)
+            if max_index == 0:
+                return MQuaternion(d, a, b, c)
+            elif max_index == 1:
+                return MQuaternion(a, d, b, c)
+            elif max_index == 2:
+                return MQuaternion(a, b, d, c)
+            else:
+                return MQuaternion(a, b, c, d)
 
-    def compress(quat):
-        sqrt2 = 1.41421356237
-        values = [quat.x, quat.y, quat.z, quat.w]
-        for i in range(0, 4):
-            if (0.0 - values[i]) > 1.0 / sqrt2:
-                values[i] = 0.0-values[i]
+        def compress(quat):
+            sqrt2 = 1.41421356237
+            values = [quat.x, quat.y, quat.z, quat.w]
+            for i in range(0, 4):
+                if (0.0 - values[i]) > 1.0 / sqrt2:
+                    values[i] = 0.0-values[i]
 
-        max_index = values.index(max(values))
-        res = max_index << 45
-        j = 0
-        for i in range(0, 4):
-            if i != max_index:
-                temp = round(16383.5 * (sqrt2 * values[i] + 1.0))
-                res |= (temp & 32767) << 15 * (2 - j)
-                j += 1
-        return res.to_bytes(8, 'little')[:6]
+            max_index = values.index(max(values))
+            res = max_index << 45
+            j = 0
+            for i in range(0, 4):
+                if i != max_index:
+                    temp = round(16383.5 * (sqrt2 * values[i] + 1.0))
+                    res |= (temp & 32767) << 15 * (2 - j)
+                    j += 1
+            return res.to_bytes(8, 'little')[:6]
 
+    class Vec:
+        def decompress(min, max, bytes):
+            res = max - min
+
+            cx = bytes[0] | bytes[1] << 8
+            cy = bytes[2] | bytes[3] << 8
+            cz = bytes[4] | bytes[5] << 8
+            res.x *= (cx / 65535.0)
+            res.y *= (cy / 65535.0)
+            res.z *= (cz / 65535.0)
+
+            res += min
+            return MVector(res.x, res.y, res.z)
 # for anm/skl joint set transform - transformation matrix
 
 
@@ -1076,7 +1091,7 @@ class SKN:
             selections = MSelectionList()
             selections.add(mesh_dag_path)
             for i in range(0, influences_count):
-                #joint = skl.joints[skl.influences[i]]
+                # joint = skl.joints[skl.influences[i]]
                 selections.add(skl.dag_paths[skl.influences[i]])
 
             # bind selections
@@ -1468,12 +1483,20 @@ class SKN:
 # anm
 
 
+class ANMPose:
+    def __init__(self):
+        self.time = None
+
+        self.translation = None
+        self.scale = None
+        self.rotation = None
+
+
 class ANMTrack:
     def __init__(self):
         self.joint_hash = None
-        self.rotations = []
-        self.translations = []
-        self.scales = []
+
+        self.poses = []
 
         # for loading
         self.joint_name = None
@@ -1482,17 +1505,20 @@ class ANMTrack:
 
 class ANM:
     def __init__(self):
-        self.frame_count = None
+        self.duration = None
+
         self.tracks = []
 
     def flip(self):
         # DO A FLIP!
         for track in self.tracks:
-            for frame in range(0, self.frame_count):
-                track.translations[frame].x *= -1.0
+            for pose in track.poses:
+                if pose.translation != None:
+                    pose.translation.x *= -1.0
 
-                track.rotations[frame].y *= -1.0
-                track.rotations[frame].z *= -1.0
+                if pose.rotation != None:
+                    pose.rotation.y *= -1.0
+                    pose.rotation.z *= -1.0
 
     def read(self, path):
         with open(path, 'rb') as f:
@@ -1502,7 +1528,101 @@ class ANM:
             version = bs.read_uint32()
 
             if magic == 'r3d2canm':
-                print('Compressed anm, wip')
+                # compressed
+
+                bs.read_uint32()  # resource_size
+                bs.read_uint32()  # format token
+                bs.read_uint32()  # flags
+
+                joint_count = bs.read_uint32()
+                frames_count = bs.read_uint32()
+                bs.read_uint32()  # jump cache count
+
+                duration = bs.read_float()
+                bs.read_float()  # fps
+                for i in range(0, 6):  # pad some hard things
+                    bs.read_float()
+
+                translation_min = bs.read_vec3()
+                translation_max = bs.read_vec3()
+
+                scale_min = bs.read_vec3()
+                scale_max = bs.read_vec3()
+
+                frames_offset = bs.read_int32()
+                bs.read_int32()  # jump caches offset
+                joint_hashes_offset = bs.read_int32()
+
+                if frames_offset <= 0:
+                    raise FunnyError(
+                        f'[ANM.read({path})]: File does not contain frames.'
+                    )
+                if joint_hashes_offset <= 0:
+                    raise FunnyError(
+                        f'[ANM.read({path})]: File does not contain joint hashes.'
+                    )
+
+                # read joint hashes
+                bs.stream.seek(joint_hashes_offset + 12)
+                joint_hashes = []
+                for i in range(0, joint_count):
+                    joint_hashes.append(bs.read_uint32())
+
+                # create tracks
+                self.duration = duration * 30.0
+                for i in range(0, joint_count):
+                    track = ANMTrack()
+                    track.joint_hash = joint_hashes[i]
+                    self.tracks.append(track)
+
+                bs.stream.seek(frames_offset + 12)
+                for i in range(0, frames_count):
+                    compressed_time = bs.read_uint16()
+                    bits = bs.read_uint16()
+                    compressed_transform = bs.read_bytes(6)
+
+                    # find track by joint hash
+                    joint_hash = joint_hashes[bits & 16383]
+                    for track in self.tracks:
+                        if track.joint_hash == joint_hash:
+                            break
+
+                    # find pose existed with time
+                    time = compressed_time / 65535.0 * duration * 30.0
+                    pose = None
+                    for pose in track.poses:
+                        if pose.time == time:
+                            break
+                        else:
+                            pose = None
+
+                    # no pose found, create new
+                    if pose == None:
+                        pose = ANMPose()
+                        pose.time = time
+                        track.poses.append(pose)
+
+                    # decompress data and add to pose
+                    transform_type = bits >> 14
+                    if transform_type == 0:
+                        rotation = CTransform.Quat.decompress(
+                            compressed_transform)
+                        pose.rotation = MQuaternion(
+                            rotation.x, rotation.y, rotation.z, rotation.w)
+                    elif transform_type == 1:
+                        translation = CTransform.Vec.decompress(
+                            translation_min, translation_max, compressed_transform)
+                        pose.translation = MVector(
+                            translation.x, translation.y, translation.z)
+                    elif transform_type == 2:
+                        scale = CTransform.Vec.decompress(
+                            scale_min, scale_max, compressed_transform)
+                        pose.scale = MVector(scale.x, scale.y, scale.z)
+                    else:
+                        raise FunnyError(
+                            f'[ANM.read({path})]: Unknown compressed transform type: {transform_type}.'
+                        )
+
             elif magic == 'r3d2anmd':
                 if version == 5:
                     # v5
@@ -1513,7 +1633,8 @@ class ANM:
                     bs.read_uint32()  # flags
 
                     track_count = bs.read_uint32()
-                    self.frame_count = bs.read_uint32()
+                    frame_count = bs.read_uint32()
+                    self.duration = frame_count
                     bs.read_float()  # frame_duration
 
                     joint_hashes_offset = bs.read_int32()
@@ -1561,16 +1682,13 @@ class ANM:
                     quats = []
                     bs.stream.seek(quats_offset + 12)
                     for i in range(0, quats_count):
-                        bytes = bs.read_bytes(6)
-                        quat = QQuaternion.decompress(bytes)
-                        print(bytes)
-                        print(quat.x, quat.y, quat.z, quat.w)
-                        quats.append(quat)
+                        quats.append(
+                            CTransform.Quat.decompress(bs.read_bytes(6)))
 
                     # read frames
                     frames = []
                     bs.stream.seek(frames_offset + 12)
-                    for i in range(0, self.frame_count * track_count):
+                    for i in range(0, frame_count * track_count):
                         frames.append((
                             bs.read_uint16(),  # translation index
                             bs.read_uint16(),  # scale index
@@ -1585,29 +1703,29 @@ class ANM:
 
                     for t in range(0, track_count):
                         track = self.tracks[t]
-                        for f in range(0, self.frame_count):
+                        for f in range(0, frame_count):
                             translation_index, scale_index, rotation_index = frames[f * track_count + t]
 
                             # create pointer, read v4
-                            translation = MVector(
+                            pose = ANMPose()
+                            pose.time = f
+                            pose.translation = MVector(
                                 vecs[translation_index].x,
                                 vecs[translation_index].y,
                                 vecs[translation_index].z
                             )
-                            scale = MVector(
+                            pose.scale = MVector(
                                 vecs[scale_index].x,
                                 vecs[scale_index].y,
                                 vecs[scale_index].z
                             )
-                            rotation = MQuaternion(
+                            pose.rotation = MQuaternion(
                                 quats[rotation_index].x,
                                 quats[rotation_index].y,
                                 quats[rotation_index].z,
                                 quats[rotation_index].w
                             )
-                            track.translations.append(translation)
-                            track.scales.append(scale)
-                            track.rotations.append(rotation)
+                            track.poses.append(pose)
 
                 elif version == 4:
                     # v4
@@ -1618,7 +1736,8 @@ class ANM:
                     bs.read_uint32()  # flags
 
                     track_count = bs.read_uint32()
-                    self.frame_count = bs.read_uint32()
+                    frame_count = bs.read_uint32()
+                    self.duration = frame_count
                     bs.read_float()  # frame_duration
 
                     bs.read_int32()  # tracks offset
@@ -1656,7 +1775,7 @@ class ANM:
 
                     bs.stream.seek(frames_offset + 12)
                     frames = []
-                    for i in range(0, self.frame_count * track_count):
+                    for i in range(0, frame_count * track_count):
                         frames.append((
                             bs.read_uint32(),  # joint hash
                             bs.read_uint16(),  # translation index
@@ -1669,17 +1788,18 @@ class ANM:
                     for joint_hash, translation_index, scale_index, rotation_index in frames:
                         # apparently, those index can be same in total vecs/squats (i guess they want to compress it)
                         # we need to recreate pointer
-                        translation = MVector(
+                        pose = ANMPose()
+                        pose.translation = MVector(
                             vecs[translation_index].x,
                             vecs[translation_index].y,
                             vecs[translation_index].z
                         )
-                        scale = MVector(
+                        pose.scale = MVector(
                             vecs[scale_index].x,
                             vecs[scale_index].y,
                             vecs[scale_index].z
                         )
-                        rotation = MQuaternion(
+                        pose.rotation = MQuaternion(
                             quats[rotation_index].x,
                             quats[rotation_index].y,
                             quats[rotation_index].z,
@@ -1692,6 +1812,8 @@ class ANM:
                             if t.joint_hash == joint_hash:
                                 track = t
                                 break
+                            else:
+                                track = None
 
                         # couldnt found track that has joint hash, create new
                         if track == None:
@@ -1699,27 +1821,31 @@ class ANM:
                             track.joint_hash = joint_hash
                             self.tracks.append(track)
 
-                        track.translations.append(translation)
-                        track.scales.append(scale)
-                        track.rotations.append(rotation)
+                        # time = index
+                        pose.time = len(track.poses)
+                        track.poses.append(pose)
 
                 else:
                     # legacy
 
                     bs.read_uint32()  # skeletion id
                     track_count = bs.read_uint32()
-                    self.frame_count = bs.read_uint32()  # need this to index by frame and stuffs
+                    frame_count = bs.read_uint32()  # need this to index by frame and stuffs
+                    self.duration = frame_count
                     bs.read_uint32()  # fps
                     for i in range(0, track_count):
                         track = ANMTrack()
                         track.joint_hash = Hash.elf(bs.read_padded_string(
                             32))  # name - hash the name for newer version
                         bs.read_uint32()  # flags
-                        for j in range(0, self.frame_count):
-                            track.rotations.append(bs.read_quat())
-                            track.translations.append(bs.read_vec3())
-                            track.scales.append(MVector(
-                                1.0, 1.0, 1.0))  # legacy not support scaling
+                        for j in range(0, frame_count):
+                            pose = ANMPose()
+                            pose.time = j
+                            pose.rotation = bs.read_quat()
+                            pose.translation = bs.read_vec3()
+                            pose.scale = MVector(
+                                1.0, 1.0, 1.0)  # legacy not support scaling
+                            track.poses.append(pose)
                         self.tracks.append(track)
 
             else:
@@ -1727,6 +1853,9 @@ class ANM:
                     f'[ANM.read({path})]: Wrong signature file: {magic}')
 
     def load(self):
+        # delete all channel data
+        MGlobal.executeCommand('delete -all -c')
+
         # ensure 30fps scene
         # im pretty sure all lol's anms are in 30fps, or i can change this later idk
         MGlobal.executeCommand('currentUnit -time ntsc')
@@ -1765,25 +1894,57 @@ class ANM:
 
         # adjust playback
         MGlobal.executeCommand(
-            f'playbackOptions -e -min 0 -max {self.frame_count - 1} -animationStartTime 0 -animationEndTime {self.frame_count - 1} -playbackSpeed 1')
+            f'playbackOptions -e -min 0 -max {self.duration} -animationStartTime 0 -animationEndTime {self.duration} -playbackSpeed 1')
 
-        joint_names = ' '.join(
-            [track.joint_name for track in actual_tracks])
-        for frame in range(0, self.frame_count):
-            MGlobal.executeCommand(f'currentTime {frame}')
+        for track in actual_tracks:
+            ik_joint = MFnIkJoint(track.dag_path)
 
-            for track in actual_tracks:
-                ik_joint = MFnIkJoint(track.dag_path)
+            for pose in track.poses:
+                # this can be float too
+                MGlobal.executeCommand(f'currentTime {pose.time}')
 
-                # set joint transform at frame
-                ik_joint.set(MTransform.compose(
-                    track.translations[frame],
-                    track.scales[frame],
-                    track.rotations[frame],
-                    MSpace.kWorld
-                ))
+                setKeyFrame = 'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0'
+                modified = False  # check if we actually need to set key frame
+                if pose.translation != None:
+                    translation = pose.translation
+                    ik_joint.setTranslation(
+                        MVector(translation.x, translation.y, translation.z), MSpace.kTransform)
+                    setKeyFrame += ' -at translateX -at translateY -at translateZ'
+                    modified = True
 
-            # set key frame
+                if pose.scale != None:
+                    scale = pose.scale
+                    util = MScriptUtil()
+                    util.createFromDouble(scale.x, scale.y, scale.z)
+                    ptr = util.asDoublePtr()
+                    ik_joint.setScale(ptr)
+                    setKeyFrame += ' -at scaleX -at scaleY -at scaleZ'
+                    modified = True
+
+                if pose.rotation != None:
+                    rotation = pose.rotation
+                    rotation = MQuaternion(
+                        rotation.x, rotation.y, rotation.z, rotation.w)  # recreate pointer
+                    orient = MQuaternion()
+                    ik_joint.getOrientation(orient)
+                    axe = ik_joint.rotateOrientation(MSpace.kTransform)
+                    rotation = axe.inverse() * rotation * orient.inverse()
+                    ik_joint.setRotation(rotation, MSpace.kTransform)
+                    setKeyFrame += ' -at rotateX -at rotateY -at rotateZ'
+                    modified = True
+
+                if modified:
+                    setKeyFrame += f' {track.joint_name}'
+                    MGlobal.executeCommand(setKeyFrame)
+
+        # slerp the rotations
+        for track in actual_tracks:
             MGlobal.executeCommand(
-                f'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0 -at translateX -at translateY -at translateZ -at rotateX -at rotateY -at rotateZ -at scaleX -at scaleY -at scaleZ {joint_names}'
+                f'rotationInterpolation -c quaternionSlerp {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
             )
+
+    def dump(self):
+        pass
+
+    def write(self):
+        pass

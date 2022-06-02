@@ -6,20 +6,20 @@ Infos:
     - Add fix for read/write file with suffix in name.
 2. SKN: 
     - Read: 
-        - `33 22 11 00`: V0, V2, V4
+        - `33 22 11 00`: V0, V1, V2, V4
         - Add option to read SKN+SKL as skin cluster.
     - Write: 
         - `33 22 11 00`: V0
         - Add fix for Maya duplicate name system.
 3. SKL:
     - Read: 
-        - `r3d2sklt`
-        - `0x22FD4FC3`: V0
+        - `r3d2sklt`: V1, V2
+        - `C3 4F FD 22`: V0
     - Write:
-        - `0x22FD4FC3`: V0
+        - `C3 4F FD 22`: V0
 4. ANM:
     - Read: 
-        - `r3d2canm`: todo
+        - `r3d2canm`
         - `r3d2anmd`: V3, V4, V5
     - Write:
         - `r3d2anmd`: V5 : todo
@@ -31,7 +31,7 @@ Installation:
 
 1. Download `plug-ins` and `scripts` folder.
 
-2. Move both folders in `Documents\maya\2023`.
+2. Move both folders in `Documents` \ `maya` \ `2023`.
 
 3. In Maya toolbar, select `Windows` > `Settings/Preferences` > `Plug-in Manager`.
 

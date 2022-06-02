@@ -5,14 +5,24 @@ Infos:
 1. Misc:
     - Add fix for read/write file with suffix in name.
 2. SKN: 
-    - Read old SKN, new SKN.
-    - Write out legacy SKN.
-    - Add fix for exporting SKN that has same node name of joint-material.
-    - Add option to read both SKN+SKL as skin cluster with weights (same filename same location).
+    - Read: 
+        - `33 22 11 00`: V0, V2, V4
+        - Add option to read SKN+SKL as skin cluster.
+    - Write: 
+        - `33 22 11 00`: V0
+        - Add fix for Maya duplicate name system.
 3. SKL:
-    - Read old SKL, new SKL.
-    - Write out new SKL.
-4. ANM: todo
+    - Read: 
+        - `r3d2sklt`
+        - `0x22FD4FC3`: V0
+    - Write:
+        - `0x22FD4FC3`: V0
+4. ANM:
+    - Read: 
+        - `r3d2canm`: todo
+        - `r3d2anmd`: V3, V4, V5
+    - Write:
+        - `r3d2anmd`: V5 : todo
 5. SCO/SCB: todo
 
 

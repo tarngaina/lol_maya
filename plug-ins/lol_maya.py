@@ -4,17 +4,17 @@ from struct import pack, unpack
 from math import sqrt, isclose
 
 
-from maya import cmds as cmds
+from maya import cmds
 from maya.OpenMayaMPx import *
 from maya.OpenMayaAnim import *
 from maya.OpenMaya import *
 
-# plugin register
+# maya file translator set up
 
 
 class SKNTranslator(MPxFileTranslator):
-    typeName = 'League of Legends: SKN'
-    extension = 'skn'
+    name = 'League of Legends: SKN'
+    ext = 'skn'
 
     def __init__(self):
         MPxFileTranslator.__init__(self)
@@ -26,24 +26,24 @@ class SKNTranslator(MPxFileTranslator):
         return False
 
     def defaultExtension(self):
-        return self.extension
+        return self.ext
 
     def filter(self):
-        return f'*.{self.extension}'
+        return f'*.{self.ext}'
 
     @classmethod
     def creator(cls):
         return asMPxPtr(cls())
 
-    def reader(self, fileObject, optionString, accessMode):
+    def reader(self, file, options, acces):
         skn = SKN()
-        path = fileObject.expandedFullName()
+        path = file.expandedFullName()
         if not path.endswith('.skn'):
             path += '.skn'
 
         skn.read(path)
         name = path.split('/')[-1].split('.')[0]
-        if optionString.split('=')[1] == '1':
+        if options.split('=')[1] == '1':
             skl = SKL()
             skl.read(path.split('.skn')[0] + '.skl')
 
@@ -59,8 +59,8 @@ class SKNTranslator(MPxFileTranslator):
 
 
 class SKLTranslator(MPxFileTranslator):
-    typeName = 'League of Legends: SKL'
-    extension = 'skl'
+    name = 'League of Legends: SKL'
+    ext = 'skl'
 
     def __init__(self):
         MPxFileTranslator.__init__(self)
@@ -72,18 +72,18 @@ class SKLTranslator(MPxFileTranslator):
         return False
 
     def defaultExtension(self):
-        return self.extension
+        return self.ext
 
     def filter(self):
-        return f'*.{self.extension}'
+        return f'*.{self.ext}'
 
     @classmethod
     def creator(cls):
         return asMPxPtr(cls())
 
-    def reader(self, fileObject, optionString, accessMode):
+    def reader(self, file, options, access):
         skl = SKL()
-        path = fileObject.expandedFullName()
+        path = file.expandedFullName()
         if not path.endswith('.skl'):
             path += '.skl'
         skl.read(path)
@@ -93,8 +93,8 @@ class SKLTranslator(MPxFileTranslator):
 
 
 class SkinTranslator(MPxFileTranslator):
-    typeName = 'League of Legends: SKN + SKL'
-    extension = 'skn'
+    name = 'League of Legends: SKN + SKL'
+    ext = 'skn'
 
     def __init__(self):
         MPxFileTranslator.__init__(self)
@@ -106,17 +106,17 @@ class SkinTranslator(MPxFileTranslator):
         return False
 
     def defaultExtension(self):
-        return self.extension
+        return self.ext
 
     def filter(self):
-        return f'*.{self.extension}'
+        return f'*.{self.ext}'
 
     @classmethod
     def creator(cls):
         return asMPxPtr(cls())
 
-    def writer(self, fileObject, optionString, accessMode):
-        if accessMode != MPxFileTranslator.kExportActiveAccessMode:
+    def writer(self, file, options, access):
+        if access != MPxFileTranslator.kExportActiveAccessMode:
             raise FunnyError(
                 f'[SkinTranslator.writer()]: Stop! u violated the law, use "Export Selection" or i violate u UwU.')
 
@@ -130,7 +130,7 @@ class SkinTranslator(MPxFileTranslator):
         skl.flip()
         skn.flip()
 
-        path = fileObject.rawFullName()
+        path = file.rawFullName()
         # fix for file with mutiple '.', this api is just meh
         if not path.endswith('.skn'):
             path += '.skn'
@@ -140,8 +140,8 @@ class SkinTranslator(MPxFileTranslator):
 
 
 class ANMTranslator(MPxFileTranslator):
-    typeName = 'League of Legends: ANM'
-    extension = 'anm'
+    name = 'League of Legends: ANM'
+    ext = 'anm'
 
     def __init__(self):
         MPxFileTranslator.__init__(self)
@@ -156,18 +156,18 @@ class ANMTranslator(MPxFileTranslator):
         return False
 
     def defaultExtension(self):
-        return self.extension
+        return self.ext
 
     def filter(self):
-        return f'*.{self.extension}'
+        return f'*.{self.ext}'
 
     @classmethod
     def creator(cls):
         return asMPxPtr(cls())
 
-    def reader(self, fileObject, optionString, accessMode):
+    def reader(self, file, options, access):
         anm = ANM()
-        path = fileObject.expandedFullName()
+        path = file.expandedFullName()
         if not path.endswith('.anm'):
             path += '.anm'
 
@@ -176,16 +176,28 @@ class ANMTranslator(MPxFileTranslator):
         anm.load()
         return True
 
-    def writer(self, fileObject, optionString, accessMode):
-        pass
+    def writer(self, file, options, access):
+        if access != MPxFileTranslator.kExportAccessMode:
+            raise FunnyError(
+                f'[ANMTranslator.writer()]: Stop! u violated the law, use "Export All" or i violate u UwU.')
+
+        anm = ANM()
+        anm.dump()
+        anm.flip()
+        path = file.expandedFullName()
+        if not path.endswith('.anm'):
+            path += '.anm'
+        anm.write(path)
+        return True
 
 
+# plugin register
 def initializePlugin(obj):
     # totally not copied code
     plugin = MFnPlugin(obj, 'tarngaina', '1.0')
     try:
         plugin.registerFileTranslator(
-            SKNTranslator.typeName,
+            SKNTranslator.name,
             None,
             SKNTranslator.creator,
             "SKNTranslatorOpts",
@@ -198,7 +210,7 @@ def initializePlugin(obj):
 
     try:
         plugin.registerFileTranslator(
-            SKLTranslator.typeName,
+            SKLTranslator.name,
             None,
             SKLTranslator.creator,
             None,
@@ -211,7 +223,7 @@ def initializePlugin(obj):
 
     try:
         plugin.registerFileTranslator(
-            SkinTranslator.typeName,
+            SkinTranslator.name,
             None,
             SkinTranslator.creator,
             None,
@@ -224,7 +236,7 @@ def initializePlugin(obj):
 
     try:
         plugin.registerFileTranslator(
-            ANMTranslator.typeName,
+            ANMTranslator.name,
             None,
             ANMTranslator.creator,
             None,
@@ -240,35 +252,35 @@ def uninitializePlugin(obj):
     plugin = MFnPlugin(obj)
     try:
         plugin.deregisterFileTranslator(
-            SKNTranslator.typeName
+            SKNTranslator.name
         )
     except Exception as e:
         cmds.warning(
-            f'Can\'t deregister plug-in node {SKNTranslator.typeName}: {e}')
+            f'Couldn\'t deregister SKNTranslator: [{e}]: {e.message}')
 
     try:
         plugin.deregisterFileTranslator(
-            SKLTranslator.typeName
+            SKLTranslator.name
         )
     except Exception as e:
         cmds.warning(
-            f'Can\'t deregister plug-in node {SKLTranslator.typeName}: {e}')
+            f'Couldn\'t deregister SKLTranslator: [{e}]: {e.message}')
 
     try:
         plugin.deregisterFileTranslator(
-            SkinTranslator.typeName
+            SkinTranslator.name
         )
     except Exception as e:
         cmds.warning(
-            f'Can\'t deregister plug-in node {SkinTranslator.typeName}: {e}')
+            f'Couldn\'t deregister SkinTranslator: [{e}]: {e.message}')
 
     try:
         plugin.deregisterFileTranslator(
-            ANMTranslator.typeName
+            ANMTranslator.name
         )
     except Exception as e:
         cmds.warning(
-            f'Can\'t deregister plug-in node {ANMTranslator.typeName}: {e}')
+            f'Couldn\'t deregister ANMTranslator: [{e}]: {e.message}')
 
 
 # helper funcs and structures
@@ -386,8 +398,8 @@ class FunnyError(Exception):
 
 # for convert anm/skl joint name to elf hash
 class Hash:
+    # ay yo check out this elf: https://i.imgur.com/Cvl8PFu.png
     def elf(s):
-        # ay yo check out this elf: https://i.imgur.com/Cvl8PFu.png
         s = s.lower()
         h = 0
         for c in s:
@@ -399,7 +411,7 @@ class Hash:
         return h
 
 
-# for v5 anm compress/decompress transform properties
+# for v5 anm decompress transform properties
 class CTransform:
     class Quat:
         def decompress(bytes):
@@ -430,23 +442,6 @@ class CTransform:
             else:
                 return MQuaternion(a, b, c, d)
 
-        def compress(quat):
-            sqrt2 = 1.41421356237
-            values = [quat.x, quat.y, quat.z, quat.w]
-            for i in range(0, 4):
-                if (0.0 - values[i]) > 1.0 / sqrt2:
-                    values[i] = 0.0-values[i]
-
-            max_index = values.index(max(values))
-            res = max_index << 45
-            j = 0
-            for i in range(0, 4):
-                if i != max_index:
-                    temp = round(16383.5 * (sqrt2 * values[i] + 1.0))
-                    res |= (temp & 32767) << 15 * (2 - j)
-                    j += 1
-            return res.to_bytes(8, 'little')[:6]
-
     class Vec:
         def decompress(min, max, bytes):
             res = max - min
@@ -460,9 +455,9 @@ class CTransform:
 
             res += min
             return MVector(res.x, res.y, res.z)
+
+
 # for anm/skl joint set transform - transformation matrix
-
-
 class MTransform():
     def decompose(transform, space):
         # get translation, scale and rotation (quaternion) out of transformation matrix
@@ -520,9 +515,8 @@ class MTransform():
             rotation.x, rotation.y, rotation.z, rotation.w, space)
         return transform
 
+
 # skl
-
-
 class SKLJoint:
     def __init__(self):
         self.name = None
@@ -581,11 +575,11 @@ class SKL:
                 influences_count = bs.read_uint32()
 
                 joints_offset = bs.read_int32()
-                joint_indices_offset = bs.read_int32()
+                bs.read_int32()  # joint indices offset
                 influences_offset = bs.read_int32()
                 bs.read_uint32()  # name offset - pad
                 bs.read_uint32()  # asset name offset - pad
-                joint_names_offset = bs.read_int32()
+                bs.read_int32()  # joint names offset
 
                 bs.read_uint32()  # reserved offset - pad
                 bs.read_uint32()
@@ -629,7 +623,6 @@ class SKL:
                         self.influences.append(bs.read_uint16())
 
                 # i think that is all we need, reading joint_indices_offset, name and asset name doesnt help anything
-
             else:
                 # legacy
                 self.legacy = True
@@ -637,6 +630,7 @@ class SKL:
                 # because signature in old skl is first 8bytes
                 # need to go back pos 0 to read 8 bytes again
                 bs.stream.seek(0)
+
                 magic = bs.read_bytes(8).decode('ascii')
                 if magic != 'r3d2sklt':
                     raise FunnyError(
@@ -1480,9 +1474,8 @@ class SKN:
                 bs.write_vec3(vertex.normal)
                 bs.write_vec2(vertex.uv)
 
+
 # anm
-
-
 class ANMPose:
     def __init__(self):
         self.time = None
@@ -1490,6 +1483,11 @@ class ANMPose:
         self.translation = None
         self.scale = None
         self.rotation = None
+
+        # for dumping
+        self.translation_index = None
+        self.scale_index = None
+        self.rotation_index = None
 
 
 class ANMTrack:
@@ -1537,10 +1535,9 @@ class ANM:
                 joint_count = bs.read_uint32()
                 frames_count = bs.read_uint32()
                 bs.read_uint32()  # jump cache count
-
                 duration = bs.read_float()
                 bs.read_float()  # fps
-                for i in range(0, 6):  # pad some hard things
+                for i in range(0, 6):  # pad some random things
                     bs.read_float()
 
                 translation_min = bs.read_vec3()
@@ -1569,7 +1566,7 @@ class ANM:
                     joint_hashes.append(bs.read_uint32())
 
                 # create tracks
-                self.duration = duration * 30.0
+                self.duration = duration * 30.0 + 1
                 for i in range(0, joint_count):
                     track = ANMTrack()
                     track.joint_hash = joint_hashes[i]
@@ -1591,7 +1588,7 @@ class ANM:
                     time = compressed_time / 65535.0 * duration * 30.0
                     pose = None
                     for pose in track.poses:
-                        if pose.time == time:
+                        if isclose(pose.time, time):
                             break
                         else:
                             pose = None
@@ -1676,14 +1673,14 @@ class ANM:
                     vecs = []
                     bs.stream.seek(vecs_offset + 12)
                     for i in range(0, vecs_count):
-                        vecs.append(bs.read_vec3())
+                        vecs.append(bs.read_vec3())  # unique vec
 
                     # read quats
                     quats = []
                     bs.stream.seek(quats_offset + 12)
                     for i in range(0, quats_count):
                         quats.append(
-                            CTransform.Quat.decompress(bs.read_bytes(6)))
+                            CTransform.Quat.decompress(bs.read_bytes(6)))  # unique compressed quat
 
                     # read frames
                     frames = []
@@ -1766,13 +1763,12 @@ class ANM:
                     bs.stream.seek(vecs_offset + 12)
                     vecs = []
                     for i in range(0, vecs_count):
-                        vecs.append(bs.read_vec3())
+                        vecs.append(bs.read_vec3())  # unique vec
 
                     bs.stream.seek(quats_offset + 12)
                     quats = []
                     for i in range(0, quats_count):
-                        quats.append(bs.read_quat())
-
+                        quats.append(bs.read_quat())  # unique quat
                     bs.stream.seek(frames_offset + 12)
                     frames = []
                     for i in range(0, frame_count * track_count):
@@ -1836,7 +1832,7 @@ class ANM:
                     for i in range(0, track_count):
                         track = ANMTrack()
                         track.joint_hash = Hash.elf(bs.read_padded_string(
-                            32))  # name - hash the name for newer version
+                            32))  # joint name -> joint hash
                         bs.read_uint32()  # flags
                         for j in range(0, frame_count):
                             pose = ANMPose()
@@ -1853,13 +1849,6 @@ class ANM:
                     f'[ANM.read({path})]: Wrong signature file: {magic}')
 
     def load(self):
-        # delete all channel data
-        MGlobal.executeCommand('delete -all -c')
-
-        # ensure 30fps scene
-        # im pretty sure all lol's anms are in 30fps, or i can change this later idk
-        MGlobal.executeCommand('currentUnit -time ntsc')
-
         # actual tracks (track of joints that found in scene)
         actual_tracks = []
         joint_dag_path = MDagPath()
@@ -1892,9 +1881,16 @@ class ANM:
             raise FunnyError(
                 '[ANM.load()]: No data joints found in scene, please import SKL if joints are not in scene.')
 
+        # delete all channel data
+        MGlobal.executeCommand('delete -all -c')
+
+        # ensure 30fps scene
+        # im pretty sure all lol's anms are in 30fps, or i can change this later idk
+        MGlobal.executeCommand('currentUnit -time ntsc')
+
         # adjust playback
         MGlobal.executeCommand(
-            f'playbackOptions -e -min 0 -max {self.duration} -animationStartTime 0 -animationEndTime {self.duration} -playbackSpeed 1')
+            f'playbackOptions -e -min 0 -max {self.duration-1} -animationStartTime 0 -animationEndTime {self.duration-1} -playbackSpeed 1')
 
         for track in actual_tracks:
             ik_joint = MFnIkJoint(track.dag_path)
@@ -1905,13 +1901,14 @@ class ANM:
 
                 setKeyFrame = 'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0'
                 modified = False  # check if we actually need to set key frame
+                # translation
                 if pose.translation != None:
                     translation = pose.translation
                     ik_joint.setTranslation(
                         MVector(translation.x, translation.y, translation.z), MSpace.kTransform)
                     setKeyFrame += ' -at translateX -at translateY -at translateZ'
                     modified = True
-
+                # scale
                 if pose.scale != None:
                     scale = pose.scale
                     util = MScriptUtil()
@@ -1920,7 +1917,7 @@ class ANM:
                     ik_joint.setScale(ptr)
                     setKeyFrame += ' -at scaleX -at scaleY -at scaleZ'
                     modified = True
-
+                # rotation
                 if pose.rotation != None:
                     rotation = pose.rotation
                     rotation = MQuaternion(
@@ -1937,14 +1934,167 @@ class ANM:
                     setKeyFrame += f' {track.joint_name}'
                     MGlobal.executeCommand(setKeyFrame)
 
-        # slerp the rotations
+        # slerp all quaternions - EULER SUCKS!
         for track in actual_tracks:
             MGlobal.executeCommand(
                 f'rotationInterpolation -c quaternionSlerp {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
             )
 
     def dump(self):
-        pass
+        # get joint in scene
+        dag_path = MDagPath()
+        iterator = MItDag(MItDag.kDepthFirst, MFn.kJoint)
+        while not iterator.isDone():
+            iterator.getPath(dag_path)
+            ik_joint = MFnIkJoint(dag_path)
 
-    def write(self):
-        pass
+            track = ANMTrack()
+            track.dag_path = MDagPath(dag_path)
+            track.joint_name = ik_joint.name()
+            track.joint_hash = Hash.elf(track.joint_name)
+            self.tracks.append(track)
+            iterator.next()
+
+        # ensure 30 fps
+        MGlobal.executeCommand('currentUnit -time ntsc')
+
+        # get duration with cursed api
+        # assume that start time always at 0
+        # if its not then well its the ppl fault, not mine. haha sucker
+        end_util = MScriptUtil()
+        end_ptr = end_util.asDoublePtr()
+        MGlobal.executeCommand("playbackOptions -q -animationEndTime", end_ptr)
+        end = end_util.getDouble(end_ptr)
+        self.duration = int(round(end)) + 1
+
+        for time in range(0, self.duration):
+            MGlobal.executeCommand(f'currentTime {time}')
+
+            for track in self.tracks:
+                ik_joint = MFnIkJoint(track.dag_path)
+
+                pose = ANMPose()
+                pose.time = time
+                # translation
+                translation = ik_joint.getTranslation(MSpace.kTransform)
+                pose.translation = MVector(
+                    translation.x, translation.y, translation.z)
+                # scale
+                scale_util = MScriptUtil()
+                scale_util.createFromDouble(0.0, 0.0, 0.0)
+                scale_ptr = scale_util.asDoublePtr()
+                ik_joint.getScale(scale_ptr)
+                pose.scale = MVector(
+                    scale_util.getDoubleArrayItem(scale_ptr, 0),
+                    scale_util.getDoubleArrayItem(scale_ptr, 1),
+                    scale_util.getDoubleArrayItem(scale_ptr, 2)
+                )
+                # rotation
+                orient = MQuaternion()
+                ik_joint.getOrientation(orient)
+                axe = ik_joint.rotateOrientation(MSpace.kTransform)
+                rotation = MQuaternion()
+                ik_joint.getRotation(rotation, MSpace.kTransform)
+                rotation = axe * rotation * orient
+                pose.rotation = MQuaternion(
+                    rotation.x, rotation.y, rotation.z, rotation.w
+                )
+                track.poses.append(pose)
+
+    def write(self, path):
+        # build unique vecs + quats
+        uni_vecs = []
+        uni_quats = []
+
+        for track in self.tracks:
+            for pose in track.poses:
+                # translation
+                translation = pose.translation
+                index = -1
+                for i in range(0, len(uni_vecs)):
+                    vec = uni_vecs[i]
+                    if isclose(translation.x, vec.x) and isclose(translation.y, vec.y) and isclose(translation.z, vec.z):
+                        index = i
+                        break
+                if index == -1:  # unique
+                    index = len(uni_vecs)
+                    uni_vecs.append(translation)
+                pose.translation_index = index
+                # scale (also vec)
+                scale = pose.scale
+                index = -1
+                for i in range(0, len(uni_vecs)):
+                    vec = uni_vecs[i]
+                    if isclose(scale.x, vec.x) and isclose(scale.y, vec.y) and isclose(scale.z, vec.z):
+                        index = i
+                        break
+                if index == -1:  # unique
+                    index = len(uni_vecs)
+                    uni_vecs.append(scale)
+                pose.scale_index = index
+                # rotation
+                rotation = pose.rotation
+                index = -1
+                for i in range(0, len(uni_quats)):
+                    quat = uni_quats[i]
+                    if isclose(rotation.x, quat.x) and isclose(rotation.y, quat.y) and isclose(rotation.z, quat.z) and isclose(rotation.w, quat.w):
+                        index = i
+                        break
+                if index == -1:  # unique
+                    index = len(uni_quats)
+                    uni_quats.append(rotation)
+                pose.rotation_index = index
+
+        with open(path, 'wb') as f:
+            bs = BinaryStream(f)
+
+            bs.write_bytes('r3d2anmd'.encode('ascii'))  # magic
+            bs.write_uint32(4)  # ver 4
+
+            bs.write_uint32(0)  # size - later
+            bs.write_uint32(0xBE0794D3)  # format token
+            bs.write_uint32(0)  # version?
+            bs.write_uint32(0)  # flags
+
+            bs.write_uint32(len(self.tracks))  # track count
+            bs.write_uint32(self.duration)  # frame count
+            bs.write_float(1.0 / 30.0)  # frame duration = 1 / 30fps
+
+            bs.write_int32(0)  # tracks offset
+            bs.write_int32(0)  # asset name offset
+            bs.write_int32(0)  # time offset
+
+            bs.write_int32(64)  # vecs offset
+            quats_offset_offset = bs.stream.tell()
+            bs.write_int32(0)   # quats offset - later
+            bs.write_int32(0)   # frames offset - later
+
+            bs.stream.seek(12, 1)  # pad 12 empty bytes
+
+            # vecs
+            for vec in uni_vecs:
+                bs.write_vec3(vec)
+
+            quats_offset = bs.stream.tell()
+            for quat in uni_quats:
+                bs.write_quat(quat)
+
+            frames_offset = bs.stream.tell()
+            for time in range(0, self.duration):
+                for track in self.tracks:
+                    bs.write_uint32(track.joint_hash)
+                    bs.write_uint16(track.poses[time].translation_index)
+                    bs.write_uint16(track.poses[time].scale_index)
+                    bs.write_uint16(track.poses[time].rotation_index)
+                    bs.write_uint16(0)
+
+            # quats offset and frames offset
+            bs.stream.seek(quats_offset_offset)
+            bs.write_int32(quats_offset - 12)  # need to minus 12 bytes back
+            bs.write_int32(frames_offset - 12)
+            
+            # resource size
+            bs.stream.seek(0, 2)
+            fsize = bs.stream.tell()
+            bs.stream.seek(12)
+            bs.write_uint32(fsize)

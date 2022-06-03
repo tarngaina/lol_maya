@@ -1,7 +1,7 @@
 # LoL Maya 2023
-An attempt to update RiotFileTranslator to Maya 2023
+An attempt to update RiotFileTranslator to Maya 2023.
 
-Infos:
+### Infos:
 1. Misc:
     - Add fix for read/write file with suffix in name.
 2. SKN: 
@@ -22,12 +22,12 @@ Infos:
         - `r3d2canm`
         - `r3d2anmd`: V3, V4, V5
     - Write:
-        - `r3d2anmd`: V5 : todo
+        - `r3d2anmd`: V4
 5. SCO/SCB: todo
 
 
 
-Installation:
+### Installation:
 
 1. Download `plug-ins` and `scripts` folder.
 

@@ -1,4 +1,3 @@
-
 from random import choice, uniform
 from struct import pack, unpack
 from math import sqrt, isclose
@@ -9,9 +8,10 @@ from maya.OpenMayaMPx import *
 from maya.OpenMayaAnim import *
 from maya.OpenMaya import *
 
+# really need to clean things up
+
+
 # maya file translator set up
-
-
 class SKNTranslator(MPxFileTranslator):
     name = 'League of Legends: SKN'
     ext = 'skn'
@@ -1323,13 +1323,15 @@ class SKN:
                             1.0 - v_util.getFloat(v_ptr)
                         )
 
-                        # create SKNVertex
+                        # create SKNVertex - recreate pointer for safe
                         vertex = SKNVertex()
-                        vertex.position = temp_position
+                        vertex.position = MVector(
+                            temp_position.x, temp_position.y, temp_position.z)
                         vertex.bones_indices = temp_bones_indices
                         vertex.weights = temp_weights
-                        vertex.normal = temp_normal
-                        vertex.uv = temp_uv
+                        vertex.normal = MVector(
+                            temp_normal.x, temp_normal.y, temp_normal.z)
+                        vertex.uv = MVector(temp_uv.x, temp_uv.y)
                         vertex.uv_index = temp_uv_index
 
                         shader_vertices[shader].append(vertex)
@@ -2092,7 +2094,7 @@ class ANM:
             bs.stream.seek(quats_offset_offset)
             bs.write_int32(quats_offset - 12)  # need to minus 12 bytes back
             bs.write_int32(frames_offset - 12)
-            
+
             # resource size
             bs.stream.seek(0, 2)
             fsize = bs.stream.tell()

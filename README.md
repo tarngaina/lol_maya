@@ -8,6 +8,8 @@ An attempt to update RiotFileTranslator to Maya 2023.
     - Read: 
         - `33 22 11 00`: V0, V1, V2, V3, V4
         - Add option to read SKN+SKL as skin cluster.
+        
+            ![](https://i.imgur.com/UiNIMul.png)
     - Write: 
         - `33 22 11 00`: V1
         - Add fix for Maya duplicate name system on joint-material nodes.
@@ -16,14 +18,18 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - `r3d2sklt`: V1, V2
         - `C3 4F FD 22`: V0
     - Write:
-        - `C3 4F FD 22`: V0
+        - `C3 4F FD 22`: V0 
+        - New SKL, no need to update after.
 4. ANM:
     - Read: 
         - `r3d2canm`
         - `r3d2anmd`: V3, V4, V5
-        - Must change scene to 30fps before import ANM.
+        - Before import ANM: change import options to override fps & animation range from source on existing scene.
+        
+            ![](https://i.imgur.com/2hJvlGt.png)
     - Write:
         - `r3d2anmd`: V4
+        - Uncompressed, scaling support.
 5. Static object:
     - Read:
         - SCO 
@@ -35,10 +41,26 @@ An attempt to update RiotFileTranslator to Maya 2023.
 
 ### Installation:
 
-1. Download `plug-ins` and `scripts` folder.
+1. Download `plug-ins` + `scripts` folder and move both them to `Documents` \ `maya` \ `2023`.
 
-2. Move both folders in `Documents` \ `maya` \ `2023`.
+    ![](https://i.imgur.com/OuXcoD7.png)
 
-3. In Maya toolbar, select `Windows` > `Settings/Preferences` > `Plug-in Manager`.
+2. In Maya toolbar, select `Windows` > `Settings/Preferences` > `Plug-in Manager`.
 
-4. Tick `Load` / `Auto Load` on the plug-in `lol_maya.py`.
+    ![](https://i.imgur.com/fawHenl.png)
+
+3. Tick `Load` / `Auto Load` on the plug-in `lol_maya.py`.
+
+    ![](https://i.imgur.com/D0Za7BU.png)
+
+
+
+### External Links:
+
+- [LeagueFileTranlastor](https://github.com/LoL-Fantome/LeagueFileTranslator)
+
+- [LeagueToolKit](https://github.com/LoL-Fantome/LeagueFileTranslator)
+
+- [LoL2Blender](https://github.com/WorldSEnder/LoL2Blender)
+
+- [Maya SDK Reference](https://help.autodesk.com/cloudhelp/2023/ENU/Maya-SDK/cpp_ref/modules.html)

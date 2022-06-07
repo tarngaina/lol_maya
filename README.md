@@ -6,7 +6,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
     - Add fix for read/write file with suffix in name.
 2. SKN: 
     - Read: 
-        - `33 22 11 00`: V0, V1, V2, V4
+        - `33 22 11 00`: V0, V1, V2, V3, V4
         - Add option to read SKN+SKL as skin cluster.
     - Write: 
         - `33 22 11 00`: V1
@@ -27,7 +27,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
 5. Static object:
     - Read:
         - SCO 
-        - SCB: `r3d2Mesh`
+        - SCB: `r3d2Mesh`: V1, V2, V3
         - UV not working right now: todo
     - Write: todo
 

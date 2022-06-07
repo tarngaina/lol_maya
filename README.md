@@ -1,6 +1,9 @@
 # LoL Maya 2023
 An attempt to update RiotFileTranslator to Maya 2023.
 
+![](https://i.imgur.com/OHJrOyi.gif)
+
+
 ### Infos:
 1. Misc:
     - Add fix for read/write file with suffix in name.
@@ -24,7 +27,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
     - Read: 
         - `r3d2canm`
         - `r3d2anmd`: V3, V4, V5
-        - Before import ANM: change import options to override fps & animation range from source on existing scene.
+        - Before import ANM: change import options to override source's fps & animation range on existing scene.
         
             ![](https://i.imgur.com/2hJvlGt.png)
     - Write:

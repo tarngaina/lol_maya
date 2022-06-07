@@ -1153,13 +1153,13 @@ class SKN:
         MGlobal.getActiveSelectionList(selections)
         iterator = MItSelectionList(selections, MFn.kMesh)
         if iterator.isDone():
-            raise FunnyError(f'[SKL.dump()]: Please select a mesh.')
+            raise FunnyError(f'[SKN.dump()]: Please select a mesh.')
         mesh_dag_path = MDagPath()
         iterator.getDagPath(mesh_dag_path)  # get first mesh
         iterator.next()
         if not iterator.isDone():
             raise FunnyError(
-                f'[SKL.dump()]: More than 1 mesh selected., combine all meshes if you have mutiple meshes.')
+                f'[SKN.dump()]: More than 1 mesh selected., combine all meshes if you have mutiple meshes.')
         mesh = MFnMesh(mesh_dag_path)
 
         # find skin cluster
@@ -1168,7 +1168,7 @@ class SKN:
         in_mesh.connectedTo(in_mesh_connections, True, False)
         if in_mesh_connections.length() == 0:
             raise FunnyError(
-                f'[SKL.dump({mesh.name()})]: Failed to find skin cluster, make sure you binded the skin.')
+                f'[SKN.dump({mesh.name()})]: Failed to find skin cluster, make sure you binded the skin.')
         skin_cluster = MFnSkinCluster(in_mesh_connections[0].node())
         influence_dag_paths = MDagPathArray()
         influence_count = skin_cluster.influenceObjects(influence_dag_paths)
@@ -1195,7 +1195,7 @@ class SKN:
         mesh.getHoles(hole_info, hole_vertex)
         if hole_info.length() != 0:
             raise FunnyError(
-                f'[SKL.dump({mesh.name()})]: Mesh contains holes: {hole_info.length()}')
+                f'[SKN.dump({mesh.name()})]: Mesh contains holes: {hole_info.length()}')
 
         # check non-triangulated polygons
         # check vertex has multiple shaders
@@ -1205,13 +1205,13 @@ class SKN:
         while not iterator.isDone():
             if not iterator.hasValidTriangulation():
                 raise FunnyError(
-                    f'[SKL.dump({mesh.name()})]: Mesh contains a non-triangulated polygon, try Mesh -> Triangulate.')
+                    f'[SKN.dump({mesh.name()})]: Mesh contains a non-triangulated polygon, try Mesh -> Triangulate.')
 
             index = iterator.index()
             shader_index = poly_shaders[index]
             if shader_index == -1:
                 raise FunnyError(
-                    f'[SKL.dump({mesh.name()})]: Mesh contains a face with no shader, make sure you assigned a material to all faces.')
+                    f'[SKN.dump({mesh.name()})]: Mesh contains a face with no shader, make sure you assigned a material to all faces.')
 
             vertices = MIntArray()
             iterator.getVertices(vertices)
@@ -1219,7 +1219,7 @@ class SKN:
             for i in range(0, len69):
                 if shader_count > 1 and vertex_shaders[vertices[i]] not in [-1, shader_index]:
                     raise FunnyError(
-                        f'[SKL.dump({mesh.name()})]: Mesh contains a vertex with multiple shaders, try re-assign a lambert material to this mesh.')
+                        f'[SKN.dump({mesh.name()})]: Mesh contains a vertex with multiple shaders, try re-assign a lambert material to this mesh.')
                 vertex_shaders[vertices[i]] = shader_index
 
             iterator.next()
@@ -1249,7 +1249,7 @@ class SKN:
                     weight_sum += weight
             if temp_count > 4:
                 raise FunnyError(
-                    f'[SKL.dump({mesh.name()})]: Mesh contains a vertex have weight afftected more than 4 influences, try:\n1. Rebind the skin with max 4 influences setting.\n2. Prune weights by 0.05.')
+                    f'[SKN.dump({mesh.name()})]: Mesh contains a vertex have weight afftected more than 4 influences, try:\n1. Rebind the skin with max 4 influences setting.\n2. Prune weights by 0.05.')
 
             # normalize weights
             for j in range(0, weight_influence_count):
@@ -1340,7 +1340,7 @@ class SKN:
                         seen.append(uv_index)
             else:
                 raise FunnyError(
-                    f'[SKL.dump({mesh.name()})]: Mesh contains a vertex with no UVs.')
+                    f'[SKN.dump({mesh.name()})]: Mesh contains a vertex with no UVs.')
             iterator.next()
 
         # idk what this block does, must be not important
@@ -1384,12 +1384,12 @@ class SKN:
                     data_index = data_indices[vertices[i]]
                     if data_index == -1 or data_index >= len(self.vertices):
                         raise FunnyError(
-                            f'[SKL.dump({mesh.name()})]: Data index out of range.')
+                            f'[SKN.dump({mesh.name()})]: Data index out of range.')
 
                     for j in range(data_index, len(self.vertices)):
                         if self.vertices[j].data_index != data_index:
                             raise FunnyError(
-                                f'[SKL.dump({mesh.name()})]: Could not find corresponding face vertex.')
+                                f'[SKN.dump({mesh.name()})]: Could not find corresponding face vertex.')
                         elif self.vertices[j].uv_index == uv_index:
                             for k in range(0, lenDOGE):
                                 if indices[k] == vertices[i]:
@@ -1509,6 +1509,9 @@ class ANM:
 
         self.tracks = []
 
+        # for loading
+        self.compressed = None
+
     def flip(self):
         # DO A FLIP!
         for track in self.tracks:
@@ -1528,6 +1531,7 @@ class ANM:
             version = bs.read_uint32()
 
             if magic == 'r3d2canm':
+                self.compressed = True
                 # compressed
 
                 bs.read_uint32()  # resource_size
@@ -1590,7 +1594,7 @@ class ANM:
                     time = compressed_time / 65535.0 * duration * 30.0
                     pose = None
                     for pose in track.poses:
-                        if isclose(pose.time, time):
+                        if isclose(pose.time, time, rel_tol=0, abs_tol=0.01):
                             break
                         else:
                             pose = None
@@ -1623,6 +1627,8 @@ class ANM:
                         )
 
             elif magic == 'r3d2anmd':
+                self.compressed = False
+
                 if version == 5:
                     # v5
 
@@ -1888,59 +1894,92 @@ class ANM:
 
         # ensure 30fps scene
         # im pretty sure all lol's anms are in 30fps, or i can change this later idk
+        # this only ensure the "import scene", not the existing scene in maya, to make this work:
+        # select "Override to Math Source" for both Framerate % Animation Range in Maya's import options panel
         MGlobal.executeCommand('currentUnit -time ntsc')
 
-        # adjust playback
+        # adjust animation range
         MGlobal.executeCommand(
             f'playbackOptions -e -min 0 -max {self.duration-1} -animationStartTime 0 -animationEndTime {self.duration-1} -playbackSpeed 1')
 
-        for track in actual_tracks:
-            ik_joint = MFnIkJoint(track.dag_path)
+        if self.compressed:
+            # slow but safe load for compressed anm
+            for track in actual_tracks:
+                ik_joint = MFnIkJoint(track.dag_path)
 
-            for pose in track.poses:
-                # this can be float too
-                MGlobal.executeCommand(f'currentTime {pose.time}')
+                for pose in track.poses:
+                    # this can be float too
+                    MGlobal.executeCommand(f'currentTime {pose.time}')
 
-                setKeyFrame = 'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0'
-                modified = False  # check if we actually need to set key frame
-                # translation
-                if pose.translation != None:
+                    setKeyFrame = 'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0'
+                    modified = False  # check if we actually need to set key frame
+                    # translation
+                    if pose.translation != None:
+                        translation = pose.translation
+                        ik_joint.setTranslation(
+                            MVector(translation.x, translation.y, translation.z), MSpace.kTransform)
+                        setKeyFrame += ' -at translateX -at translateY -at translateZ'
+                        modified = True
+                    # scale
+                    if pose.scale != None:
+                        scale = pose.scale
+                        util = MScriptUtil()
+                        util.createFromDouble(scale.x, scale.y, scale.z)
+                        ptr = util.asDoublePtr()
+                        ik_joint.setScale(ptr)
+                        setKeyFrame += ' -at scaleX -at scaleY -at scaleZ'
+                        modified = True
+                    # rotation
+                    if pose.rotation != None:
+                        rotation = pose.rotation
+                        rotation = MQuaternion(
+                            rotation.x, rotation.y, rotation.z, rotation.w)  # recreate pointer
+                        orient = MQuaternion()
+                        ik_joint.getOrientation(orient)
+                        axe = ik_joint.rotateOrientation(MSpace.kTransform)
+                        rotation = axe.inverse() * rotation * orient.inverse()
+                        ik_joint.setRotation(rotation, MSpace.kTransform)
+                        setKeyFrame += ' -at rotateX -at rotateY -at rotateZ'
+                        modified = True
+
+                    if modified:
+                        setKeyFrame += f' {track.joint_name}'
+                        MGlobal.executeCommand(setKeyFrame)
+
+            # slerp all quaternions - EULER SUCKS!
+            for track in actual_tracks:
+                MGlobal.executeCommand(
+                    f'rotationInterpolation -c quaternionSlerp {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
+                )
+        else:
+            # fast load decompressed animation
+            joint_names = [track.joint_name for track in actual_tracks]
+            for time in range(0, self.duration):
+                MGlobal.executeCommand(f'currentTime {time}')
+                for track in actual_tracks:
+                    pose = track.poses[time]
+                    ik_joint = MFnIkJoint(track.dag_path)
+
+                    # translation
                     translation = pose.translation
-                    ik_joint.setTranslation(
-                        MVector(translation.x, translation.y, translation.z), MSpace.kTransform)
-                    setKeyFrame += ' -at translateX -at translateY -at translateZ'
-                    modified = True
-                # scale
-                if pose.scale != None:
+                    ik_joint.setTranslation(translation, MSpace.kTransform)
+                    # scale
                     scale = pose.scale
                     util = MScriptUtil()
                     util.createFromDouble(scale.x, scale.y, scale.z)
                     ptr = util.asDoublePtr()
                     ik_joint.setScale(ptr)
-                    setKeyFrame += ' -at scaleX -at scaleY -at scaleZ'
-                    modified = True
-                # rotation
-                if pose.rotation != None:
+                    # rotation
                     rotation = pose.rotation
-                    rotation = MQuaternion(
-                        rotation.x, rotation.y, rotation.z, rotation.w)  # recreate pointer
                     orient = MQuaternion()
                     ik_joint.getOrientation(orient)
                     axe = ik_joint.rotateOrientation(MSpace.kTransform)
                     rotation = axe.inverse() * rotation * orient.inverse()
                     ik_joint.setRotation(rotation, MSpace.kTransform)
-                    setKeyFrame += ' -at rotateX -at rotateY -at rotateZ'
-                    modified = True
 
-                if modified:
-                    setKeyFrame += f' {track.joint_name}'
-                    MGlobal.executeCommand(setKeyFrame)
-
-        # slerp all quaternions - EULER SUCKS!
-        for track in actual_tracks:
-            MGlobal.executeCommand(
-                f'rotationInterpolation -c quaternionSlerp {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
-            )
+                setKeyFrame = 'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0 -at translateX -at translateY -at translateZ -at scaleX -at scaleY -at scaleZ -at rotateX -at rotateY -at rotateZ '
+                setKeyFrame += ' '.join(joint_names)
+                MGlobal.executeCommand(setKeyFrame)
 
     def dump(self):
         # get joint in scene
@@ -1957,12 +1996,21 @@ class ANM:
             self.tracks.append(track)
             iterator.next()
 
-        # ensure 30 fps
+        # ensure 30 fps, read ANM.load()
         MGlobal.executeCommand('currentUnit -time ntsc')
 
+        # assume that animation start time always at 0
+        # if its not then well, its the ppl fault, not mine. haha suckers
+        start_util = MScriptUtil()
+        start_ptr = start_util.asDoublePtr()
+        MGlobal.executeCommand(
+            "playbackOptions -q -animationStartTime", start_ptr)
+        start = start_util.getDouble(start_ptr)
+        if int(start) != 0:
+            raise FunnyError(
+                f'[ANM.dump()]: Animation start time is not at 0: {start}, check Time slider, make sure animation start at 0.')
+
         # get duration with cursed api
-        # assume that start time always at 0
-        # if its not then well its the ppl fault, not mine. haha sucker
         end_util = MScriptUtil()
         end_ptr = end_util.asDoublePtr()
         MGlobal.executeCommand("playbackOptions -q -animationEndTime", end_ptr)
@@ -2007,45 +2055,44 @@ class ANM:
         # build unique vecs + quats
         uni_vecs = []
         uni_quats = []
-
         for track in self.tracks:
             for pose in track.poses:
-                # translation
-                translation = pose.translation
-                index = -1
                 for i in range(0, len(uni_vecs)):
-                    vec = uni_vecs[i]
-                    if isclose(translation.x, vec.x) and isclose(translation.y, vec.y) and isclose(translation.z, vec.z):
-                        index = i
+                    # find pose translation
+                    if pose.translation == uni_vecs[i]:
+                        pose.translation_index = i
+
+                    # find pose scale
+                    if pose.scale == uni_vecs[i]:
+                        pose.scale_index = i
+
+                    if pose.translation_index != None and pose.scale_index != None:
+                        # if found both in unique vecs then break loop
                         break
-                if index == -1:  # unique
-                    index = len(uni_vecs)
-                    uni_vecs.append(translation)
-                pose.translation_index = index
-                # scale (also vec)
-                scale = pose.scale
-                index = -1
-                for i in range(0, len(uni_vecs)):
-                    vec = uni_vecs[i]
-                    if isclose(scale.x, vec.x) and isclose(scale.y, vec.y) and isclose(scale.z, vec.z):
-                        index = i
-                        break
-                if index == -1:  # unique
-                    index = len(uni_vecs)
-                    uni_vecs.append(scale)
-                pose.scale_index = index
-                # rotation
-                rotation = pose.rotation
-                index = -1
+
+                if pose.translation_index == None:
+                    # add new unique translation
+                    pose.translation_index = len(uni_vecs)
+                    uni_vecs.append(pose.translation)
+                if pose.scale_index == None:
+                    # also check if scale = translation
+                    if pose.scale == pose.translation:
+                        pose.scale_index = pose.translation_index
+                    else:
+                        # add new unique scale
+                        pose.scale_index = len(uni_vecs)
+                        uni_vecs.append(pose.scale)
+
                 for i in range(0, len(uni_quats)):
-                    quat = uni_quats[i]
-                    if isclose(rotation.x, quat.x) and isclose(rotation.y, quat.y) and isclose(rotation.z, quat.z) and isclose(rotation.w, quat.w):
-                        index = i
+                    if pose.rotation == uni_quats[i]:
+                        pose.rotation_index = i
+
+                    if pose.rotation_index != None:
                         break
-                if index == -1:  # unique
-                    index = len(uni_quats)
-                    uni_quats.append(rotation)
-                pose.rotation_index = index
+
+                if pose.rotation_index == None:
+                    pose.rotation_index = len(uni_quats)
+                    uni_quats.append(pose.rotation)
 
         with open(path, 'wb') as f:
             bs = BinaryStream(f)
@@ -2100,3 +2147,336 @@ class ANM:
             fsize = bs.stream.tell()
             bs.stream.seek(12)
             bs.write_uint32(fsize)
+
+
+# static object
+class SOVertex:
+    def __init__(self):
+        self.position = None
+        self.uv = None
+
+
+class SOSubmesh:
+    def __init__(self):
+        self.name = None
+        self.vertex_start = None
+        self.vertex_count = None
+        self.index_start = None
+        self.index_count = None
+
+
+class SOFace:
+    def __init__(self):
+        self.indices = []
+        self.material = None
+        self.uvs = []
+
+
+class SOData:
+    def __init__(self):
+        self.name = None
+
+        # this shud be joint?
+        self.central = None
+        self.pivot = None
+
+        self.vertices = []
+        self.faces = []
+
+    def read_sco(self, path):
+        with open(path, 'r') as f:
+            lines = f.readlines()
+            lines = [line[:-1] for line in lines]
+
+            magic = lines[0]
+            if magic != '[ObjectBegin]':
+                raise FunnyError(
+                    f'[SOData.read({path})]: Wrong file signature: {magic}')
+
+            index = 1  # skip first line
+            len1234 = len(lines)
+            while index < len1234:
+                inp = lines[index].split()
+                if len(inp) == 0:  # cant split, must be a random line
+                    index += 1
+                    continue
+
+                if inp[0] == 'Name=':
+                    self.name = inp[1]
+                    if ':' in self.name:
+                        self.name = self.name.split(':')[1]
+
+                elif inp[0] == 'CentralPoint=':
+                    self.central = MVector(
+                        float(inp[1]), float(inp[2]), float(inp[3]))
+                    self.pivot = MVector(self.central)
+
+                elif inp[0] == 'PivotPoint=':
+                    self.pivot = MVector(
+                        float(inp[1]), float(inp[2]), float(inp[3]))
+
+                elif inp[0] == 'Verts=':
+                    vertex_count = int(inp[1])
+                    for i in range(index+1, index+1 + vertex_count):
+                        inp2 = lines[i].split()
+                        vertex = MVector(
+                            float(inp2[0]), float(inp2[1]), float(inp2[2]))
+                        self.vertices.append(vertex)
+                    index = i+1
+                    continue
+
+                elif inp[0] == 'Faces=':
+                    face_count = int(inp[1])
+                    for i in range(index+1, index+1 + face_count):
+                        inp2 = lines[i].replace('\t', ' ').split()
+                        face = SOFace()
+                        face.indices = [int(inp2[1]), int(
+                            inp2[2]), int(inp2[3])]
+                        face.material = inp2[4]
+                        face.uvs = [
+                            MVector(float(inp2[5]), float(inp2[8])),
+                            MVector(float(inp2[6]), float(inp2[9])),
+                            MVector(float(inp2[7]), float(inp2[10]))
+                        ]
+                        self.faces.append(face)
+                    index = i+1
+                    continue
+
+                index += 1
+
+    def read_scb(self, path):
+        with open(path, 'rb') as f:
+            bs = BinaryStream(f)
+
+            magic = bs.read_bytes(8).decode('ascii')
+            if magic != 'r3d2Mesh':
+                raise FunnyError(
+                    f'[SOData.read({path})]: Wrong file signature: {magic}')
+
+            major = bs.read_uint16()
+            minor = bs.read_uint16()
+            if major not in [3, 2] and minor != 1:
+                raise FunnyError(
+                    f'[SOData.read({path})]: Unsupported file version: {major}.{minor}')
+
+            self.name = bs.read_padded_string(128)
+
+            vertex_count = bs.read_uint32()
+            face_count = bs.read_uint32()
+
+            flags = bs.read_uint32()
+
+            bs.read_vec3()  # bouding box
+            bs.read_vec3()
+
+            vertex_color = 0
+            if major == 3 and minor == 2:
+                vertex_color = bs.read_uint32()  # for padding
+
+            for i in range(0, vertex_count):
+                self.vertices.append(bs.read_vec3())
+
+            if vertex_color == 1:
+                for i in range(0, vertex_count):
+                    bs.read_byte()  # pad all color
+                    bs.read_byte()
+                    bs.read_byte()
+                    bs.read_byte()
+
+            self.central = bs.read_vec3()
+            self.pivot = MVector(self.central)
+
+            for i in range(0, face_count):
+                face = SOFace()
+                face.indices = [bs.read_uint32(), bs.read_uint32(),
+                                bs.read_uint32()]
+                face.material = bs.read_padded_string(64)
+
+                uvs = [bs.read_float(), bs.read_float(), bs.read_float(),
+                       bs.read_float(), bs.read_float(), bs.read_float()]
+                face.uvs = [
+                    MVector(uvs[0], uvs[3]),
+                    MVector(uvs[1], uvs[4]),
+                    MVector(uvs[2], uvs[5])
+                ]
+                self.faces.append(face)
+
+
+class SO:
+    def __init__(self):
+        self.submeshes = []
+        self.indices = []
+        self.vertices = []
+
+    def read(self, data):
+        self.name = data.name
+        if self.name == '':
+            self.name = 'noname'
+
+        material_faces = {}  # faces by material
+        for face in data.faces:
+            if face.material not in material_faces:
+                material_faces[face.material] = []
+            material_faces[face.material].append(face)
+
+        for material in material_faces:
+            uvs = {}
+            indices = []
+
+            # incides for this submesh + build uv maps
+            for face in material_faces[material]:
+                for i in range(0, 3):
+                    index = face.indices[i]
+                    indices.append(index)
+                    uvs[index] = face.uvs[i]
+
+            # vertex range
+            min_vertex = min(indices)
+            max_vertex = max(indices)
+
+            # vertices for this submesh
+            vertices = []
+            for i in range(min_vertex, max_vertex+1):
+                vertex = SOVertex()
+                vertex.position = data.vertices[i]
+                vertex.uv = uvs[i]
+                vertices.append(vertex)
+
+            # normalize indices
+            for i in range(0, i < len(indices)):
+                indices[i] -= min_vertex
+
+            # build SOSubmesh
+            submesh = SOSubmesh()
+            submesh.name = material
+            submesh.vertex_start = len(self.vertices)
+            submesh.vertex_count = len(vertices)
+            self.vertices += vertices
+            submesh.index_start = len(self.indices)
+            submesh.index_count = len(indices)
+            self.indices += indices
+            self.submeshes.append(submesh)
+
+    def load(self):
+        mesh = MFnMesh()
+        vertices_count = len(self.vertices)
+        indices_count = len(self.indices)
+
+        # create mesh with vertices, indices
+        vertices = MFloatPointArray()
+        for i in range(0, vertices_count):
+            vertex = self.vertices[i]
+            vertices.append(MFloatPoint(
+                vertex.position.x, vertex.position.y, vertex.position.z))
+        poly_index_count = MIntArray(indices_count // 3, 3)
+        poly_indices = MIntArray()
+        MScriptUtil.createIntArrayFromList(self.indices, poly_indices)
+        mesh.create(
+            vertices_count,
+            indices_count // 3,
+            vertices,
+            poly_index_count,
+            poly_indices,
+        )
+
+        # assign uv
+        u_values = MFloatArray(vertices_count)
+        v_values = MFloatArray(vertices_count)
+        for i in range(0, vertices_count):
+            vertex = self.vertices[i]
+            u_values[i] = vertex.uv.x
+            v_values[i] = 1.0 - vertex.uv.y
+        mesh.setUVs(
+            u_values, v_values
+        )
+        mesh.assignUVs(
+            poly_index_count, poly_indices
+        )
+
+        # dag_path and name
+        mesh_dag_path = MDagPath()
+        mesh.getPath(mesh_dag_path)
+        mesh.setName(self.name)
+        transform_node = MFnTransform(mesh.parent(0))
+        transform_node.setName(f'mesh_{self.name}')
+
+        # find render partition
+        render_partition = MFnPartition()
+        found_rp = False
+        iterator = MItDependencyNodes(MFn.kPartition)
+        while not iterator.isDone():
+            render_partition.setObject(iterator.thisNode())
+            if render_partition.name() == 'renderPartition' and render_partition.isRenderPartition():
+                found_rp = True
+                break
+            iterator.next()
+        # materials
+        modifier = MDGModifier()
+        set = MFnSet()
+        for submesh in self.submeshes:
+            # create lambert
+            lambert = MFnLambertShader()
+            lambert.create(True)
+
+            lambert.setName(submesh.name)
+            # some shader stuffs
+            dependency_node = MFnDependencyNode()
+            shading_engine = dependency_node.create(
+                'shadingEngine', f'{submesh.name}_SG')
+            material_info = dependency_node.create(
+                'materialInfo', f'{submesh.name}_MaterialInfo')
+            if found_rp:
+                partition = MFnDependencyNode(
+                    shading_engine).findPlug('partition')
+
+                sets = render_partition.findPlug("sets")
+                the_plug_we_need = None
+                count = 0
+                while True:
+                    the_plug_we_need = sets.elementByLogicalIndex(count)
+                    if not the_plug_we_need.isConnected():  # find the one that not connected
+                        break
+                    count += 1
+
+                modifier.connect(partition, the_plug_we_need)
+
+            # connect node
+            out_color = lambert.findPlug('outColor')
+            surface_shader = MFnDependencyNode(
+                shading_engine).findPlug('surfaceShader')
+            modifier.connect(out_color, surface_shader)
+
+            message = MFnDependencyNode(shading_engine).findPlug('message')
+            shading_group = MFnDependencyNode(
+                material_info).findPlug('shadingGroup')
+            modifier.connect(message, shading_group)
+
+            modifier.doIt()
+
+            # assign face to material
+            component = MFnSingleIndexedComponent()
+            face_component = component.create(MFn.kMeshPolygonComponent)
+            group_poly_indices = MIntArray()
+            for index in range(submesh.index_start // 3, (submesh.index_start + submesh.index_count) // 3):
+                group_poly_indices.append(index)
+            component.addElements(group_poly_indices)
+
+            set.setObject(shading_engine)
+            set.addMember(mesh_dag_path, face_component)
+
+        mesh.updateSurface()
+
+
+def db():
+    # uv not working
+    so_data = SOData()
+    so_data.read_scb('D:\\katarina_base_blade.scb')
+    so = SO()
+    so.read(so_data)
+    so.load()
+    return
+    so_data = SOData()
+    so_data.read_sco('D:\\katarina_blade.sco')
+    so2 = SO()
+    so2.read(so_data)
+    so2.load()

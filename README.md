@@ -21,10 +21,15 @@ An attempt to update RiotFileTranslator to Maya 2023.
     - Read: 
         - `r3d2canm`
         - `r3d2anmd`: V3, V4, V5
-        - Add auto ensure 30fps scene when read/write anm, instead of Maya's 24fps default setting.
+        - Must change scene to 30fps before import ANM.
     - Write:
         - `r3d2anmd`: V4
-5. SCO/SCB: todo
+5. Static object:
+    - Read:
+        - SCO 
+        - SCB: `r3d2Mesh`
+        - UV not working right now: todo
+    - Write: todo
 
 
 

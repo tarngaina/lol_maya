@@ -10,7 +10,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - Add option to read SKN+SKL as skin cluster.
     - Write: 
         - `33 22 11 00`: V1
-        - Add fix for Maya duplicate name system.
+        - Add fix for Maya duplicate name system on joint-material nodes.
 3. SKL:
     - Read: 
         - `r3d2sklt`: V1, V2

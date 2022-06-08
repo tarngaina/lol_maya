@@ -64,7 +64,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
 
 - [LeagueFileTranlastor](https://github.com/LoL-Fantome/LeagueFileTranslator)
 
-- [LeagueToolKit](https://github.com/LoL-Fantome/LeagueFileTranslator)
+- [LeagueToolKit](https://github.com/LoL-Fantome/LeagueToolkit)
 
 - [LoL2Blender](https://github.com/WorldSEnder/LoL2Blender)
 

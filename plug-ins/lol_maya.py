@@ -42,7 +42,6 @@ class SKNTranslator(MPxFileTranslator):
             path += '.skn'
 
         skn.read(path)
-        name = path.split('/')[-1].split('.')[0]
         if options.split('=')[1] == '1':
             skl = SKL()
             skl.read(path.split('.skn')[0] + '.skl')
@@ -51,10 +50,10 @@ class SKNTranslator(MPxFileTranslator):
             skn.flip()
 
             skl.load()
-            skn.load(name=name, skl=skl)
+            skn.load(skl=skl)
         else:
             skn.flip()
-            skn.load(name=name, skl=None)
+            skn.load(skl=None)
         return True
 
 
@@ -191,7 +190,112 @@ class ANMTranslator(MPxFileTranslator):
         return True
 
 
+class SCOTranslator(MPxFileTranslator):
+    name = 'League of Legends: SCO'
+    ext = 'sco'
+
+    def __init__(self):
+        MPxFileTranslator.__init__(self)
+
+    def haveReadMethod(self):
+        return True
+
+    def haveWriteMethod(self):
+        return True
+
+    def canBeOpened(self):
+        return False
+
+    def defaultExtension(self):
+        return self.ext
+
+    def filter(self):
+        return f'*.{self.ext}'
+
+    @classmethod
+    def creator(cls):
+        return asMPxPtr(cls())
+
+    def reader(self, file, options, access):
+        so = SO()
+        path = file.expandedFullName()
+        if not path.endswith('.sco'):
+            path += '.sco'
+
+        so.read_sco(path)
+        so.flip()
+        so.load()
+        return True
+
+    def writer(self, file, options, access):
+        if access != MPxFileTranslator.kExportActiveAccessMode:
+            raise FunnyError(
+                f'[SCO.writer()]: Stop! u violated the law, use "Export Selection" or i violate u UwU.')
+
+        so = SO()
+        so.dump()
+        so.flip()
+        path = file.expandedFullName()
+        if not path.endswith('.sco'):
+            path += '.sco'
+        so.write_sco(path)
+        return True
+
+
+class SCBTranslator(MPxFileTranslator):
+    name = 'League of Legends: SCB'
+    ext = 'scb'
+
+    def __init__(self):
+        MPxFileTranslator.__init__(self)
+
+    def haveReadMethod(self):
+        return True
+
+    def haveWriteMethod(self):
+        return True
+
+    def canBeOpened(self):
+        return False
+
+    def defaultExtension(self):
+        return self.ext
+
+    def filter(self):
+        return f'*.{self.ext}'
+
+    @classmethod
+    def creator(cls):
+        return asMPxPtr(cls())
+
+    def reader(self, file, options, access):
+        so = SO()
+        path = file.expandedFullName()
+        if not path.endswith('.scb'):
+            path += '.scb'
+
+        so.read_scb(path)
+        so.flip()
+        so.load()
+        return True
+
+    def writer(self, file, options, access):
+        if access != MPxFileTranslator.kExportActiveAccessMode:
+            raise FunnyError(
+                f'[SCO.writer()]: Stop! u violated the law, use "Export Selection" or i violate u UwU.')
+
+        so = SO()
+        so.dump()
+        so.flip()
+        path = file.expandedFullName()
+        if not path.endswith('.sco'):
+            path += '.sco'
+        so.write_scb(path)
+        return True
+
 # plugin register
+
+
 def initializePlugin(obj):
     # totally not copied code
     plugin = MFnPlugin(obj, 'tarngaina', '1.0')
@@ -205,7 +309,7 @@ def initializePlugin(obj):
             True
         )
     except Exception as e:
-        cmds.warning(
+        MGlobal.displayWarning(
             f'Couldn\'t register SKNTranslator: [{e}]: {e.message}')
 
     try:
@@ -218,7 +322,7 @@ def initializePlugin(obj):
             True
         )
     except Exception as e:
-        cmds.warning(
+        MGlobal.displayWarning(
             f'Couldn\'t register SKLTranslator: [{e}]: {e.message}')
 
     try:
@@ -231,7 +335,7 @@ def initializePlugin(obj):
             True
         )
     except Exception as e:
-        cmds.warning(
+        MGlobal.displayWarning(
             f'Couldn\'t register SkinTranslator: [{e}]: {e.message}')
 
     try:
@@ -244,8 +348,34 @@ def initializePlugin(obj):
             True
         )
     except Exception as e:
-        cmds.warning(
+        MGlobal.displayWarning(
             f'Couldn\'t register ANMTranslator: [{e}]: {e.message}')
+
+    try:
+        plugin.registerFileTranslator(
+            SCOTranslator.name,
+            None,
+            SCOTranslator.creator,
+            None,
+            None,
+            True
+        )
+    except Exception as e:
+        MGlobal.displayWarning(
+            f'Couldn\'t register SCOTranslator: [{e}]: {e.message}')
+
+    try:
+        plugin.registerFileTranslator(
+            SCBTranslator.name,
+            None,
+            SCBTranslator.creator,
+            None,
+            None,
+            True
+        )
+    except Exception as e:
+        MGlobal.displayWarning(
+            f'Couldn\'t register SCBTranslator: [{e}]: {e.message}')
 
 
 def uninitializePlugin(obj):
@@ -255,7 +385,7 @@ def uninitializePlugin(obj):
             SKNTranslator.name
         )
     except Exception as e:
-        cmds.warning(
+        MGlobal.displayWarning(
             f'Couldn\'t deregister SKNTranslator: [{e}]: {e.message}')
 
     try:
@@ -263,7 +393,7 @@ def uninitializePlugin(obj):
             SKLTranslator.name
         )
     except Exception as e:
-        cmds.warning(
+        MGlobal.displayWarning(
             f'Couldn\'t deregister SKLTranslator: [{e}]: {e.message}')
 
     try:
@@ -271,7 +401,7 @@ def uninitializePlugin(obj):
             SkinTranslator.name
         )
     except Exception as e:
-        cmds.warning(
+        MGlobal.displayWarning(
             f'Couldn\'t deregister SkinTranslator: [{e}]: {e.message}')
 
     try:
@@ -279,8 +409,24 @@ def uninitializePlugin(obj):
             ANMTranslator.name
         )
     except Exception as e:
-        cmds.warning(
+        MGlobal.displayWarning(
             f'Couldn\'t deregister ANMTranslator: [{e}]: {e.message}')
+
+    try:
+        plugin.deregisterFileTranslator(
+            SCOTranslator.name
+        )
+    except Exception as e:
+        MGlobal.displayWarning(
+            f'Couldn\'t deregister SCOTranslator: [{e}]: {e.message}')
+
+    try:
+        plugin.deregisterFileTranslator(
+            SCBTranslator.name
+        )
+    except Exception as e:
+        MGlobal.displayWarning(
+            f'Couldn\'t deregister SCBTranslator: [{e}]: {e.message}')
 
 
 # helper funcs and structures
@@ -383,17 +529,11 @@ class FunnyError(Exception):
             temp = message.split(']: ')
             title = temp[0][1:] + ':'
             message = temp[1]
-        cmds.confirmDialog(
-            message=message,
-            title=title,
-            backgroundColor=[uniform(0.0, 1.0), uniform(
-                0.0, 1.0), uniform(0.0, 1.0)],
-            button=choice(
-                ['UwU', '<(")', 'ok boomer', 'funny man', 'jesus', 'bruh',
-                 'stop', 'get some help', 'haha', 'lmao', 'ay yo', 'SUS']
-            )
-        )
-        return message
+        button = choice(
+            ['UwU', '<(\")', 'ok boomer', 'funny man', 'jesus', 'bruh',
+             'stop', 'get some help', 'haha', 'lmao', 'ay yo', 'SUS'])
+        MGlobal.executeCommand(
+            f'confirmDialog -title "{title}" -message "{message}" -button "{button}" -icon "critical"')
 
 
 # for convert anm/skl joint name to elf hash
@@ -866,6 +1006,9 @@ class SKN:
         self.vertices = []
         self.submeshes = []
 
+        # for loading
+        self.name = None
+
     def flip(self):
         # read SKL.flip()
         for vertex in self.vertices:
@@ -881,6 +1024,8 @@ class SKN:
             if magic != 0x00112233:
                 raise FunnyError(
                     f'[SKN.read({path})]: Wrong signature file: {magic}')
+
+            self.name = path.split('/')[-1].split('.')[0]
 
             major = bs.read_uint16()
             minor = bs.read_uint16()
@@ -957,7 +1102,7 @@ class SKN:
                     submesh.index_count = len(self.indices)
                     self.submeshes.append(submesh)
 
-    def load(self, name='noname', skl=None):
+    def load(self, skl=None):
         mesh = MFnMesh()
         vertices_count = len(self.vertices)
         indices_count = len(self.indices)
@@ -1009,9 +1154,9 @@ class SKN:
         # dag_path and name
         mesh_dag_path = MDagPath()
         mesh.getPath(mesh_dag_path)
-        mesh.setName(name)
+        mesh.setName(self.name)
         transform_node = MFnTransform(mesh.parent(0))
-        transform_node.setName(f'mesh_{name}')
+        transform_node.setName(f'mesh_{self.name}')
 
         # find render partition
         render_partition = MFnPartition()
@@ -1030,8 +1175,8 @@ class SKN:
             # create lambert
             lambert = MFnLambertShader()
             lambert.create(True)
-
             lambert.setName(submesh.name)
+
             # some shader stuffs
             dependency_node = MFnDependencyNode()
             shading_engine = dependency_node.create(
@@ -1091,7 +1236,7 @@ class SKN:
             # bind selections
             MGlobal.selectCommand(selections)
             MGlobal.executeCommand(
-                f'skinCluster -mi 4 -tsb -n skinCluster_{name}')
+                f'skinCluster -mi 4 -tsb -n skinCluster_{self.name}')
 
             # get skin cluster
             in_mesh = mesh.findPlug('inMesh')
@@ -1099,7 +1244,7 @@ class SKN:
             in_mesh.connectedTo(in_mesh_connections, True, False)
             if in_mesh_connections.length() == 0:
                 raise FunnyError(
-                    f'[SKN.load({name}, skl)]: Failed to find created skin cluster.')
+                    f'[SKN.load({self.name}, skl)]: Failed to find created skin cluster.')
             skin_cluster = MFnSkinCluster(in_mesh_connections[0].node())
 
             # some mask
@@ -1516,10 +1661,10 @@ class ANM:
         # DO A FLIP!
         for track in self.tracks:
             for pose in track.poses:
-                if pose.translation != None:
+                if pose.translation:
                     pose.translation.x *= -1.0
 
-                if pose.rotation != None:
+                if pose.rotation:
                     pose.rotation.y *= -1.0
                     pose.rotation.z *= -1.0
 
@@ -1882,7 +2027,7 @@ class ANM:
             if iterator.isDone():
                 # the loop isnt broken, mean we havent found the joint
                 # so its not in actual tracks, only in our imagination
-                cmds.warning(
+                MGlobal.displayWarning(
                     f'[ANM.load()]: No joint named found: {track.joint_hash}')
 
         if len(actual_tracks) == 0:
@@ -1914,14 +2059,14 @@ class ANM:
                     setKeyFrame = 'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0'
                     modified = False  # check if we actually need to set key frame
                     # translation
-                    if pose.translation != None:
+                    if pose.translation:
                         translation = pose.translation
                         ik_joint.setTranslation(
                             MVector(translation.x, translation.y, translation.z), MSpace.kTransform)
                         setKeyFrame += ' -at translateX -at translateY -at translateZ'
                         modified = True
                     # scale
-                    if pose.scale != None:
+                    if pose.scale:
                         scale = pose.scale
                         util = MScriptUtil()
                         util.createFromDouble(scale.x, scale.y, scale.z)
@@ -1930,7 +2075,7 @@ class ANM:
                         setKeyFrame += ' -at scaleX -at scaleY -at scaleZ'
                         modified = True
                     # rotation
-                    if pose.rotation != None:
+                    if pose.rotation:
                         rotation = pose.rotation
                         rotation = MQuaternion(
                             rotation.x, rotation.y, rotation.z, rotation.w)  # recreate pointer
@@ -2066,7 +2211,7 @@ class ANM:
                     if pose.scale == uni_vecs[i]:
                         pose.scale_index = i
 
-                    if pose.translation_index != None and pose.scale_index != None:
+                    if pose.translation_index and pose.scale_index:
                         # if found both in unique vecs then break loop
                         break
 
@@ -2087,7 +2232,7 @@ class ANM:
                     if pose.rotation == uni_quats[i]:
                         pose.rotation_index = i
 
-                    if pose.rotation_index != None:
+                    if pose.rotation_index:
                         break
 
                 if pose.rotation_index == None:
@@ -2149,39 +2294,24 @@ class ANM:
             bs.write_uint32(fsize)
 
 
-# static object
-class SOVertex:
-    def __init__(self):
-        self.position = None
-        self.uv = None
-
-
-class SOSubmesh:
+class SO:
     def __init__(self):
         self.name = None
-        self.vertex_start = None
-        self.vertex_count = None
-        self.index_start = None
-        self.index_count = None
-
-
-class SOFace:
-    def __init__(self):
-        self.indices = []
-        self.material = None
-        self.uvs = []
-
-
-class SOData:
-    def __init__(self):
-        self.name = None
-
-        # this shud be joint?
         self.central = None
         self.pivot = None
 
+        self.material = None  # assume sco/scb only have 1 material
+        self.indices = []
+        self.uvs = []  # important: uv can be different at each index, can not map UV by vertex
+        # not actual vertex, its a position of vertex, no reason to create a class
         self.vertices = []
-        self.faces = []
+
+    def flip(self):
+        for vertex in self.vertices:
+            vertex.x *= -1.0
+        self.central.x *= -1.0
+        if self.pivot:
+            self.pivot.x *= -1.0
 
     def read_sco(self, path):
         with open(path, 'r') as f:
@@ -2193,23 +2323,25 @@ class SOData:
                 raise FunnyError(
                     f'[SOData.read({path})]: Wrong file signature: {magic}')
 
-            index = 1  # skip first line
+            # temporary use file name, not name inside file
+            self.name = path.split('/')[-1].split('.')[0]
+
+            index = 1  # skip magic
             len1234 = len(lines)
             while index < len1234:
                 inp = lines[index].split()
-                if len(inp) == 0:  # cant split, must be a random line
+                if len(inp) == 0:  # cant split, definitely not voldemort
                     index += 1
                     continue
 
-                if inp[0] == 'Name=':
-                    self.name = inp[1]
-                    if ':' in self.name:
-                        self.name = self.name.split(':')[1]
+                # if inp[0] == 'Name=':
+                    # self.name = inp[1]
+                    # if ':' in self.name:
+                    #    self.name = self.name.split(':')[1]
 
-                elif inp[0] == 'CentralPoint=':
+                if inp[0] == 'CentralPoint=':
                     self.central = MVector(
                         float(inp[1]), float(inp[2]), float(inp[3]))
-                    self.pivot = MVector(self.central)
 
                 elif inp[0] == 'PivotPoint=':
                     self.pivot = MVector(
@@ -2219,9 +2351,8 @@ class SOData:
                     vertex_count = int(inp[1])
                     for i in range(index+1, index+1 + vertex_count):
                         inp2 = lines[i].split()
-                        vertex = MVector(
-                            float(inp2[0]), float(inp2[1]), float(inp2[2]))
-                        self.vertices.append(vertex)
+                        self.vertices.append(MVector(
+                            float(inp2[0]), float(inp2[1]), float(inp2[2])))
                     index = i+1
                     continue
 
@@ -2229,16 +2360,20 @@ class SOData:
                     face_count = int(inp[1])
                     for i in range(index+1, index+1 + face_count):
                         inp2 = lines[i].replace('\t', ' ').split()
-                        face = SOFace()
-                        face.indices = [int(inp2[1]), int(
-                            inp2[2]), int(inp2[3])]
-                        face.material = inp2[4]
-                        face.uvs = [
-                            MVector(float(inp2[5]), float(inp2[8])),
-                            MVector(float(inp2[6]), float(inp2[9])),
-                            MVector(float(inp2[7]), float(inp2[10]))
-                        ]
-                        self.faces.append(face)
+                        self.indices.append(int(inp2[1]))
+                        self.indices.append(int(inp2[2]))
+                        self.indices.append(int(inp2[3]))
+
+                        self.material = inp2[4]
+
+                        # u v, u v, u v
+                        self.uvs.append(
+                            MVector(float(inp2[5]), float(inp2[6])))
+                        self.uvs.append(
+                            MVector(float(inp2[7]), float(inp2[8])))
+                        self.uvs.append(
+                            MVector(float(inp2[9]), float(inp2[10])))
+
                     index = i+1
                     continue
 
@@ -2259,19 +2394,22 @@ class SOData:
                 raise FunnyError(
                     f'[SOData.read({path})]: Unsupported file version: {major}.{minor}')
 
-            self.name = bs.read_padded_string(128)
+            # now im trying to use name from path
+            # so i will pad name inside file, will try later
+            bs.read_padded_string(128)
+            self.name = path.split('/')[-1].split('.')[0]
 
             vertex_count = bs.read_uint32()
             face_count = bs.read_uint32()
 
-            flags = bs.read_uint32()
+            bs.read_uint32()  # flags - pad
 
-            bs.read_vec3()  # bouding box
+            bs.read_vec3()  # bouding box - pad
             bs.read_vec3()
 
-            vertex_color = 0
+            vertex_color = 0  # for padding colors later
             if major == 3 and minor == 2:
-                vertex_color = bs.read_uint32()  # for padding
+                vertex_color = bs.read_uint32()
 
             for i in range(0, vertex_count):
                 self.vertices.append(bs.read_vec3())
@@ -2284,78 +2422,22 @@ class SOData:
                     bs.read_byte()
 
             self.central = bs.read_vec3()
-            self.pivot = MVector(self.central)
+            # no pivot in scb
 
             for i in range(0, face_count):
-                face = SOFace()
-                face.indices = [bs.read_uint32(), bs.read_uint32(),
-                                bs.read_uint32()]
-                face.material = bs.read_padded_string(64)
+                self.indices.append(bs.read_uint32())
+                self.indices.append(bs.read_uint32())
+                self.indices.append(bs.read_uint32())
+
+                self.material = bs.read_padded_string(64)
 
                 uvs = [bs.read_float(), bs.read_float(), bs.read_float(),
                        bs.read_float(), bs.read_float(), bs.read_float()]
-                face.uvs = [
-                    MVector(uvs[0], uvs[3]),
-                    MVector(uvs[1], uvs[4]),
-                    MVector(uvs[2], uvs[5])
-                ]
-                self.faces.append(face)
 
-
-class SO:
-    def __init__(self):
-        self.submeshes = []
-        self.indices = []
-        self.vertices = []
-
-    def read(self, data):
-        self.name = data.name
-        if self.name == '':
-            self.name = 'noname'
-
-        material_faces = {}  # faces by material
-        for face in data.faces:
-            if face.material not in material_faces:
-                material_faces[face.material] = []
-            material_faces[face.material].append(face)
-
-        for material in material_faces:
-            uvs = {}
-            indices = []
-
-            # incides for this submesh + build uv maps
-            for face in material_faces[material]:
-                for i in range(0, 3):
-                    index = face.indices[i]
-                    indices.append(index)
-                    uvs[index] = face.uvs[i]
-
-            # vertex range
-            min_vertex = min(indices)
-            max_vertex = max(indices)
-
-            # vertices for this submesh
-            vertices = []
-            for i in range(min_vertex, max_vertex+1):
-                vertex = SOVertex()
-                vertex.position = data.vertices[i]
-                vertex.uv = uvs[i]
-                vertices.append(vertex)
-
-            # normalize indices
-            for i in range(0, i < len(indices)):
-                indices[i] -= min_vertex
-
-            # build SOSubmesh
-            submesh = SOSubmesh()
-            submesh.name = material
-            submesh.vertex_start = len(self.vertices)
-            submesh.vertex_count = len(vertices)
-            self.vertices += vertices
-            submesh.index_start = len(self.indices)
-            submesh.index_count = len(indices)
-            self.indices += indices
-            self.submeshes.append(submesh)
+                # u u u, v v v
+                self.uvs.append(MVector(uvs[0], uvs[3]))
+                self.uvs.append(MVector(uvs[1], uvs[4]))
+                self.uvs.append(MVector(uvs[2], uvs[5]))
 
     def load(self):
         mesh = MFnMesh()
@@ -2367,7 +2449,9 @@ class SO:
         for i in range(0, vertices_count):
             vertex = self.vertices[i]
             vertices.append(MFloatPoint(
-                vertex.position.x, vertex.position.y, vertex.position.z))
+                vertex.x - self.central.x,
+                vertex.y - self.central.y,
+                vertex.z - self.central.z))
         poly_index_count = MIntArray(indices_count // 3, 3)
         poly_indices = MIntArray()
         MScriptUtil.createIntArrayFromList(self.indices, poly_indices)
@@ -2376,21 +2460,21 @@ class SO:
             indices_count // 3,
             vertices,
             poly_index_count,
-            poly_indices,
+            poly_indices
         )
-
         # assign uv
-        u_values = MFloatArray(vertices_count)
-        v_values = MFloatArray(vertices_count)
-        for i in range(0, vertices_count):
-            vertex = self.vertices[i]
-            u_values[i] = vertex.uv.x
-            v_values[i] = 1.0 - vertex.uv.y
-        mesh.setUVs(
-            u_values, v_values
-        )
+        uv_indices = MIntArray(indices_count)
+        u_values = MFloatArray(indices_count)
+        v_values = MFloatArray(indices_count)
+        for i in range(0, indices_count):
+            u_values[i] = self.uvs[i].x
+            v_values[i] = 1.0 - self.uvs[i].y
+            uv_indices[i] = i
+            # uv by index, not by vertex
+
+        mesh.setUVs(u_values, v_values)
         mesh.assignUVs(
-            poly_index_count, poly_indices
+            poly_index_count, uv_indices
         )
 
         # dag_path and name
@@ -2399,6 +2483,9 @@ class SO:
         mesh.setName(self.name)
         transform_node = MFnTransform(mesh.parent(0))
         transform_node.setName(f'mesh_{self.name}')
+
+        # translation
+        transform_node.setTranslation(self.central, MSpace.kTransform)
 
         # find render partition
         render_partition = MFnPartition()
@@ -2413,70 +2500,232 @@ class SO:
         # materials
         modifier = MDGModifier()
         set = MFnSet()
-        for submesh in self.submeshes:
-            # create lambert
-            lambert = MFnLambertShader()
-            lambert.create(True)
 
-            lambert.setName(submesh.name)
-            # some shader stuffs
-            dependency_node = MFnDependencyNode()
-            shading_engine = dependency_node.create(
-                'shadingEngine', f'{submesh.name}_SG')
-            material_info = dependency_node.create(
-                'materialInfo', f'{submesh.name}_MaterialInfo')
-            if found_rp:
-                partition = MFnDependencyNode(
-                    shading_engine).findPlug('partition')
+        # create lambert
+        lambert = MFnLambertShader()
+        lambert.create(True)
+        lambert.setName(self.material)
 
-                sets = render_partition.findPlug("sets")
-                the_plug_we_need = None
-                count = 0
-                while True:
-                    the_plug_we_need = sets.elementByLogicalIndex(count)
-                    if not the_plug_we_need.isConnected():  # find the one that not connected
-                        break
-                    count += 1
+        # some shader stuffs
+        dependency_node = MFnDependencyNode()
+        shading_engine = dependency_node.create(
+            'shadingEngine', f'{self.material}_SG')
+        material_info = dependency_node.create(
+            'materialInfo', f'{self.material}_MaterialInfo')
+        if found_rp:
+            partition = MFnDependencyNode(
+                shading_engine).findPlug('partition')
 
-                modifier.connect(partition, the_plug_we_need)
+            sets = render_partition.findPlug("sets")
+            the_plug_we_need = None
+            count = 0
+            while True:
+                the_plug_we_need = sets.elementByLogicalIndex(count)
+                if not the_plug_we_need.isConnected():  # find the one that not connected
+                    break
+                count += 1
 
-            # connect node
-            out_color = lambert.findPlug('outColor')
-            surface_shader = MFnDependencyNode(
-                shading_engine).findPlug('surfaceShader')
-            modifier.connect(out_color, surface_shader)
+            modifier.connect(partition, the_plug_we_need)
 
-            message = MFnDependencyNode(shading_engine).findPlug('message')
-            shading_group = MFnDependencyNode(
-                material_info).findPlug('shadingGroup')
-            modifier.connect(message, shading_group)
+        # connect node
+        out_color = lambert.findPlug('outColor')
+        surface_shader = MFnDependencyNode(
+            shading_engine).findPlug('surfaceShader')
+        modifier.connect(out_color, surface_shader)
 
-            modifier.doIt()
+        message = MFnDependencyNode(shading_engine).findPlug('message')
+        shading_group = MFnDependencyNode(
+            material_info).findPlug('shadingGroup')
+        modifier.connect(message, shading_group)
 
-            # assign face to material
-            component = MFnSingleIndexedComponent()
-            face_component = component.create(MFn.kMeshPolygonComponent)
-            group_poly_indices = MIntArray()
-            for index in range(submesh.index_start // 3, (submesh.index_start + submesh.index_count) // 3):
-                group_poly_indices.append(index)
-            component.addElements(group_poly_indices)
+        modifier.doIt()
 
-            set.setObject(shading_engine)
-            set.addMember(mesh_dag_path, face_component)
+        # assign face to material
+        component = MFnSingleIndexedComponent()
+        face_component = component.create(MFn.kMeshPolygonComponent)
+        group_poly_indices = MIntArray()
+        for index in range(0, len(self.indices) // 3):
+            group_poly_indices.append(index)
+        component.addElements(group_poly_indices)
+
+        set.setObject(shading_engine)
+        set.addMember(mesh_dag_path, face_component)
+
+        # use a joint for pivot
+        if self.pivot:
+            ik_joint = MFnIkJoint()
+            ik_joint.create()
+            ik_joint.setName(f'pivot_{self.name}')
+
+            ik_joint.setTranslation(
+                self.central - self.pivot, MSpace.kTransform)
+
+            # bind pivot with mesh
+            dag_path = MDagPath()
+            ik_joint.getPath(dag_path)
+
+            selections = MSelectionList()
+            selections.add(mesh_dag_path)
+            selections.add(dag_path)
+
+            MGlobal.selectCommand(selections)
+            MGlobal.executeCommand(
+                f"skinCluster -mi 1 -tsb -n skinCluster_{self.name}")
 
         mesh.updateSurface()
 
+    def dump(self):
+        # get mesh
+        selections = MSelectionList()
+        MGlobal.getActiveSelectionList(selections)
+        iterator = MItSelectionList(selections, MFn.kMesh)
+        if iterator.isDone():
+            raise FunnyError(
+                f'[SO.dump()]: Please select a mesh.')
+        mesh_dag_path = MDagPath()
+        iterator.getDagPath(mesh_dag_path)
+        iterator.next()
+        if not iterator.isDone():
+            raise FunnyError(
+                f'[SO.dump()]: More than 1 mesh selected.')
+        mesh = MFnMesh(mesh_dag_path)
 
-def db():
-    # uv not working
-    so_data = SOData()
-    so_data.read_scb('D:\\katarina_base_blade.scb')
-    so = SO()
-    so.read(so_data)
-    so.load()
-    return
-    so_data = SOData()
-    so_data.read_sco('D:\\katarina_blade.sco')
-    so2 = SO()
-    so2.read(so_data)
-    so2.load()
+        # name
+        self.name = mesh.name()
+
+        # get center
+        transform_node = MFnTransform(mesh.parent(0))
+        translation = transform_node.getTranslation(MSpace.kTransform)
+        self.central = translation
+
+        # find pivot through skin cluster
+        in_mesh = mesh.findPlug('inMesh')
+        in_mesh_connections = MPlugArray()
+        in_mesh.connectedTo(in_mesh_connections, True, False)
+        if in_mesh_connections.length() != 0:
+            if in_mesh_connections[0].node().apiType() == MFn.kSkinClusterFilter:
+                skin_cluster = MFnSkinCluster(in_mesh_connections[0].node())
+                influences_dag_path = MDagPathArray()
+                influences_count = skin_cluster.influenceObjects(
+                    influences_dag_path)
+                if influences_count > 1:
+                    raise FunnyError(
+                        f'[SO.dump()]: There is more than 1 joint bound with mesh.')
+
+                ik_joint = MFnTransform(influences_dag_path[0])
+                translation = ik_joint.getTranslation(MSpace.kTransform)
+                self.pivot = MVector(
+                    self.central.x - translation.x,
+                    self.central.y - translation.y,
+                    self.central.z - translation.z
+                )
+
+        # shader
+        instance = 0
+        if mesh_dag_path.isInstanced():
+            instance = mesh_dag_path.instanceNumber()
+        shaders = MObjectArray()
+        shader_indices = MIntArray()
+        mesh.getConnectedShaders(instance, shaders, shader_indices)
+        shader_count = shaders.length()
+
+        # check hole
+        hole_info = MIntArray()
+        hole_vertex = MIntArray()
+        mesh.getHoles(hole_info, hole_vertex)
+        if hole_info.length() > 0:
+            raise FunnyError(f'[SO.dump()]: Mesh contains holes.')
+
+        # check triangulation
+        iterator = MItMeshPolygon(mesh_dag_path)
+        iterator.reset()
+        while not iterator.isDone():
+            if not iterator.hasValidTriangulation():
+                raise FunnyError(
+                    f'[SO.dump()]: Mesh contains a non-triangulated polygon, try Mesh -> Triangulate.')
+            iterator.next()
+
+        # vertices
+        vertices_count = mesh.numVertices()
+        vertices = MFloatPointArray()
+        mesh.getPoints(vertices, MSpace.kWorld)
+        for i in range(0, vertices_count):
+            vertex = vertices[i]
+            position = MVector(
+                vertex.x, vertex.y, vertex.z
+            )
+            self.vertices.append(position)
+
+        # uvs
+        u_values = MFloatArray()
+        v_values = MFloatArray()
+        mesh.getUVs(u_values, v_values)
+        uv_counts = MIntArray()
+        uv_indices = MIntArray()
+        mesh.getAssignedUVs(uv_counts, uv_indices)
+
+        # faces
+        faces_count = MIntArray()
+        face_vertices = MIntArray()
+        mesh.getTriangles(faces_count, face_vertices)
+        len666 = mesh.numPolygons()
+        index = 0
+        for i in range(0, len666):
+            for j in range(0, faces_count[i] * 3):
+                self.indices.append(face_vertices[index])
+                u = u_values[uv_indices[index]]
+                v = v_values[uv_indices[index]]
+                self.uvs.append(MVector(u, v))
+                index += 1
+
+        # material name
+        for i in range(0, shader_count):
+            surface_shaders = MFnDependencyNode(
+                shaders[i]).findPlug('surfaceShader')
+            plug_array = MPlugArray()
+            surface_shaders.connectedTo(plug_array, True, False)
+            surface_shader = MFnDependencyNode(plug_array[0].node())
+
+            self.material = surface_shader.name()
+            # only dump shaders[0] right now
+            # this is so confused but ppl said its only 1 material for sco/scb
+            # if i dont find out a sco/scb use 2 materials+ in future, this iterator section will be changed
+            break
+
+    def write_sco(self, path):
+        with open(path, 'w') as f:
+            f.write('[ObjectBegin]\n')  # magic
+
+            f.write(f'Name= {self.name}\n')
+            f.write(
+                f'CentralPoint= {self.central.x:.4f} {self.central.y:.4f} {self.central.z:.4f}\n')
+            if self.pivot != None:
+                f.write(
+                    f'PivotPoint= {self.pivot.x:.4f} {self.pivot.y:.4f} {self.pivot.z:.4f}\n')
+
+            # vertices
+            f.write(f'Verts= {len(self.vertices)}\n')
+            for position in self.vertices:
+                f.write(f'{position.x:.4f} {position.y:.4f} {position.z:.4f}\n')
+
+            # faces
+            faces_count = len(self.indices) // 3
+            f.write(f'Faces= {faces_count}\n')
+            for i in range(0, faces_count):
+                index = i * 3
+                f.write('3\t')
+                f.write(f' {self.indices[index]:>5}')
+                f.write(f' {self.indices[index+1]:>5}')
+                f.write(f' {self.indices[index+2]:>5}')
+                f.write(f'\t{self.material:>20}\t')
+                f.write(f'{self.uvs[index].x:.12f} {self.uvs[index].y:.12f} ')
+                f.write(
+                    f'{self.uvs[index+1].x:.12f} {self.uvs[index+2].y:.12f} ')
+                f.write(
+                    f'{self.uvs[index+2].x:.12f} {self.uvs[index+2].y:.12f}\n')
+
+            f.write('[ObjectEnd]')
+
+    def write_scb(self, path):
+        # tired
+        pass

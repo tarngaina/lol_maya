@@ -288,8 +288,8 @@ class SCBTranslator(MPxFileTranslator):
         so.dump()
         so.flip()
         path = file.expandedFullName()
-        if not path.endswith('.sco'):
-            path += '.sco'
+        if not path.endswith('.scb'):
+            path += '.scb'
         so.write_scb(path)
         return True
 
@@ -712,7 +712,7 @@ class SKL:
 
                 bs.read_uint16()  # flags - pad
                 joint_count = bs.read_uint16()
-                influences_count = bs.read_uint32()
+                influence_count = bs.read_uint32()
 
                 joints_offset = bs.read_int32()
                 bs.read_int32()  # joint indices offset
@@ -757,9 +757,9 @@ class SKL:
                         self.joints.append(joint)
 
                 # read influences
-                if influences_offset > 0 and influences_count > 0:
+                if influences_offset > 0 and influence_count > 0:
                     bs.stream.seek(influences_offset)
-                    for i in range(0, influences_count):
+                    for i in range(0, influence_count):
                         self.influences.append(bs.read_uint16())
 
                 # i think that is all we need, reading joint_indices_offset, name and asset name doesnt help anything
@@ -806,8 +806,8 @@ class SKL:
 
                 # read influences
                 if version == 2:
-                    influences_count = bs.read_uint32()
-                    for i in range(0, influences_count):
+                    influence_count = bs.read_uint32()
+                    for i in range(0, influence_count):
                         self.influences.append(bs.read_uint32())
                 if version == 1:
                     self.influences = list(range(0, joint_count))
@@ -1223,13 +1223,13 @@ class SKN:
             set.addMember(mesh_dag_path, face_component)
 
         if skl:
-            influences_count = len(skl.influences)
+            influence_count = len(skl.influences)
             vertices_count = len(self.vertices)
 
             # select mesh + joint
             selections = MSelectionList()
             selections.add(mesh_dag_path)
-            for i in range(0, influences_count):
+            for i in range(0, influence_count):
                 # joint = skl.joints[skl.influences[i]]
                 selections.add(skl.dag_paths[skl.influences[i]])
 
@@ -1250,11 +1250,11 @@ class SKN:
             # some mask
             influences_dag_paths = MDagPathArray()
             skin_cluster.influenceObjects(influences_dag_paths)
-            influences_indices = MIntArray(influences_count)
-            for i in range(0, influences_count):
+            influences_indices = MIntArray(influence_count)
+            for i in range(0, influence_count):
                 influence_dag_path = skl.dag_paths[skl.influences[i]]
 
-                for j in range(0, influences_count):
+                for j in range(0, influence_count):
                     if influence_dag_path == influences_dag_paths[j]:
                         influences_indices[i] = j
                         break
@@ -1271,7 +1271,7 @@ class SKN:
                 f"setAttr {skin_cluster.name()}.normalizeWeights 0")
 
             # set weights
-            weights = MDoubleArray(vertices_count * influences_count)
+            weights = MDoubleArray(vertices_count * influence_count)
             for i in range(0, vertices_count):
                 vertex = self.vertices[i]
                 for j in range(0, 4):
@@ -1279,7 +1279,7 @@ class SKN:
                     # treate bytes as a list, element with index 0 of [byte] is byte
                     influence = vertex.bones_indices[j][0]
                     if weight != 0:
-                        weights[i * influences_count + influence] = weight
+                        weights[i * influence_count + influence] = weight
             skin_cluster.setWeights(
                 mesh_dag_path, vertex_component, influences_indices, weights, False)
 
@@ -1684,7 +1684,7 @@ class ANM:
                 bs.read_uint32()  # flags
 
                 joint_count = bs.read_uint32()
-                frames_count = bs.read_uint32()
+                frame_count = bs.read_uint32()
                 bs.read_uint32()  # jump cache count
                 duration = bs.read_float()
                 bs.read_float()  # fps
@@ -1724,7 +1724,7 @@ class ANM:
                     self.tracks.append(track)
 
                 bs.stream.seek(frames_offset + 12)
-                for i in range(0, frames_count):
+                for i in range(0, frame_count):
                     compressed_time = bs.read_uint16()
                     bits = bs.read_uint16()
                     compressed_transform = bs.read_bytes(6)
@@ -1811,27 +1811,27 @@ class ANM:
                             f'[ANM.read({path})]: File does not contain frames.'
                         )
 
-                    joint_hahses_count = (
+                    joint_hash_count = (
                         frames_offset - joint_hashes_offset) // 4
-                    vecs_count = (quats_offset - vecs_offset) // 12
-                    quats_count = (joint_hashes_offset - quats_offset) // 6
+                    vec_count = (quats_offset - vecs_offset) // 12
+                    quat_count = (joint_hashes_offset - quats_offset) // 6
 
                     # read joint hashes
                     joint_hashes = []
                     bs.stream.seek(joint_hashes_offset + 12)
-                    for i in range(0, joint_hahses_count):
+                    for i in range(0, joint_hash_count):
                         joint_hashes.append(bs.read_uint32())
 
                     # read vecs
                     vecs = []
                     bs.stream.seek(vecs_offset + 12)
-                    for i in range(0, vecs_count):
+                    for i in range(0, vec_count):
                         vecs.append(bs.read_vec3())  # unique vec
 
                     # read quats
                     quats = []
                     bs.stream.seek(quats_offset + 12)
-                    for i in range(0, quats_count):
+                    for i in range(0, quat_count):
                         quats.append(
                             CTransform.Quat.decompress(bs.read_bytes(6)))  # unique compressed quat
 
@@ -1910,17 +1910,17 @@ class ANM:
                             f'[ANM.read({path})]: File does not contain frames.'
                         )
 
-                    vecs_count = (quats_offset - vecs_offset) // 12
-                    quats_count = (frames_offset - quats_offset) // 16
+                    vec_count = (quats_offset - vecs_offset) // 12
+                    quat_count = (frames_offset - quats_offset) // 16
 
                     bs.stream.seek(vecs_offset + 12)
                     vecs = []
-                    for i in range(0, vecs_count):
+                    for i in range(0, vec_count):
                         vecs.append(bs.read_vec3())  # unique vec
 
                     bs.stream.seek(quats_offset + 12)
                     quats = []
-                    for i in range(0, quats_count):
+                    for i in range(0, quat_count):
                         quats.append(bs.read_quat())  # unique quat
                     bs.stream.seek(frames_offset + 12)
                     frames = []
@@ -2606,9 +2606,9 @@ class SO:
             if in_mesh_connections[0].node().apiType() == MFn.kSkinClusterFilter:
                 skin_cluster = MFnSkinCluster(in_mesh_connections[0].node())
                 influences_dag_path = MDagPathArray()
-                influences_count = skin_cluster.influenceObjects(
+                influence_count = skin_cluster.influenceObjects(
                     influences_dag_path)
-                if influences_count > 1:
+                if influence_count > 1:
                     raise FunnyError(
                         f'[SO.dump()]: There is more than 1 joint bound with mesh.')
 
@@ -2660,18 +2660,18 @@ class SO:
         u_values = MFloatArray()
         v_values = MFloatArray()
         mesh.getUVs(u_values, v_values)
-        uv_counts = MIntArray()
+        uv_count = MIntArray()
         uv_indices = MIntArray()
-        mesh.getAssignedUVs(uv_counts, uv_indices)
+        mesh.getAssignedUVs(uv_count, uv_indices)
 
         # faces
-        faces_count = MIntArray()
+        face_count = MIntArray()
         face_vertices = MIntArray()
-        mesh.getTriangles(faces_count, face_vertices)
+        mesh.getTriangles(face_count, face_vertices)
         len666 = mesh.numPolygons()
         index = 0
         for i in range(0, len666):
-            for j in range(0, faces_count[i] * 3):
+            for j in range(0, face_count[i] * 3):
                 self.indices.append(face_vertices[index])
                 u = u_values[uv_indices[index]]
                 v = v_values[uv_indices[index]]
@@ -2679,18 +2679,16 @@ class SO:
                 index += 1
 
         # material name
-        for i in range(0, shader_count):
-            surface_shaders = MFnDependencyNode(
-                shaders[i]).findPlug('surfaceShader')
-            plug_array = MPlugArray()
-            surface_shaders.connectedTo(plug_array, True, False)
-            surface_shader = MFnDependencyNode(plug_array[0].node())
+        # only dump shaders[0] right now
+        # this is so confused but ppl said its only 1 material for sco/scb
+        # if i find out a sco/scb use 2 materials+ in future, this section will be changed then
+        surface_shaders = MFnDependencyNode(
+            shaders[0]).findPlug('surfaceShader')
+        plug_array = MPlugArray()
+        surface_shaders.connectedTo(plug_array, True, False)
+        surface_shader = MFnDependencyNode(plug_array[0].node())
 
-            self.material = surface_shader.name()
-            # only dump shaders[0] right now
-            # this is so confused but ppl said its only 1 material for sco/scb
-            # if i dont find out a sco/scb use 2 materials+ in future, this iterator section will be changed
-            break
+        self.material = surface_shader.name()
 
     def write_sco(self, path):
         with open(path, 'w') as f:
@@ -2709,9 +2707,9 @@ class SO:
                 f.write(f'{position.x:.4f} {position.y:.4f} {position.z:.4f}\n')
 
             # faces
-            faces_count = len(self.indices) // 3
-            f.write(f'Faces= {faces_count}\n')
-            for i in range(0, faces_count):
+            face_count = len(self.indices) // 3
+            f.write(f'Faces= {face_count}\n')
+            for i in range(0, face_count):
                 index = i * 3
                 f.write('3\t')
                 f.write(f' {self.indices[index]:>5}')
@@ -2727,5 +2725,70 @@ class SO:
             f.write('[ObjectEnd]')
 
     def write_scb(self, path):
-        # tired
-        pass
+        def get_bounding_box():
+            # totally not copied code
+            min = MVector(float('inf'), float('inf'), float('inf'))
+            max = MVector(float('-inf'), float('-inf'), float('-inf'))
+            for vertex in self.vertices:
+                if min.x > vertex.x:
+                    min.x = vertex.x
+                if min.y > vertex.y:
+                    min.y = vertex.y
+                if min.z > vertex.z:
+                    min.z = vertex.z
+                if max.x < vertex.x:
+                    max.x = vertex.x
+                if max.y < vertex.y:
+                    max.y = vertex.y
+                if max.z < vertex.z:
+                    max.z = vertex.z
+            return min, max
+
+        with open(path, 'wb') as f:
+            bs = BinaryStream(f)
+
+            bs.write_bytes('r3d2Mesh'.encode('ascii'))  # magic
+            bs.write_uint16(3)  # major
+            bs.write_uint16(2)  # minor
+
+            bs.write_padded_string(128, '')  # well, scb has no name?
+
+            face_count = len(self.indices) // 3
+            bs.write_uint32(len(self.vertices))
+            bs.write_uint32(face_count)
+
+            bs.write_uint32(0)  # flags - pad
+
+            # bounding box
+            bb_min, bb_max = get_bounding_box()
+            bs.write_vec3(bb_min)
+            bs.write_vec3(bb_max)
+
+            bs.write_uint32(0)  # vertex color
+
+            # vertices
+            for vertex in self.vertices:
+                bs.write_vec3(vertex)
+
+            # central
+            # this central = translation of the mesh in maya
+            # or do i need to change it?
+            bs.write_vec3(self.central)
+
+            # faces - easy peasy squeezy last part
+            for i in range(0, face_count):
+                index = i * 3
+                bs.write_uint32(self.indices[index])
+                bs.write_uint32(self.indices[index+1])
+                bs.write_uint32(self.indices[index+2])
+
+                bs.write_padded_string(64, self.material)
+
+                # u u u
+                bs.write_float(self.uvs[index].x)
+                bs.write_float(self.uvs[index+1].x)
+                bs.write_float(self.uvs[index+2].x)
+                # v v v
+                bs.write_float(self.uvs[index].y)
+                bs.write_float(self.uvs[index+1].y)
+                bs.write_float(self.uvs[index+2].y)

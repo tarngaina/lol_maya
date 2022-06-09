@@ -803,6 +803,10 @@ class SKL:
 
                 # convert old skl to new skl
                 for joint in self.joints:
+                    joint.iglobal_translation, joint.iglobal_scale, joint.iglobal_rotation = MTransform.decompose(
+                        MTransformationMatrix(joint.global_matrix),
+                        MSpace.kWorld
+                    )
                     if joint.parent == -1:
                         joint.local_translation, joint.local_scale, joint.local_rotation = MTransform.decompose(
                             MTransformationMatrix(joint.global_matrix),

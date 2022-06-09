@@ -40,7 +40,7 @@ class SKNTranslator(MPxFileTranslator):
             path += '.skn'
         skn.read(path)
 
-        if options.split('=')[1] == '1':
+        if 'skl=1' in options:
             # with skl
             skl = SKL()
             skl.read(path.split('.skn')[0] + '.skl')
@@ -116,19 +116,29 @@ class SkinTranslator(MPxFileTranslator):
             raise FunnyError(
                 f'[SkinTranslator.writer()]: Stop! u violated the law, use "Export Selection" or i violate u UwU.')
 
-        skl = SKL()
-        skn = SKN()
-        # dump from scene
-        skl.dump()
-        skn.dump(skl)
-        # ay yo, do a flip!
-        skl.flip()
-        skn.flip()
         path = file.rawFullName()
         # fix for file with mutiple '.', this api is just meh
         if not path.endswith('.skn'):
             path += '.skn'
-        skl.write(path.split('.skn')[0] + '.skl')
+        skl_path = path.split('.skn')[0] + '.skl'
+
+        # for sorting joints to match riot.skl
+        riot_skl = '/'.join(path.split('/')[:-1]+['riot.skl'])
+        mfo = MFileObject()
+        mfo.setRawFullName(riot_skl)
+        if not mfo.exists():
+            riot_skl = None
+
+        skl = SKL()
+        skn = SKN()
+        # dump from scene
+        skl.dump(riot_skl)
+        skn.dump(skl)
+        # ay yo, do a flip!
+        skl.flip()
+        skn.flip()
+
+        skl.write(skl_path)
         skn.write(path)
         return True
 
@@ -296,8 +306,8 @@ def initializePlugin(obj):
             SKNTranslator.name,
             None,
             SKNTranslator.creator,
-            "SKNTranslatorOpts",
-            "",  # idk wtf wrong with default options
+            'SKNTranslatorOpts',
+            'skl=1',  # idk wtf wrong with default options
             True
         )
     except Exception as e:
@@ -704,15 +714,15 @@ class SKL:
                     raise FunnyError(
                         f'[SKL.read({path})]: Unsupported file version: {version}')
 
-                bs.read_uint16()  # flags - pad
+                flags = bs.read_uint16()  # flags - pad
                 joint_count = bs.read_uint16()
                 influence_count = bs.read_uint32()
 
                 joints_offset = bs.read_int32()
                 bs.read_int32()  # joint indices offset
                 influences_offset = bs.read_int32()
-                bs.read_uint32()  # name offset - pad
-                bs.read_uint32()  # asset name offset - pad
+                bs.read_int32()  # name offset - pad
+                bs.read_int32()  # asset name offset - pad
                 bs.read_int32()  # joint names offset
 
                 bs.read_uint32()  # reserved offset - pad
@@ -746,6 +756,8 @@ class SKL:
                         return_offset = bs.stream.tell()
                         bs.stream.seek(return_offset - 4 + joint_name_offset)
                         joint.name = bs.read_zero_terminated_string()
+                        if i == 0 and joint.name == '':  # bad "..ot" -> should be "Root"
+                            joint.name = 'Root'
                         bs.stream.seek(return_offset)
 
                         self.joints.append(joint)
@@ -840,7 +852,8 @@ class SKL:
             ))
 
         # link parent
-        for i in range(0, len(self.joints)):
+        len123 = len(self.joints)
+        for i in range(0, len123):
             joint = self.joints[i]
             if joint.parent != -1:  # skip our ancestor
                 ik_parent = MFnIkJoint(self.dag_paths[joint.parent])
@@ -848,7 +861,8 @@ class SKL:
 
                 ik_parent.addChild(ik_joint.object())
 
-    def dump(self):
+    def dump(self, riot_skl=None):
+        # joint data + dag path
         self.dag_paths = MDagPathArray()
         dag_path = MDagPath()
         ik_joint = MFnIkJoint()
@@ -873,6 +887,60 @@ class SKL:
             self.joints.append(joint)
 
             iterator.next()
+
+        # testing
+        # okay so here is the thing
+        # this section try to sort the joints to match original riot.skl in the same export location
+        # this is the fix for some animation layering: jhin reload / samira reload and much more...
+        if riot_skl:
+            MGlobal.displayInfo(
+                '[SKL.dump(riot.skl)]: Found riot.skl, trying to sort joints.')
+            new_joints = []
+            new_dag_paths = MDagPathArray()
+
+            # read riot skl
+            riot = SKL()
+            riot.read(riot_skl)
+            riot_joint_count = len(riot.joints)
+
+            joint_count = len(self.joints)
+            # for adding extra joint at the end of list
+            flags = list([True] * joint_count)
+
+            for riot_joint in riot.joints:
+                riot_joint_name = riot_joint.name.lower()
+                for i in range(0, joint_count):
+                    if flags[i] and self.joints[i].name.lower() == riot_joint_name:
+                        new_joints.append(self.joints[i])
+                        new_dag_paths.append(MDagPath(self.dag_paths[i]))
+                        flags[i] = False
+                        break
+
+            for i in range(0, joint_count):
+                if flags[i]:  # extra joints, add to the end
+                    new_joints.append(self.joints[i])
+                    new_dag_paths.append(MDagPath(self.dag_paths[i]))
+                    flags[i] = False
+
+            # check gud or bad
+            # joint in scene > riot joint: maybe ok
+            # joint in scene = riot joint: gud
+            # joint in scene < riot joint: bad
+            new_joint_count = len(new_joints)
+            if new_joint_count != riot_joint_count:
+                if new_joint_count > riot_joint_count:
+                    MGlobal.displayWarning(
+                        f'[SKL.dump(riot.skl)]: Found {new_joint_count-riot_joint_count} additonal joints compared to riot.skl, new joints will be added in the end of joints list.')
+                else:
+                    MGlobal.displayWarning(
+                        f'[SKL.dump(riot.skl)]: Found less {riot_joint_count - new_joint_count} joints compared to riot.skl, the joints index might be wrong.')
+            else:
+                MGlobal.displayInfo(
+                    f'[SKL.dump(riot.skl)]: Successfully matched {new_joint_count} joints with riot.skl.')
+
+            # assign new list
+            self.joints = new_joints
+            self.dag_paths = new_dag_paths
 
         parent_joint = MFnIkJoint()
         parent_dag_path = MDagPath()
@@ -904,14 +972,16 @@ class SKL:
             bs.write_uint32(0x22FD4FC3)  # magic
             bs.write_uint32(0)  # version
 
+            len1235 = len(self.joints)
+
             bs.write_uint16(0)  # flags
-            bs.write_uint16(len(self.joints))
-            bs.write_uint32(len(self.joints))  # influences
+            bs.write_uint16(len1235)
+            bs.write_uint32(len1235)  # influences
 
             joints_offset = 64
-            joint_indices_offset = joints_offset + len(self.joints) * 100
-            influences_offset = joint_indices_offset + len(self.joints) * 8
-            joint_names_offset = influences_offset + len(self.joints) * 2
+            joint_indices_offset = joints_offset + len1235 * 100
+            influences_offset = joint_indices_offset + len1235 * 8
+            joint_names_offset = influences_offset + len1235 * 2
 
             bs.write_int32(joints_offset)
             bs.write_int32(joint_indices_offset)
@@ -928,7 +998,7 @@ class SKL:
 
             joint_offset = {}
             bs.stream.seek(joint_names_offset)
-            len1235 = len(self.joints)
+
             for i in range(0, len1235):
                 joint_offset[i] = bs.stream.tell()
                 bs.write_bytes(self.joints[i].name.encode('ascii'))
@@ -1389,7 +1459,7 @@ class SKN:
                     weight_sum += weight
             if temp_count > 4:
                 raise FunnyError(
-                    f'[SKN.dump({mesh.name()})]: Mesh contains a vertex have weight afftected more than 4 influences, try:\n1. Rebind the skin with max 4 influences setting.\n2. Prune weights by 0.05.')
+                    f'[SKN.dump({mesh.name()})]: Mesh contains a vertex have weight afftected more than 4 influences, try rebind the skin with max 4 influences setting or prune weights.')
 
             # normalize weights
             for j in range(0, weight_influence_count):
@@ -1502,6 +1572,7 @@ class SKN:
         # i only get that we got shader_indices after this block
         iterator = MItMeshPolygon(mesh_dag_path)
         iterator.reset()
+        len333 = len(self.vertices)
         while not iterator.isDone():
             index = iterator.index()
             shader_index = poly_shaders[index]
@@ -1522,11 +1593,11 @@ class SKN:
                     uv_index = util.getInt(ptr)
 
                     data_index = data_indices[vertices[i]]
-                    if data_index == -1 or data_index >= len(self.vertices):
+                    if data_index == -1 or data_index >= len333:
                         raise FunnyError(
                             f'[SKN.dump({mesh.name()})]: Data index out of range.')
 
-                    for j in range(data_index, len(self.vertices)):
+                    for j in range(data_index, len333):
                         if self.vertices[j].data_index != data_index:
                             raise FunnyError(
                                 f'[SKN.dump({mesh.name()})]: Could not find corresponding face vertex.')
@@ -1576,14 +1647,12 @@ class SKN:
 
         # fix same name of joint and material, example: Yone's Fish
         # if the name of node is already in maya, it adds "1" in the second name (and 2, 3, 4 ...)
-        # -> remove "1" for either joint or material that has same name
-        for joint in skl.joints:
-            for submesh in self.submeshes:
-                if joint.name == submesh.name+'1':
+        # -> remove "1" for material that has same name as joint
+        for submesh in self.submeshes:
+            for joint in skl.joints:
+                if joint.name + '1' == submesh.name:
                     submesh.name = joint.name
-                elif submesh.name == joint.name+'1':
-                    joint.name = submesh.name
-
+                    break
         # ay yo finally
 
     def write(self, path):
@@ -1997,7 +2066,8 @@ class ANM:
         # actual tracks (track of joints that found in scene)
         actual_tracks = []
         joint_dag_path = MDagPath()
-        for i in range(0, len(self.tracks)):
+        track_count = len(self.tracks)
+        for i in range(0, track_count):
             track = self.tracks[i]
 
             # loop through all ik joint in scenes
@@ -2091,7 +2161,7 @@ class ANM:
 
         else:
             # fast load for decompressed anm
-            joint_names = ' '.joint(
+            joint_names = ' '.join(
                 [track.joint_name for track in actual_tracks])
             setKeyFrame = f'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0 -at translateX -at translateY -at translateZ -at scaleX -at scaleY -at scaleZ -at rotateX -at rotateY -at rotateZ {joint_names}'
             for time in range(0, self.duration):
@@ -2537,7 +2607,7 @@ class SO:
         component = MFnSingleIndexedComponent()
         face_component = component.create(MFn.kMeshPolygonComponent)
         group_poly_indices = MIntArray()
-        for index in range(0, len(self.indices) // 3):
+        for index in range(0, indices_count // 3):
             group_poly_indices.append(index)
         component.addElements(group_poly_indices)
 

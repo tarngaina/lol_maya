@@ -7,6 +7,12 @@ An attempt to update RiotFileTranslator to Maya 2023.
 ### Infos:
 1. Misc:
     - Add fix for read/write file with suffix in name.
+    - Add fix for SKL bad joints order which caused bad animation blending like: Samira reload, Jhin reload,...
+        - You must have the original SKL of riot, rename it to "riot.skl" and put in the same location as your modded SKN\SKL that will be export out.
+        - This will attempt to sort your joints data to match original riot joints order. (not affect the scene)
+        - The joint names of your mod must be same as original riot joints.
+        - You can add extra joints to your mod, but don't remove joints.
+        - If there is no "riot.skl" found in the output location, the plugin will export the old way.
 2. SKN: 
     - Read: 
         - `33 22 11 00`: V0, V1, V2, V3, V4
@@ -45,16 +51,18 @@ An attempt to update RiotFileTranslator to Maya 2023.
 
 
 ### Installation:
+1. [Click here and download latest release.](https://github.com/tarngaina/lol_maya/releases)
 
-1. Download `plug-ins` & `scripts` folder and move both them to `Documents` \ `maya` \ `2023`.
+
+2. Extract both `plug-ins` & `scripts` to `Documents` \ `maya` \ `2023`.
 
     ![](https://i.imgur.com/OuXcoD7.png)
 
-2. In Maya toolbar, select `Windows` > `Settings/Preferences` > `Plug-in Manager`.
+3. In Maya toolbar, select `Windows` > `Settings/Preferences` > `Plug-in Manager`.
 
     ![](https://i.imgur.com/fawHenl.png)
 
-3. Tick `Load` / `Auto Load` on the plug-in `lol_maya.py`.
+4. Tick `Load` / `Auto Load` on the plug-in `lol_maya.py`.
 
     ![](https://i.imgur.com/D0Za7BU.png)
 

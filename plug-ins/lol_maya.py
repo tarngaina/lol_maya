@@ -1,9 +1,7 @@
-from random import choice, uniform
+from random import choice
 from struct import pack, unpack
 from math import sqrt, isclose
 
-
-from maya import cmds
 from maya.OpenMayaMPx import *
 from maya.OpenMayaAnim import *
 from maya.OpenMaya import *
@@ -40,20 +38,19 @@ class SKNTranslator(MPxFileTranslator):
         path = file.expandedFullName()
         if not path.endswith('.skn'):
             path += '.skn'
-
         skn.read(path)
+
         if options.split('=')[1] == '1':
+            # with skl
             skl = SKL()
             skl.read(path.split('.skn')[0] + '.skl')
-
             skl.flip()
             skn.flip()
-
             skl.load()
-            skn.load(skl=skl)
+            skn.load(skl)
         else:
             skn.flip()
-            skn.load(skl=None)
+            skn.load(None)
         return True
 
 
@@ -121,14 +118,12 @@ class SkinTranslator(MPxFileTranslator):
 
         skl = SKL()
         skn = SKN()
-
         # dump from scene
         skl.dump()
         skn.dump(skl)
         # ay yo, do a flip!
         skl.flip()
         skn.flip()
-
         path = file.rawFullName()
         # fix for file with mutiple '.', this api is just meh
         if not path.endswith('.skn'):
@@ -169,7 +164,6 @@ class ANMTranslator(MPxFileTranslator):
         path = file.expandedFullName()
         if not path.endswith('.anm'):
             path += '.anm'
-
         anm.read(path)
         anm.flip()
         anm.load()
@@ -221,7 +215,6 @@ class SCOTranslator(MPxFileTranslator):
         path = file.expandedFullName()
         if not path.endswith('.sco'):
             path += '.sco'
-
         so.read_sco(path)
         so.flip()
         so.load()
@@ -273,7 +266,6 @@ class SCBTranslator(MPxFileTranslator):
         path = file.expandedFullName()
         if not path.endswith('.scb'):
             path += '.scb'
-
         so.read_scb(path)
         so.flip()
         so.load()
@@ -282,7 +274,7 @@ class SCBTranslator(MPxFileTranslator):
     def writer(self, file, options, access):
         if access != MPxFileTranslator.kExportActiveAccessMode:
             raise FunnyError(
-                f'[SCO.writer()]: Stop! u violated the law, use "Export Selection" or i violate u UwU.')
+                f'[SCB.writer()]: Stop! u violated the law, use "Export Selection" or i violate u UwU.')
 
         so = SO()
         so.dump()
@@ -305,7 +297,7 @@ def initializePlugin(obj):
             None,
             SKNTranslator.creator,
             "SKNTranslatorOpts",
-            "",  # idk wtf wrong with defaul options
+            "",  # idk wtf wrong with default options
             True
         )
     except Exception as e:
@@ -429,7 +421,25 @@ def uninitializePlugin(obj):
             f'Couldn\'t deregister SCBTranslator: [{e}]: {e.message}')
 
 
-# helper funcs and structures
+# helper functions and structures
+class FunnyError(Exception):
+    def __init__(self, message):
+        self.show(message)
+
+    def show(self, message):
+        title = 'Error:'
+        if ']: ' in message:
+            temp = message.split(']: ')
+            title = temp[0][1:] + ':'
+            message = temp[1]
+        button = choice(
+            ['UwU', '<(\")', 'ok boomer', 'funny man', 'jesus', 'bruh',
+             'stop', 'get some help', 'haha', 'lmao', 'ay yo', 'SUS'])
+        MGlobal.executeCommand(
+            f'confirmDialog -title "{title}" -message "{message}" -button "{button}" -icon "critical"')
+
+
+# for read/write file in a binary way
 class BinaryStream:
     # totally not copied code
     def __init__(self, f):
@@ -519,23 +529,6 @@ class BinaryStream:
         self.write_float(quat.w)
 
 
-class FunnyError(Exception):
-    def __init__(self, message):
-        self.show_message(message)
-
-    def show_message(self, message):
-        title = 'Error:'
-        if ']: ' in message:
-            temp = message.split(']: ')
-            title = temp[0][1:] + ':'
-            message = temp[1]
-        button = choice(
-            ['UwU', '<(\")', 'ok boomer', 'funny man', 'jesus', 'bruh',
-             'stop', 'get some help', 'haha', 'lmao', 'ay yo', 'SUS'])
-        MGlobal.executeCommand(
-            f'confirmDialog -title "{title}" -message "{message}" -button "{button}" -icon "critical"')
-
-
 # for convert anm/skl joint name to elf hash
 class Hash:
     # ay yo check out this elf: https://i.imgur.com/Cvl8PFu.png
@@ -551,7 +544,7 @@ class Hash:
         return h
 
 
-# for v5 anm decompress transform properties
+# for decompress v5 anm decompress vecs / quats
 class CTransform:
     class Quat:
         def decompress(bytes):
@@ -597,7 +590,7 @@ class CTransform:
             return MVector(res.x, res.y, res.z)
 
 
-# for anm/skl joint set transform - transformation matrix
+# for set skl joint transform (transformation matrix)
 class MTransform():
     def decompose(transform, space):
         # get translation, scale and rotation (quaternion) out of transformation matrix
@@ -608,7 +601,7 @@ class MTransform():
         ptr = util.asDoublePtr()
         transform.getScale(ptr, space)
 
-        # get roration in quaternion by cursed api
+        # get roration (quaternion) by cursed api
         util_x = MScriptUtil()
         ptr_x = util_x.asDoublePtr()
         util_y = MScriptUtil()
@@ -619,7 +612,6 @@ class MTransform():
         ptr_w = util_w.asDoublePtr()
         transform.getRotationQuaternion(ptr_x, ptr_y, ptr_z, ptr_w, space)
 
-        # (translation, scale, rotation)
         return (
             transform.getTranslation(space),
             MVector(
@@ -661,14 +653,19 @@ class SKLJoint:
     def __init__(self):
         self.name = None
         self.parent = None  # just id, not actual parent, especially not asian parent
+
         # fuck transform matrix
         self.local_translation = None
         self.local_scale = None
         self.local_rotation = None
+
         # yeah its actually inversed global, not global
         self.iglobal_translation = None
         self.iglobal_scale = None
         self.iglobal_rotation = None
+
+        # for converting legacy skl
+        self.global_matrix = None
 
 
 class SKL:
@@ -679,17 +676,15 @@ class SKL:
         self.dag_paths = None
 
         # for loading
-        self.legacy = None
         self.influences = []  # for load both skn + skl as skincluster
 
     def flip(self):
         # flip the L with R: https://youtu.be/2yzMUs3badc
         for joint in self.joints:
             # local
-            if joint.local_translation:  # check when reading, legacy doesnt have local
-                joint.local_translation.x *= -1.0
-                joint.local_rotation.y *= -1.0
-                joint.local_rotation.z *= -1.0
+            joint.local_translation.x *= -1.0
+            joint.local_rotation.y *= -1.0
+            joint.local_rotation.z *= -1.0
             # inversed global
             joint.iglobal_translation.x *= -1.0
             joint.iglobal_rotation.y *= -1.0
@@ -703,7 +698,6 @@ class SKL:
             magic = bs.read_uint32()
             if magic == 0x22FD4FC3:
                 # new skl data
-                self.legacy = False
 
                 version = bs.read_uint32()
                 if version != 0:
@@ -765,10 +759,8 @@ class SKL:
                 # i think that is all we need, reading joint_indices_offset, name and asset name doesnt help anything
             else:
                 # legacy
-                self.legacy = True
-
                 # because signature in old skl is first 8bytes
-                # need to go back pos 0 to read 8 bytes again
+                # need to go back pos 0 to read 8bytes again
                 bs.stream.seek(0)
 
                 magic = bs.read_bytes(8).decode('ascii')
@@ -798,10 +790,7 @@ class SKL:
                     py_list[15] = 1.0
                     matrix = MMatrix()
                     MScriptUtil.createMatrixFromList(py_list, matrix)
-                    joint.iglobal_translation, joint.iglobal_scale, joint.iglobal_rotation = MTransform.decompose(
-                        MTransformationMatrix(matrix),
-                        MSpace.kTransform
-                    )
+                    joint.global_matrix = matrix
                     self.joints.append(joint)
 
                 # read influences
@@ -811,6 +800,20 @@ class SKL:
                         self.influences.append(bs.read_uint32())
                 if version == 1:
                     self.influences = list(range(0, joint_count))
+
+                # convert old skl to new skl
+                for joint in self.joints:
+                    if joint.parent == -1:
+                        joint.local_translation, joint.local_scale, joint.local_rotation = MTransform.decompose(
+                            MTransformationMatrix(joint.global_matrix),
+                            MSpace.kWorld
+                        )
+                    else:
+                        joint.local_translation, joint.local_scale, joint.local_rotation = MTransform.decompose(
+                            MTransformationMatrix(
+                                joint.global_matrix * self.joints[joint.parent].global_matrix.inverse()),
+                            MSpace.kWorld
+                        )
 
     def load(self):
         self.dag_paths = MDagPathArray()
@@ -828,13 +831,9 @@ class SKL:
             ik_joint.setName(joint.name)
 
             # transform
-            if self.legacy:
-                ik_joint.set(MTransform.compose(
-                    joint.iglobal_translation, joint.iglobal_scale, joint.iglobal_rotation, MSpace.kTransform))
-            else:
-                ik_joint.set(MTransform.compose(
-                    joint.local_translation, joint.local_scale, joint.local_rotation, MSpace.kWorld
-                ))
+            ik_joint.set(MTransform.compose(
+                joint.local_translation, joint.local_scale, joint.local_rotation, MSpace.kWorld
+            ))
 
         # link parent
         for i in range(0, len(self.joints)):
@@ -844,15 +843,6 @@ class SKL:
                 ik_joint = MFnIkJoint(self.dag_paths[i])
 
                 ik_parent.addChild(ik_joint.object())
-
-                if self.legacy:
-                    # probably local transform thing here
-                    translation = ik_joint.getTranslation(MSpace.kTransform)
-                    rotation = MQuaternion()
-                    ik_joint.getRotation(rotation, MSpace.kWorld)
-
-                    ik_joint.setTranslation(translation, MSpace.kWorld)
-                    ik_joint.setRotation(rotation, MSpace.kWorld)
 
     def dump(self):
         self.dag_paths = MDagPathArray()
@@ -906,7 +896,7 @@ class SKL:
         with open(path, 'wb') as f:
             bs = BinaryStream(f)
 
-            bs.write_uint32(0)
+            bs.write_uint32(0)  # resource size - later
             bs.write_uint32(0x22FD4FC3)  # magic
             bs.write_uint32(0)  # version
 
@@ -961,15 +951,16 @@ class SKL:
 
                 bs.write_int32(joint_offset[i] - bs.stream.tell())
 
+            # influences - right now its the same as joint, idk why
             bs.stream.seek(influences_offset)
             for i in range(0, len1235):
                 bs.write_uint16(i)
 
             bs.stream.seek(joint_indices_offset)
             for i in range(0, len1235):
-                bs.write_uint32(Hash.elf(joint.name))
-                bs.write_uint16(0)  # pad
                 bs.write_uint16(i)
+                bs.write_uint16(0)  # pad
+                bs.write_uint32(Hash.elf(joint.name))
 
             bs.stream.seek(0, 2)
             fsize = bs.stream.tell()
@@ -1025,13 +1016,13 @@ class SKN:
                 raise FunnyError(
                     f'[SKN.read({path})]: Wrong signature file: {magic}')
 
-            self.name = path.split('/')[-1].split('.')[0]
-
             major = bs.read_uint16()
             minor = bs.read_uint16()
             if major not in [0, 2, 4] and minor != 1:
                 raise FunnyError(
                     f'[SKN.read({path})]: Unsupported file version: {major}.{minor}')
+
+            self.name = path.split('/')[-1].split('.')[0]
 
             if major == 0:
                 # version 0 doesn't have submesh wrote in file
@@ -1057,10 +1048,10 @@ class SKN:
                 vertex_count = bs.read_uint32()
 
                 # junk stuff from version 4
-                vertex_type = 0
+                vertex_color = 0
                 if major == 4:  # pad all this, cause we dont need?
                     bs.read_uint32()  # vertex size
-                    vertex_type = bs.read_uint32()  # vertex type, only need this for padding later
+                    vertex_color = bs.read_uint32()  # vertex type, only need this for padding later
                     # bouding box
                     bs.read_vec3()
                     bs.read_vec3()
@@ -1083,7 +1074,7 @@ class SKN:
                     vertex.normal = bs.read_vec3()
                     vertex.uv = bs.read_vec2()
                     # if vertex has color
-                    if vertex_type == 1:
+                    if vertex_color == 1:
                         # pad all color (4 byte = r,g,b,a) since we dont need it
                         bs.read_byte()
                         bs.read_byte()
@@ -1687,6 +1678,7 @@ class ANM:
                 frame_count = bs.read_uint32()
                 bs.read_uint32()  # jump cache count
                 duration = bs.read_float()
+                self.duration = duration * 30.0 + 1
                 bs.read_float()  # fps
                 for i in range(0, 6):  # pad some random things
                     bs.read_float()
@@ -1717,7 +1709,6 @@ class ANM:
                     joint_hashes.append(bs.read_uint32())
 
                 # create tracks
-                self.duration = duration * 30.0 + 1
                 for i in range(0, joint_count):
                     track = ANMTrack()
                     track.joint_hash = joint_hashes[i]
@@ -1738,14 +1729,13 @@ class ANM:
                     # find pose existed with time
                     time = compressed_time / 65535.0 * duration * 30.0
                     pose = None
-                    for pose in track.poses:
-                        if isclose(pose.time, time, rel_tol=0, abs_tol=0.01):
+                    for p in track.poses:
+                        if isclose(p.time, time, rel_tol=0, abs_tol=0.01):
+                            pose = p
                             break
-                        else:
-                            pose = None
 
                     # no pose found, create new
-                    if pose == None:
+                    if not pose:
                         pose = ANMPose()
                         pose.time = time
                         track.poses.append(pose)
@@ -1961,11 +1951,9 @@ class ANM:
                             if t.joint_hash == joint_hash:
                                 track = t
                                 break
-                            else:
-                                track = None
 
                         # couldnt found track that has joint hash, create new
-                        if track == None:
+                        if not track:
                             track = ANMTrack()
                             track.joint_hash = joint_hash
                             self.tracks.append(track)
@@ -2039,7 +2027,7 @@ class ANM:
 
         # ensure 30fps scene
         # im pretty sure all lol's anms are in 30fps, or i can change this later idk
-        # this only ensure the "import scene", not the existing scene in maya, to make this work:
+        # this only ensure the "import scene", not the "opening/existing scene" in maya, to make this work:
         # select "Override to Math Source" for both Framerate % Animation Range in Maya's import options panel
         MGlobal.executeCommand('currentUnit -time ntsc')
 
@@ -2092,13 +2080,16 @@ class ANM:
                         MGlobal.executeCommand(setKeyFrame)
 
             # slerp all quaternions - EULER SUCKS!
+            rotationInterpolation = 'rotationInterpolation -c quaternionSlerp'
             for track in actual_tracks:
-                MGlobal.executeCommand(
-                    f'rotationInterpolation -c quaternionSlerp {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
-                )
+                rotationInterpolation += f' {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
+            MGlobal.executeCommand(rotationInterpolation)
+
         else:
-            # fast load decompressed animation
-            joint_names = [track.joint_name for track in actual_tracks]
+            # fast load for decompressed anm
+            joint_names = ' '.joint(
+                [track.joint_name for track in actual_tracks])
+            setKeyFrame = f'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0 -at translateX -at translateY -at translateZ -at scaleX -at scaleY -at scaleZ -at rotateX -at rotateY -at rotateZ {joint_names}'
             for time in range(0, self.duration):
                 MGlobal.executeCommand(f'currentTime {time}')
                 for track in actual_tracks:
@@ -2122,8 +2113,6 @@ class ANM:
                     rotation = axe.inverse() * rotation * orient.inverse()
                     ik_joint.setRotation(rotation, MSpace.kTransform)
 
-                setKeyFrame = 'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0 -at translateX -at translateY -at translateZ -at scaleX -at scaleY -at scaleZ -at rotateX -at rotateY -at rotateZ '
-                setKeyFrame += ' '.join(joint_names)
                 MGlobal.executeCommand(setKeyFrame)
 
     def dump(self):
@@ -2215,11 +2204,11 @@ class ANM:
                         # if found both in unique vecs then break loop
                         break
 
-                if pose.translation_index == None:
+                if not pose.translation_index:
                     # add new unique translation
                     pose.translation_index = len(uni_vecs)
                     uni_vecs.append(pose.translation)
-                if pose.scale_index == None:
+                if not pose.scale_index:
                     # also check if scale = translation
                     if pose.scale == pose.translation:
                         pose.scale_index = pose.translation_index
@@ -2235,7 +2224,7 @@ class ANM:
                     if pose.rotation_index:
                         break
 
-                if pose.rotation_index == None:
+                if not pose.rotation_index:
                     pose.rotation_index = len(uni_quats)
                     uni_quats.append(pose.rotation)
 

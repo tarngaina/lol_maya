@@ -10,12 +10,12 @@ An attempt to update RiotFileTranslator to Maya 2023.
 2. SKN: 
     - Read: 
         - `33 22 11 00`: V0, V1, V2, V3, V4
-        - Add option to read SKN+SKL as skin cluster. (with weights)
+        - To read both SKN/SKL as skin cluster, change SKN import options to:
         
             ![](https://i.imgur.com/UiNIMul.png)
     - Write: 
         - `33 22 11 00`: V1
-        - Add fix for Maya duplicate name system on joint-material nodes, ex: joint `Fish` and material `Fish1` will export as only `Fish`.
+        - Add fix for Maya duplicate name system on joint-material nodes, example: joint `Fish` and material `Fish1` will export as `Fish`. (no effect on index 2, 3, 4,...)
 3. SKL:
     - Read: 
         - `r3d2sklt`: V1, V2
@@ -26,7 +26,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
     - Read: 
         - `r3d2canm`
         - `r3d2anmd`: V3, V4, V5
-        - Before import ANM, change import options to override source's fps & animation range on existing scene.
+        - To ensure 30FPS import, change ANM import options to:
         
             ![](https://i.imgur.com/2hJvlGt.png)
     - Write:
@@ -37,10 +37,10 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - SCB: `r3d2Mesh`: V1, V2, V3
     - Write:
         - SCO: 
-            - Pivot point (optional) of SCO: is translation of a joint that bound with the mesh.
+            - Pivot point (optional): is translation of a joint that bound with the mesh.
 
                 ![](https://i.imgur.com/XZFvV3V.png)
-        - SCB: `r3d2Mesh`: V3
+        - SCB: `r3d2Mesh`: V3 (no need to convert with Wooxy)
 
 
 

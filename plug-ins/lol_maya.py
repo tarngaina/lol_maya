@@ -33,24 +33,24 @@ class SKNTranslator(MPxFileTranslator):
     def creator(cls):
         return asMPxPtr(cls())
 
-    def reader(self, file, options, acces):
-        skn = SKN()
+    def reader(self, file, options, access):
         path = file.expandedFullName()
         if not path.endswith('.skn'):
             path += '.skn'
-        skn.read(path)
 
-        if 'skl=1' in options:
+        skn = SKN()
+        skn.read(path)
+        skn.flip()
+
+        skl = None
+        if 'skl=0' not in options:
             # with skl
             skl = SKL()
             skl.read(path.split('.skn')[0] + '.skl')
             skl.flip()
-            skn.flip()
             skl.load()
-            skn.load(skl)
-        else:
-            skn.flip()
-            skn.load(None)
+
+        skn.load(skl)
         return True
 
 
@@ -78,10 +78,11 @@ class SKLTranslator(MPxFileTranslator):
         return asMPxPtr(cls())
 
     def reader(self, file, options, access):
-        skl = SKL()
         path = file.expandedFullName()
         if not path.endswith('.skl'):
             path += '.skl'
+
+        skl = SKL()
         skl.read(path)
         skl.flip()
         skl.load()
@@ -114,31 +115,29 @@ class SkinTranslator(MPxFileTranslator):
     def writer(self, file, options, access):
         if access != MPxFileTranslator.kExportActiveAccessMode:
             raise FunnyError(
-                f'[SkinTranslator.writer()]: Stop! u violated the law, use "Export Selection" or i violate u UwU.')
+                f'[SkinTranslator.writer()]: Stop! u violated the law, use Export Selection or i violate u UwU.')
 
         path = file.rawFullName()
         # fix for file with mutiple '.', this api is just meh
         if not path.endswith('.skn'):
             path += '.skn'
-        skl_path = path.split('.skn')[0] + '.skl'
 
         # for sorting joints to match riot.skl
-        riot_skl = '/'.join(path.split('/')[:-1]+['riot.skl'])
+        riot = None
         mfo = MFileObject()
-        mfo.setRawFullName(riot_skl)
-        if not mfo.exists():
-            riot_skl = None
+        mfo.setRawFullName('/'.join(path.split('/')[:-1]+['riot.skl']))
+        if mfo.exists():
+            riot = SKL()
+            riot.read(mfo.rawFullName())
 
         skl = SKL()
-        skn = SKN()
-        # dump from scene
-        skl.dump(riot_skl)
-        skn.dump(skl)
-        # ay yo, do a flip!
+        skl.dump(riot)
         skl.flip()
-        skn.flip()
+        skl.write(path.split('.skn')[0] + '.skl')
 
-        skl.write(skl_path)
+        skn = SKN()
+        skn.dump(skl)
+        skn.flip()
         skn.write(path)
         return True
 
@@ -170,10 +169,10 @@ class ANMTranslator(MPxFileTranslator):
         return asMPxPtr(cls())
 
     def reader(self, file, options, access):
-        anm = ANM()
         path = file.expandedFullName()
         if not path.endswith('.anm'):
             path += '.anm'
+        anm = ANM()
         anm.read(path)
         anm.flip()
         anm.load()
@@ -182,14 +181,15 @@ class ANMTranslator(MPxFileTranslator):
     def writer(self, file, options, access):
         if access != MPxFileTranslator.kExportAccessMode:
             raise FunnyError(
-                f'[ANMTranslator.writer()]: Stop! u violated the law, use "Export All" or i violate u UwU.')
+                f'[ANMTranslator.writer()]: Stop! u violated the law, use Export All or i violate u UwU.')
+
+        path = file.expandedFullName()
+        if not path.endswith('.anm'):
+            path += '.anm'
 
         anm = ANM()
         anm.dump()
         anm.flip()
-        path = file.expandedFullName()
-        if not path.endswith('.anm'):
-            path += '.anm'
         anm.write(path)
         return True
 
@@ -221,10 +221,11 @@ class SCOTranslator(MPxFileTranslator):
         return asMPxPtr(cls())
 
     def reader(self, file, options, access):
-        so = SO()
         path = file.expandedFullName()
         if not path.endswith('.sco'):
             path += '.sco'
+
+        so = SO()
         so.read_sco(path)
         so.flip()
         so.load()
@@ -233,14 +234,15 @@ class SCOTranslator(MPxFileTranslator):
     def writer(self, file, options, access):
         if access != MPxFileTranslator.kExportActiveAccessMode:
             raise FunnyError(
-                f'[SCO.writer()]: Stop! u violated the law, use "Export Selection" or i violate u UwU.')
+                f'[SCO.writer()]: Stop! u violated the law, use Export Selection or i violate u UwU.')
+
+        path = file.expandedFullName()
+        if not path.endswith('.sco'):
+            path += '.sco'
 
         so = SO()
         so.dump()
         so.flip()
-        path = file.expandedFullName()
-        if not path.endswith('.sco'):
-            path += '.sco'
         so.write_sco(path)
         return True
 
@@ -272,10 +274,11 @@ class SCBTranslator(MPxFileTranslator):
         return asMPxPtr(cls())
 
     def reader(self, file, options, access):
-        so = SO()
         path = file.expandedFullName()
         if not path.endswith('.scb'):
             path += '.scb'
+
+        so = SO()
         so.read_scb(path)
         so.flip()
         so.load()
@@ -284,14 +287,15 @@ class SCBTranslator(MPxFileTranslator):
     def writer(self, file, options, access):
         if access != MPxFileTranslator.kExportActiveAccessMode:
             raise FunnyError(
-                f'[SCB.writer()]: Stop! u violated the law, use "Export Selection" or i violate u UwU.')
+                f'[SCB.writer()]: Stop! u violated the law, use Export Selection or i violate u UwU.')
+
+        path = file.expandedFullName()
+        if not path.endswith('.scb'):
+            path += '.scb'
 
         so = SO()
         so.dump()
         so.flip()
-        path = file.expandedFullName()
-        if not path.endswith('.scb'):
-            path += '.scb'
         so.write_scb(path)
         return True
 
@@ -712,7 +716,7 @@ class SKL:
                 version = bs.read_uint32()
                 if version != 0:
                     raise FunnyError(
-                        f'[SKL.read({path})]: Unsupported file version: {version}')
+                        f'[SKL.read()]: Unsupported file version: {version}')
 
                 flags = bs.read_uint16()  # flags - pad
                 joint_count = bs.read_uint16()
@@ -756,7 +760,9 @@ class SKL:
                         return_offset = bs.stream.tell()
                         bs.stream.seek(return_offset - 4 + joint_name_offset)
                         joint.name = bs.read_zero_terminated_string()
-                        if i == 0 and joint.name == '':  # bad "..ot" -> should be "Root"
+                        # bad "..ot" -> should be "Root"
+                        # caused by old skl convert app where it write 2 byte asset name offset overide 2 byte of Root
+                        if i == 0 and joint.name == '':
                             joint.name = 'Root'
                         bs.stream.seek(return_offset)
 
@@ -778,12 +784,12 @@ class SKL:
                 magic = bs.read_bytes(8).decode('ascii')
                 if magic != 'r3d2sklt':
                     raise FunnyError(
-                        f'[SKL.read({path})]: Wrong file signature: {magic}')
+                        f'[SKL.read()]: Wrong file signature: {magic}')
 
                 version = bs.read_uint32()
                 if version not in [1, 2]:
                     raise FunnyError(
-                        f'[SKL.read({path})]: Unsupported file version: {version}')
+                        f'[SKL.read()]: Unsupported file version: {version}')
 
                 bs.read_uint32()  # designer id or skl id - pad this
 
@@ -861,7 +867,7 @@ class SKL:
 
                 ik_parent.addChild(ik_joint.object())
 
-    def dump(self, riot_skl=None):
+    def dump(self, riot=None):
         # joint data + dag path
         self.dag_paths = MDagPathArray()
         dag_path = MDagPath()
@@ -890,53 +896,53 @@ class SKL:
 
         # testing
         # okay so here is the thing
-        # this section try to sort the joints to match original riot.skl in the same export location
+        # this section try to sort the joints to match original riot.skl's joints in the same export location
         # this is the fix for some animation layering: jhin reload / samira reload and much more...
-        if riot_skl:
+        if riot:
             MGlobal.displayInfo(
-                '[SKL.dump(riot.skl)]: Found riot.skl, trying to sort joints.')
+                '[SKL.dump(riot.skl)]: Found riot.skl, sorting joints...')
             new_joints = []
             new_dag_paths = MDagPathArray()
 
-            # read riot skl
-            riot = SKL()
-            riot.read(riot_skl)
-            riot_joint_count = len(riot.joints)
-
             joint_count = len(self.joints)
+            riot_joint_count = len(riot.joints)
             # for adding extra joint at the end of list
             flags = list([True] * joint_count)
 
             for riot_joint in riot.joints:
                 riot_joint_name = riot_joint.name.lower()
+                found = False
                 for i in range(0, joint_count):
                     if flags[i] and self.joints[i].name.lower() == riot_joint_name:
                         new_joints.append(self.joints[i])
                         new_dag_paths.append(MDagPath(self.dag_paths[i]))
                         flags[i] = False
+                        found = True
                         break
 
-            for i in range(0, joint_count):
-                if flags[i]:  # extra joints, add to the end
-                    new_joints.append(self.joints[i])
-                    new_dag_paths.append(MDagPath(self.dag_paths[i]))
-                    flags[i] = False
+                # if not found riot join in current scene -> not enough joints to match riot joints -> bad
+                if not found:
+                    MGlobal.displayWarning(
+                        f'[SKL.dump(riot.skl)]: Missing riot joint: {riot_joint.name}')
 
-            # check gud or bad
-            # joint in scene > riot joint: maybe ok
-            # joint in scene = riot joint: gud
-            # joint in scene < riot joint: bad
+            # joint in scene = riot joint: good
+            # joint in scene < riot joint: bad, might not work
             new_joint_count = len(new_joints)
-            if new_joint_count != riot_joint_count:
-                if new_joint_count > riot_joint_count:
-                    MGlobal.displayWarning(
-                        f'[SKL.dump(riot.skl)]: Found {new_joint_count-riot_joint_count} additonal joints compared to riot.skl, new joints will be added in the end of joints list.')
-                else:
-                    MGlobal.displayWarning(
-                        f'[SKL.dump(riot.skl)]: Found less {riot_joint_count - new_joint_count} joints compared to riot.skl, the joints index might be wrong.')
+            if new_joint_count < riot_joint_count:
+                MGlobal.displayWarning(
+                    f'[SKL.dump(riot.skl)]: Missing {riot_joint_count - new_joint_count} joints compared to riot.skl, the joints index might be wrong.')
             else:
                 MGlobal.displayInfo(
                     f'[SKL.dump(riot.skl)]: Successfully matched {new_joint_count} joints with riot.skl.')
+
+            # add extra/addtional joints to the end of list
+            for i in range(0, joint_count):
+                if flags[i]:
+                    new_joints.append(self.joints[i])
+                    new_dag_paths.append(MDagPath(self.dag_paths[i]))
+                    flags[i] = False
+                    MGlobal.displayInfo(
+                        f'[SKL.dump(riot.skl)]: New joints: {self.joints[i].name}')
 
             # assign new list
             self.joints = new_joints
@@ -1088,13 +1094,13 @@ class SKN:
             magic = bs.read_uint32()
             if magic != 0x00112233:
                 raise FunnyError(
-                    f'[SKN.read({path})]: Wrong signature file: {magic}')
+                    f'[SKN.read()]: Wrong signature file: {magic}')
 
             major = bs.read_uint16()
             minor = bs.read_uint16()
             if major not in [0, 2, 4] and minor != 1:
                 raise FunnyError(
-                    f'[SKN.read({path})]: Unsupported file version: {major}.{minor}')
+                    f'[SKN.read()]: Unsupported file version: {major}.{minor}')
 
             self.name = path.split('/')[-1].split('.')[0]
 
@@ -1252,7 +1258,7 @@ class SKN:
                 partition = MFnDependencyNode(
                     shading_engine).findPlug('partition')
 
-                sets = render_partition.findPlug("sets")
+                sets = render_partition.findPlug('sets')
                 the_plug_we_need = None
                 count = 0
                 while True:
@@ -1333,7 +1339,7 @@ class SKN:
             component.addElements(group_vertex_indices)
 
             MGlobal.executeCommand(
-                f"setAttr {skin_cluster.name()}.normalizeWeights 0")
+                f'setAttr {skin_cluster.name()}.normalizeWeights 0')
 
             # set weights
             weights = MDoubleArray(vertices_count * influence_count)
@@ -1350,9 +1356,9 @@ class SKN:
 
             # random things
             MGlobal.executeCommand(
-                f"setAttr {skin_cluster.name()}.normalizeWeights 1")
+                f'setAttr {skin_cluster.name()}.normalizeWeights 1')
             MGlobal.executeCommand(
-                f"skinPercent -normalize true {skin_cluster.name()} {mesh.name()}")
+                f'skinPercent -normalize true {skin_cluster.name()} {mesh.name()}')
 
         # shud be final line
         mesh.updateSurface()
@@ -1373,7 +1379,7 @@ class SKN:
         mesh = MFnMesh(mesh_dag_path)
 
         # find skin cluster
-        in_mesh = mesh.findPlug("inMesh")
+        in_mesh = mesh.findPlug('inMesh')
         in_mesh_connections = MPlugArray()
         in_mesh.connectedTo(in_mesh_connections, True, False)
         if in_mesh_connections.length() == 0:
@@ -1622,7 +1628,7 @@ class SKN:
         vertex_start = 0
         for i in range(0, shader_count):
             surface_shaders = MFnDependencyNode(
-                shaders[i]).findPlug("surfaceShader")
+                shaders[i]).findPlug('surfaceShader')
             plug_array = MPlugArray()
             surface_shaders.connectedTo(plug_array, True, False)
             surface_shader = MFnDependencyNode(plug_array[0].node())
@@ -1768,11 +1774,11 @@ class ANM:
 
                 if frames_offset <= 0:
                     raise FunnyError(
-                        f'[ANM.read({path})]: File does not contain frames.'
+                        f'[ANM.read()]: File does not contain frames.'
                     )
                 if joint_hashes_offset <= 0:
                     raise FunnyError(
-                        f'[ANM.read({path})]: File does not contain joint hashes.'
+                        f'[ANM.read()]: File does not contain joint hashes.'
                     )
 
                 # read joint hashes
@@ -1831,7 +1837,7 @@ class ANM:
                         pose.scale = MVector(scale.x, scale.y, scale.z)
                     else:
                         raise FunnyError(
-                            f'[ANM.read({path})]: Unknown compressed transform type: {transform_type}.'
+                            f'[ANM.read()]: Unknown compressed transform type: {transform_type}.'
                         )
 
             elif magic == 'r3d2anmd':
@@ -1859,19 +1865,19 @@ class ANM:
 
                     if joint_hashes_offset <= 0:
                         raise FunnyError(
-                            f'[ANM.read({path})]: File does not contain joint hashes.'
+                            f'[ANM.read()]: File does not contain joint hashes.'
                         )
                     if vecs_offset <= 0:
                         raise FunnyError(
-                            f'[ANM.read({path})]: File does not contain vectors.'
+                            f'[ANM.read()]: File does not contain vectors.'
                         )
                     if quats_offset <= 0:
                         raise FunnyError(
-                            f'[ANM.read({path})]: File does not contain quaternion.'
+                            f'[ANM.read()]: File does not contain quaternion.'
                         )
                     if frames_offset <= 0:
                         raise FunnyError(
-                            f'[ANM.read({path})]: File does not contain frames.'
+                            f'[ANM.read()]: File does not contain frames.'
                         )
 
                     joint_hash_count = (
@@ -1962,15 +1968,15 @@ class ANM:
 
                     if vecs_offset <= 0:
                         raise FunnyError(
-                            f'[ANM.read({path})]: File does not contain vectors.'
+                            f'[ANM.read()]: File does not contain vectors.'
                         )
                     if quats_offset <= 0:
                         raise FunnyError(
-                            f'[ANM.read({path})]: File does not contain quaternion.'
+                            f'[ANM.read()]: File does not contain quaternion.'
                         )
                     if frames_offset <= 0:
                         raise FunnyError(
-                            f'[ANM.read({path})]: File does not contain frames.'
+                            f'[ANM.read()]: File does not contain frames.'
                         )
 
                     vec_count = (quats_offset - vecs_offset) // 12
@@ -2060,7 +2066,7 @@ class ANM:
 
             else:
                 raise FunnyError(
-                    f'[ANM.read({path})]: Wrong signature file: {magic}')
+                    f'[ANM.read()]: Wrong signature file: {magic}')
 
     def load(self):
         # actual tracks (track of joints that found in scene)
@@ -2212,7 +2218,7 @@ class ANM:
         start_util = MScriptUtil()
         start_ptr = start_util.asDoublePtr()
         MGlobal.executeCommand(
-            "playbackOptions -q -animationStartTime", start_ptr)
+            'playbackOptions -q -animationStartTime', start_ptr)
         start = start_util.getDouble(start_ptr)
         if int(start) != 0:
             raise FunnyError(
@@ -2221,7 +2227,7 @@ class ANM:
         # get duration with cursed api
         end_util = MScriptUtil()
         end_ptr = end_util.asDoublePtr()
-        MGlobal.executeCommand("playbackOptions -q -animationEndTime", end_ptr)
+        MGlobal.executeCommand('playbackOptions -q -animationEndTime', end_ptr)
         end = end_util.getDouble(end_ptr)
         self.duration = int(round(end)) + 1
 
@@ -2384,7 +2390,7 @@ class SO:
             magic = lines[0]
             if magic != '[ObjectBegin]':
                 raise FunnyError(
-                    f'[SOData.read({path})]: Wrong file signature: {magic}')
+                    f'[SO.read_sco()]: Wrong file signature: {magic}')
 
             # temporary use file name, not name inside file
             self.name = path.split('/')[-1].split('.')[0]
@@ -2449,13 +2455,13 @@ class SO:
             magic = bs.read_bytes(8).decode('ascii')
             if magic != 'r3d2Mesh':
                 raise FunnyError(
-                    f'[SOData.read({path})]: Wrong file signature: {magic}')
+                    f'[SO.read_scb()]: Wrong file signature: {magic}')
 
             major = bs.read_uint16()
             minor = bs.read_uint16()
             if major not in [3, 2] and minor != 1:
                 raise FunnyError(
-                    f'[SOData.read({path})]: Unsupported file version: {major}.{minor}')
+                    f'[SO.read_scb()]: Unsupported file version: {major}.{minor}')
 
             # now im trying to use name from path
             # so i will pad name inside file, will try later
@@ -2579,7 +2585,7 @@ class SO:
             partition = MFnDependencyNode(
                 shading_engine).findPlug('partition')
 
-            sets = render_partition.findPlug("sets")
+            sets = render_partition.findPlug('sets')
             the_plug_we_need = None
             count = 0
             while True:
@@ -2633,7 +2639,7 @@ class SO:
 
             MGlobal.selectCommand(selections)
             MGlobal.executeCommand(
-                f"skinCluster -mi 1 -tsb -n skinCluster_{self.name}")
+                f'skinCluster -mi 1 -tsb -n skinCluster_{self.name}')
 
         mesh.updateSurface()
 

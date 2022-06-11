@@ -8,11 +8,11 @@ An attempt to update RiotFileTranslator to Maya 2023.
 1. Misc:
     - Add fix for read/write file with suffix in name.
     - Add fix for SKL bad joints order which caused bad animation blending like: Samira reload, Jhin reload,...
-        - You must have the original SKL of riot, rename it to "riot.skl" and put in the same location as your modded SKN\SKL that will be export out.
-        - This will attempt to sort your joints data to match original riot joints order. (not affect the scene)
-        - The joint names of your mod must be same as original riot joints.
-        - You can add extra joints to your mod, but don't remove joints.
-        - If there is no "riot.skl" found in the output location, the plugin will export the old way.
+        - Extract the original skl in wad file, rename it to `riot.skl`, put it in export location.
+        - When exporting, plugin will attempt to sort your joints to match `riot.skl` joints order. (not affect the scene)
+        - You must have all `riot.skl` joints on your skin cluster.
+        - You can add extra joints to your skin, but not allow to remove joints.
+        - If there is no `riot.skl` found in the export location, the plugin will export the normal way.
 2. SKN: 
     - Read: 
         - `33 22 11 00`: V0, V1, V2, V3, V4

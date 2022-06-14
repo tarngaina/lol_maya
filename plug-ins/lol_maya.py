@@ -5,6 +5,7 @@ from math import sqrt, isclose
 from maya.OpenMayaMPx import *
 from maya.OpenMayaAnim import *
 from maya.OpenMaya import *
+from maya import cmds
 
 # really need to clean things up
 
@@ -299,6 +300,56 @@ class SCBTranslator(MPxFileTranslator):
         so.write_scb(path)
         return True
 
+
+class MAPGEOTranslator(MPxFileTranslator):
+    name = 'League of Legends: MAPGEO'
+    ext = 'mapgeo'
+
+    def __init__(self):
+        MPxFileTranslator.__init__(self)
+
+    def haveReadMethod(self):
+        return True
+
+    def haveWriteMethod(self):
+        return True
+
+    def canBeOpened(self):
+        return False
+
+    def defaultExtension(self):
+        return self.ext
+
+    def filter(self):
+        return f'*.{self.ext}'
+
+    @classmethod
+    def creator(cls):
+        return asMPxPtr(cls())
+
+    def reader(self, file, options, access):
+        path = file.expandedFullName()
+        if not path.endswith('.mapgeo'):
+            path += '.mapgeo'
+
+        # if there is a .py to control loading textures, attemp to read that .py
+        # the assets folder must be in same place
+        mgbin = None
+        mfo = MFileObject()
+        mfo.setRawFullName(path.split('.mapgeo')[0] + '.materials.py')
+        if mfo.exists():
+            mgbin = MAPGEOBin()
+            mgbin.read(mfo.rawFullName())
+
+        mg = MAPGEO()
+        mg.read(path)
+        mg.flip()
+        mg.load(mgbin)
+        return True
+
+    def writer(self, file, options, access):
+        return True
+
 # plugin register
 
 
@@ -383,6 +434,19 @@ def initializePlugin(obj):
         MGlobal.displayWarning(
             f'Couldn\'t register SCBTranslator: [{e}]: {e.message}')
 
+    try:
+        plugin.registerFileTranslator(
+            MAPGEOTranslator.name,
+            None,
+            MAPGEOTranslator.creator,
+            None,
+            None,
+            True
+        )
+    except Exception as e:
+        MGlobal.displayWarning(
+            f'Couldn\'t register MAPGEOTranslator: [{e}]: {e.message}')
+
 
 def uninitializePlugin(obj):
     plugin = MFnPlugin(obj)
@@ -433,6 +497,14 @@ def uninitializePlugin(obj):
     except Exception as e:
         MGlobal.displayWarning(
             f'Couldn\'t deregister SCBTranslator: [{e}]: {e.message}')
+
+    try:
+        plugin.deregisterFileTranslator(
+            MAPGEOTranslator.name
+        )
+    except Exception as e:
+        MGlobal.displayWarning(
+            f'Couldn\'t deregister MAPGEOTranslator: [{e}]: {e.message}')
 
 
 # helper functions and structures
@@ -1113,7 +1185,6 @@ class SKN:
             else:
                 # read submeshes
                 submesh_count = bs.read_uint32()
-                print(submesh_count)
                 for i in range(0, submesh_count):
                     submesh = SKNSubmesh()
                     submesh.name = bs.read_padded_string(64)
@@ -1209,7 +1280,6 @@ class SKN:
         mesh.assignUVs(
             poly_index_count, poly_indices
         )
-       
 
         # normal
         normals = MVectorArray()
@@ -1456,7 +1526,7 @@ class SKN:
 
         weight_influence_count = util.getUint(ptr)
         #  weight stuffs
-        bad_vertex = MIntArray(vertices_num, 0) # 4+ influences vertices
+        bad_vertex = MIntArray(vertices_num, 0)  # 4+ influences vertices
         for i in range(0, vertices_num):
             # if vertices don't have more than 4 influences
             temp_count = 0
@@ -1478,11 +1548,12 @@ class SKN:
         for i in range(0, vertices_num):
             if bad_vertex[i] == 1:
                 bad_vertices.append(i)
-        
+
         if bad_vertices.length() > 0:
             # select 4+ influences vertices
             temp_component = MFnSingleIndexedComponent()
-            temp_vertex_component = temp_component.create(MFn.kMeshVertComponent)
+            temp_vertex_component = temp_component.create(
+                MFn.kMeshVertComponent)
             temp_component.addElements(bad_vertices)
 
             temp_selections = MSelectionList()
@@ -1491,7 +1562,6 @@ class SKN:
 
             raise FunnyError(
                 f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices that have weight afftected more than 4 influences. Those vertices have been highlighted in scene, zoom out to see. Try to repaint weight on those vertices or rebind the skin with max 4 influences setting or prune weights.')
-
 
         # init some important thing
         shader_vertex_indices = []
@@ -2884,7 +2954,9 @@ class SO:
                 bs.write_float(self.uvs[index+1].y)
                 bs.write_float(self.uvs[index+2].y)
 
-# test
+# test map geo
+
+
 class MAPGEOVertexElement:
     def __init__(self):
         """
@@ -2917,13 +2989,15 @@ class MAPGEOVertexElement:
             RGBA_Packed8888,
             XYZW_Packed8888
         """
-        self.format = None
+        # self.format = None
+
 
 class MAPGEOVertexElementGroup:
     def __init__(self):
         # 0 - static, 1 - dynamic, 2 - stream
-        self.usage = None
+        # self.usage = None
         self.vertex_elements = []
+
 
 class MAPGEOVertex:
     def __init__(self):
@@ -2931,59 +3005,63 @@ class MAPGEOVertex:
         self.normal = None
         self.diffuse_uv = None
         self.lightmap_uv = None
-        self.color2 = None 
+        # self.color2 = None
 
     def combine(a, b):
         # hmmm, find a way to rip this shit
         res = MAPGEOVertex()
-        if not a.position and b.position:
-            res.position = b.position
-        else:
-            res.position = a.position
-
-        if not a.normal and b.normal:
-            res.normal = b.normal
-        else:
-            res.normal = a.normal
-        
-        if not a.diffuse_uv and b.diffuse_uv:
-            res.diffuse_uv = b.diffuse_uv
-        else:
-            res.diffuse_uv = a.diffuse_uv
-        
-        if not a.lightmap_uv and b.lightmap_uv:
-            res.lightmap_uv = b.lightmap_uv
-        else:
-            res.lightmap_uv = a.lightmap_uv
-        
-        if not a.color2 and b.color2:
-            res.color2 = b.color2
-        else:
-            res.color2 = a.color2
-
+        res.position = b.position if (
+            b.position and not a.position) else a.position
+        res.normal = b.normal if (b.normal and not a.normal) else a.normal
+        res.diffuse_uv = b.diffuse_uv if (
+            b.diffuse_uv and not a.diffuse_uv) else a.diffuse_uv
+        res.lightmap_uv = b.lightmap_uv if (
+            b.lightmap_uv and not a.lightmap_uv) else a.lightmap_uv
+        # res.color2 = b.color2 if b.color2 and not a.color2 else a.color2
         return res
+
 
 class MAPGEOSubmesh:
     def __init__(self):
-        self.parent = None
-        self.hash = None
+        # self.parent = None
+        # self.hash = None
         self.name = None
         self.index_start = None
         self.index_count = None
         self.vertex_start = None
         self.vertex_count = None
 
+
 class MAPGeoModel:
     def __init__(self):
+        self.name = None
         self.submeshes = []
         self.vertices = []
         self.indices = []
+
+        # transform
+        self.translation = None
+        self.scale = None
+        self.rotation = None
+
+        # empty = no light map
+        self.lightmap = None
 
 
 class MAPGEO:
     def __init__(self):
         self.models = []
-        self.bucket_grid = None
+        # self.bucket_grid = None
+
+    def flip(self):
+        for model in self.models:
+            for vertex in model.vertices:
+                vertex.position.x *= -1.0
+                vertex.normal.y *= -1.0
+                vertex.normal.z *= -1.0
+            model.translation.x *= -1.0
+            model.rotation.y *= -1.0
+            model.rotation.z *= -1.0
 
     def read(self, path):
         with open(path, 'rb') as f:
@@ -3004,26 +3082,26 @@ class MAPGEO:
                 use_seperate_point_lights = bs.read_bool()
 
             if version >= 9:
-                #unknown str 1
-                s1 = bs.read_bytes(bs.read_int32()).decode('ascii')
+                # unknown str 1
+                bs.read_bytes(bs.read_int32()).decode('ascii')
                 if version >= 11:
                     # unknown str 2
-                    s2 = bs.read_bytes(bs.read_int32()).decode('ascii')
+                    bs.read_bytes(bs.read_int32()).decode('ascii')
 
             # vertex elements
-            vegs = [] # list of ve groups
+            vegs = []  # list of ve groups
             veg_count = bs.read_uint32()
             for i in range(0, veg_count):
-                veg = MAPGEOVertexElementGroup() # group of ves
-                veg.usage = bs.read_uint32()
+                veg = MAPGEOVertexElementGroup()  # group of ves
+                bs.read_uint32()  # usage
 
                 ve_count = bs.read_uint32()
                 for j in range(0, ve_count):
-                    ve = MAPGEOVertexElement() # ve
+                    ve = MAPGEOVertexElement()  # ve
                     ve.name = bs.read_uint32()
-                    ve.format = bs.read_uint32()
+                    bs.read_uint32()  # format
                     veg.vertex_elements.append(ve)
-                
+
                 vegs.append(veg)
                 bs.stream.seek(8 * (15 - ve_count), 1)
 
@@ -3036,7 +3114,7 @@ class MAPGEO:
                 bs.stream.seek(buffer, 1)
 
             # index buffers
-            ibs = [] # list of list
+            ibs = []  # list of list
             ib_count = bs.read_uint32()
             for i in range(0, ib_count):
                 buffer = bs.read_uint32()
@@ -3044,15 +3122,15 @@ class MAPGEO:
                 ib = []
                 for j in range(0, buffer // 2):
                     ib.append(bs.read_uint16())
-                
-                ibs.append(ib) # list of list
+
+                ibs.append(ib)  # list of list
 
             model_count = bs.read_uint32()
 
             for m in range(0, model_count):
                 model = MAPGeoModel()
                 model.name = bs.read_bytes(bs.read_int32()).decode('ascii')
-                
+
                 vertex_count = bs.read_uint32()
                 vb_count = bs.read_uint32()
                 veg = bs.read_int32()
@@ -3081,16 +3159,17 @@ class MAPGEO:
                                 bs.read_byte()
                                 bs.read_byte()
                                 bs.read_byte()
-                                bs.read_byte() # pad color idk
+                                bs.read_byte()  # pad color idk
                             else:
                                 print('error unknown element')
                                 return
-                        model.vertices[j] = MAPGEOVertex.combine(model.vertices[j], vertex)
+                        model.vertices[j] = MAPGEOVertex.combine(
+                            model.vertices[j], vertex)
 
                     bs.stream.seek(return_offset)
 
                 # indices
-                index_count = bs.read_uint32()
+                bs.read_uint32()  # index_count
                 ib = bs.read_int32()
                 model.indices += ibs[ib]
 
@@ -3098,9 +3177,10 @@ class MAPGEO:
                 submesh_count = bs.read_uint32()
                 for i in range(0, submesh_count):
                     submesh = MAPGEOSubmesh()
-                    submesh.parent = model
-                    submesh.hash = bs.read_uint32()
-                    submesh.name = bs.read_bytes(bs.read_int32()).decode('ascii')
+                    # submesh.parent = model
+                    bs.read_uint32()  # hash
+                    submesh.name = bs.read_bytes(
+                        bs.read_int32()).decode('ascii')
 
                     submesh.index_start = bs.read_uint32()
                     submesh.index_count = bs.read_uint32()
@@ -3111,7 +3191,7 @@ class MAPGEO:
                     model.submeshes.append(submesh)
 
                 if version != 5:
-                    model.flip_normals = bs.read_bool()
+                    bs.read_bool()  # flip normals
 
                 # bounding box
                 bs.read_vec3()
@@ -3122,14 +3202,18 @@ class MAPGEO:
                 for i in range(0, 4):
                     for j in range(0, 4):
                         py_list.append(bs.read_float())
-                
-                model.matrix = MMatrix()
-                MScriptUtil.createMatrixFromList(py_list, model.matrix)
 
-                model.flags = bs.read_byte()
-                
+                matrix = MMatrix()
+                MScriptUtil.createMatrixFromList(py_list, matrix)
+                model.translation, model.scale, model.rotation = MTransform.decompose(
+                    MTransformationMatrix(matrix),
+                    MSpace.kWorld
+                )
+
+                bs.read_byte()  # flags
+
                 if version >= 7:
-                    model.layer = bs.read_byte()
+                    bs.read_byte()  # layer
                     if version >= 11:
                         # unknown byte
                         bs.read_byte()
@@ -3137,26 +3221,29 @@ class MAPGEO:
                 if use_seperate_point_lights and version < 7:
                     # pad seperated point light
                     bs.read_vec3()
-                
+
                 if version < 9:
                     for i in range(0, 9):
                         bs.read_vec3()
                         # pad unknow vec3
-                    
-                    model.lightmap = bs.read_bytes(bs.read_int32()).decode('ascii')
+
+                    model.lightmap = bs.read_bytes(
+                        bs.read_int32()).decode('ascii')
                     # pad color
                     bs.read_byte()
                     bs.read_byte()
                     bs.read_byte()
                     bs.read_byte()
-                elif version >= 9:
-                    model.lightmap = bs.read_bytes(bs.read_int32()).decode('ascii')
+                else:
+                    model.lightmap = bs.read_bytes(
+                        bs.read_int32()).decode('ascii')
+                    # pad color
                     bs.read_float()
                     bs.read_float()
                     bs.read_float()
                     bs.read_float()
-                    
-                    model.baked_paint_texture = bs.read_bytes(bs.read_int32()).decode('ascii')
+                    model.baked_paint_texture = bs.read_bytes(
+                        bs.read_int32()).decode('ascii')
                     bs.read_float()
                     bs.read_float()
                     bs.read_float()
@@ -3164,11 +3251,15 @@ class MAPGEO:
 
                 self.models.append(model)
 
-
-    def load(self):
+    def load(self, mgbin=None):
         # ensure far clip plane, allow to see big objects like whole map
-        MGlobal.executeCommand('setAttr "perspShape.farClipPlane" 100000')
+        MGlobal.executeCommand('setAttr "perspShape.farClipPlane" 300000')
 
+        # render with alpha cut
+        MGlobal.executeCommand(
+            'setAttr "hardwareRenderingGlobals.transparencyAlgorithm" 5')
+
+        meshes = []
         for model in self.models:
             mesh = MFnMesh()
             vertices_count = len(model.vertices)
@@ -3192,21 +3283,37 @@ class MAPGEO:
             )
 
             # assign uv
+            # lightmap not always available, skip if we dont have
             u_values = MFloatArray(vertices_count)
             v_values = MFloatArray(vertices_count)
+            if len(model.lightmap) > 0:
+                u_values_lm = MFloatArray(vertices_count)
+                v_values_lm = MFloatArray(vertices_count)
             for i in range(0, vertices_count):
                 vertex = model.vertices[i]
                 u_values[i] = vertex.diffuse_uv.x
                 v_values[i] = 1.0 - vertex.diffuse_uv.y
+                if len(model.lightmap) > 0:
+                    u_values_lm[i] = vertex.lightmap_uv.x
+                    v_values_lm[i] = 1.0 - vertex.lightmap_uv.y
+
             mesh.setUVs(
                 u_values, v_values
             )
             mesh.assignUVs(
                 poly_index_count, poly_indices
             )
+            if len(model.lightmap) > 0:
+                mesh.createUVSetWithName('lightmap')
+                mesh.setUVs(
+                    u_values_lm, v_values_lm, 'lightmap'
+                )
 
-            # normal 
-            """
+                mesh.assignUVs(
+                    poly_index_count, poly_indices, 'lightmap'
+                )
+
+            # normal
             normals = MVectorArray()
             normal_indices = MIntArray(vertices_count)
             for i in range(0, vertices_count):
@@ -3217,7 +3324,7 @@ class MAPGEO:
             mesh.setVertexNormals(
                 normals,
                 normal_indices
-            )"""
+            )
 
             # dag_path and name
             mesh_dag_path = MDagPath()
@@ -3226,19 +3333,176 @@ class MAPGEO:
             transform_node = MFnTransform(mesh.parent(0))
             transform_node.setName(model.name)
 
-            transform_node.set(MTransformationMatrix(model.matrix))
-            #break
+            transform_node.set(MTransform.compose(
+                model.translation, model.scale, model.rotation,
+                MSpace.kWorld
+            ))
+
+            model.mesh_dag_path = MDagPath(mesh_dag_path)
+            meshes.append(mesh)
+
+        # find render partition
+        render_partition = MFnPartition()
+        found_rp = False
+        iterator = MItDependencyNodes(MFn.kPartition)
+        while not iterator.isDone():
+            render_partition.setObject(iterator.thisNode())
+            if render_partition.name() == 'renderPartition' and render_partition.isRenderPartition():
+                found_rp = True
+                break
+            iterator.next()
+
+        # materials
+        shader_models = {}
+        for model in self.models:
+            for submesh in model.submeshes:
+                if submesh.name not in shader_models:
+                    shader_models[submesh.name] = []
+                if model not in shader_models[submesh.name]:
+                    shader_models[submesh.name].append(model)
+
+        modifier = MDGModifier()
+        set = MFnSet()
+        for shader_name in shader_models:
+            # create lambert
+            lambert = MFnLambertShader()
+            lambert.create(True)
+            submesh_name = shader_name.split('/')[-1]
+            # shader name = full name with path /
+            # submesh name = last name
+            lambert.setName(submesh_name)
+
+            # some shader stuffs
+            dependency_node = MFnDependencyNode()
+            shading_engine = dependency_node.create(
+                'shadingEngine', f'{submesh_name}_SG')
+            material_info = dependency_node.create(
+                'materialInfo', f'{submesh_name}_MaterialInfo')
+
+            if found_rp:
+                partition = MFnDependencyNode(
+                    shading_engine).findPlug('partition')
+
+                sets = render_partition.findPlug('sets')
+                the_plug_we_need = None
+                count = 0
+                while True:
+                    the_plug_we_need = sets.elementByLogicalIndex(count)
+                    if not the_plug_we_need.isConnected():  # find the one that not connected
+                        break
+                    count += 1
+
+                modifier.connect(partition, the_plug_we_need)
+
+            # connect node
+            out_color = lambert.findPlug('outColor')
+            surface_shader = MFnDependencyNode(
+                shading_engine).findPlug('surfaceShader')
+            modifier.connect(out_color, surface_shader)
+
+            message = MFnDependencyNode(shading_engine).findPlug('message')
+            shading_group = MFnDependencyNode(
+                material_info).findPlug('shadingGroup')
+            modifier.connect(message, shading_group)
+
+            modifier.doIt()
+
+            set.setObject(shading_engine)
+            for model in shader_models[shader_name]:
+                # assign face to material
+                component = MFnSingleIndexedComponent()
+                face_component = component.create(MFn.kMeshPolygonComponent)
+                group_poly_indices = MIntArray()
+                for submesh in model.submeshes:
+                    if submesh.name == shader_name:
+                        break
+                for index in range(submesh.index_start // 3, (submesh.index_start + submesh.index_count) // 3):
+                    group_poly_indices.append(index)
+                component.addElements(group_poly_indices)
+
+                set.addMember(model.mesh_dag_path, face_component)
+
+        for mesh in meshes:
+            mesh.updateSurface()
+
+        if mgbin:
+            for shader_name in shader_models:
+                submesh_name = shader_name.split('/')[-1]
+
+                # create file node
+                MGlobal.executeCommand(
+                    f'shadingNode -asTexture -isColorManaged file -name "{submesh_name}_file"')
+                MGlobal.executeCommand(
+                    f'setAttr {submesh_name}_file.fileTextureName -type "string" "{mgbin.textures[submesh_name]}"')
+
+                # create place2dTexture node (p2d)
+                MGlobal.executeCommand(
+                    f'shadingNode -asUtility place2dTexture -name "{submesh_name}_p2d"')
+
+                # connect p2d - file
+                attributes = [
+                    'coverage',
+                    'translateFrame',
+                    'rotateFrame',
+                    'mirrorU',
+                    'mirrorV',
+                    'stagger',
+                    'wrapU',
+                    'wrapV',
+                    'repeatUV',
+                    'offset',
+                    'rotateUV',
+                    'noiseUV',
+                    'vertexUvOne',
+                    'vertexUvTwo',
+                    'vertexUvThree',
+                    'vertexCameraOne'
+                ]
+                for attribute in attributes:
+                    MGlobal.executeCommand(
+                        f'connectAttr -f {submesh_name}_p2d.{attribute} {submesh_name}_file.{attribute}')
+                MGlobal.executeCommand(
+                    f'connectAttr -f {submesh_name}_p2d.outUV {submesh_name}_file.uv')
+                MGlobal.executeCommand(
+                    f'connectAttr -f {submesh_name}_p2d.outUvFilterSize {submesh_name}_file.uvFilterSize')
+
+                # connect file - lambert
+                MGlobal.executeCommand(
+                    f'connectAttr -f {submesh_name}_file.outColor {submesh_name}.color')
+                MGlobal.executeCommand(
+                    f'connectAttr -f {submesh_name}_file.outTransparency {submesh_name}.transparency')
 
 
+# sorry its a py instead
+class MAPGEOBin():
+    def __init__(self):
+        self.textures = {}
 
+    def read(self, path):
+        mat_lines = []
+        with open(path, 'r') as f:
+            base_path = '/'.join(path.split('/')[:-1])
+            lines = f.readlines()
+            i = 0
+            len12345 = len(lines)
+            while i < len12345:
+                if 'StaticMaterialDef' in lines[i]:
+                    a = i
+                    for j in range(a, len12345):
+                        if lines[j] == '    }\n':
+                            b = j
+                            break
+                    mat_lines.append((a, b))
+                    i = b
+                i += 1
 
-def db():
-    #mg = MAPGEO()
-    #mg.read('D:\\base_srx.mapgeo')
-    #mg.load()
-    skn = SKN()
-    skn.read('D:\\zac.skn')
-    skn.flip()
-    skn.load()
-
-#db()
+            for a, b in mat_lines:
+                for i in range(a, b):
+                    if 'StaticMaterialDef' in lines[i]:
+                        name = lines[i].split('=')[0].split(
+                            '/')[-1][:-1].replace('"', '')
+                        self.textures[name] = None
+                    if 'DiffuseTexture' in lines[i]:
+                        path = base_path + '/' + lines[i +
+                                                       1].split('=')[1][1:].replace('"', '')[:-1]
+                self.textures[name] = path

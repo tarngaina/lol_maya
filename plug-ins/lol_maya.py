@@ -465,6 +465,9 @@ class BinaryStream:
     def read_bytes(self, length):
         return self.stream.read(length)
 
+    def read_bool(self):
+        return unpack('?', self.stream.read(1))[0]
+
     def read_int16(self):
         return unpack('h', self.stream.read(2))[0]
 
@@ -1103,7 +1106,6 @@ class SKN:
                     f'[SKN.read()]: Unsupported file version: {major}.{minor}')
 
             self.name = path.split('/')[-1].split('.')[0]
-
             if major == 0:
                 # version 0 doesn't have submesh wrote in file
                 index_count = bs.read_uint32()
@@ -1111,6 +1113,7 @@ class SKN:
             else:
                 # read submeshes
                 submesh_count = bs.read_uint32()
+                print(submesh_count)
                 for i in range(0, submesh_count):
                     submesh = SKNSubmesh()
                     submesh.name = bs.read_padded_string(64)
@@ -1177,7 +1180,6 @@ class SKN:
         mesh = MFnMesh()
         vertices_count = len(self.vertices)
         indices_count = len(self.indices)
-
         # create mesh with vertices, indices
         vertices = MFloatPointArray()
         for i in range(0, vertices_count):
@@ -1199,15 +1201,15 @@ class SKN:
         u_values = MFloatArray(vertices_count)
         v_values = MFloatArray(vertices_count)
         for i in range(0, vertices_count):
-            vertex = self.vertices[i]
-            u_values[i] = vertex.uv.x
-            v_values[i] = 1.0 - vertex.uv.y
+            u_values[i] = self.vertices[i].uv.x
+            v_values[i] = 1.0 - self.vertices[i].uv.y
         mesh.setUVs(
             u_values, v_values
         )
         mesh.assignUVs(
             poly_index_count, poly_indices
         )
+       
 
         # normal
         normals = MVectorArray()
@@ -1451,9 +1453,10 @@ class SKN:
         util = MScriptUtil()  # cursed api
         ptr = util.asUintPtr()
         skin_cluster.getWeights(mesh_dag_path, vertex_component, weights, ptr)
-        # is this different from influence_count?
+
         weight_influence_count = util.getUint(ptr)
         #  weight stuffs
+        bad_vertex = MIntArray(vertices_num, 0) # 4+ influences vertices
         for i in range(0, vertices_num):
             # if vertices don't have more than 4 influences
             temp_count = 0
@@ -1464,12 +1467,31 @@ class SKN:
                     temp_count += 1
                     weight_sum += weight
             if temp_count > 4:
-                raise FunnyError(
-                    f'[SKN.dump({mesh.name()})]: Mesh contains a vertex have weight afftected more than 4 influences, try rebind the skin with max 4 influences setting or prune weights.')
+                bad_vertex[i] = 1
 
             # normalize weights
             for j in range(0, weight_influence_count):
                 weights[i * weight_influence_count + j] /= weight_sum
+
+        # get 4+ influences vertices
+        bad_vertices = MIntArray()
+        for i in range(0, vertices_num):
+            if bad_vertex[i] == 1:
+                bad_vertices.append(i)
+        
+        if bad_vertices.length() > 0:
+            # select 4+ influences vertices
+            temp_component = MFnSingleIndexedComponent()
+            temp_vertex_component = temp_component.create(MFn.kMeshVertComponent)
+            temp_component.addElements(bad_vertices)
+
+            temp_selections = MSelectionList()
+            temp_selections.add(mesh_dag_path, temp_vertex_component)
+            MGlobal.setActiveSelectionList(temp_selections)
+
+            raise FunnyError(
+                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices that have weight afftected more than 4 influences. Those vertices have been highlighted in scene, zoom out to see. Try to repaint weight on those vertices or rebind the skin with max 4 influences setting or prune weights.')
+
 
         # init some important thing
         shader_vertex_indices = []
@@ -2861,3 +2883,362 @@ class SO:
                 bs.write_float(self.uvs[index].y)
                 bs.write_float(self.uvs[index+1].y)
                 bs.write_float(self.uvs[index+2].y)
+
+# test
+class MAPGEOVertexElement:
+    def __init__(self):
+        """
+            Position,
+            BlendWeight,
+            Normal,
+            PrimaryColor,
+            SecondaryColor,
+            FogCoordinate,
+            BlendIndex,
+            DiffuseUV,
+            Texcoord1,
+            Texcoord2,
+            Texcoord3,
+            Texcoord4,
+            Texcoord5,
+            Texcoord6,
+            LightmapUV,
+            StreamIndexCount
+        """
+        self.name = None
+
+        """
+            X_Float32,
+            XY_Float32,
+            XYZ_Float32,
+            XYZW_Float32,
+            BGRA_Packed8888,
+            ZYXW_Packed8888,
+            RGBA_Packed8888,
+            XYZW_Packed8888
+        """
+        self.format = None
+
+class MAPGEOVertexElementGroup:
+    def __init__(self):
+        # 0 - static, 1 - dynamic, 2 - stream
+        self.usage = None
+        self.vertex_elements = []
+
+class MAPGEOVertex:
+    def __init__(self):
+        self.position = None
+        self.normal = None
+        self.diffuse_uv = None
+        self.lightmap_uv = None
+        self.color2 = None 
+
+    def combine(a, b):
+        # hmmm, find a way to rip this shit
+        res = MAPGEOVertex()
+        if not a.position and b.position:
+            res.position = b.position
+        else:
+            res.position = a.position
+
+        if not a.normal and b.normal:
+            res.normal = b.normal
+        else:
+            res.normal = a.normal
+        
+        if not a.diffuse_uv and b.diffuse_uv:
+            res.diffuse_uv = b.diffuse_uv
+        else:
+            res.diffuse_uv = a.diffuse_uv
+        
+        if not a.lightmap_uv and b.lightmap_uv:
+            res.lightmap_uv = b.lightmap_uv
+        else:
+            res.lightmap_uv = a.lightmap_uv
+        
+        if not a.color2 and b.color2:
+            res.color2 = b.color2
+        else:
+            res.color2 = a.color2
+
+        return res
+
+class MAPGEOSubmesh:
+    def __init__(self):
+        self.parent = None
+        self.hash = None
+        self.name = None
+        self.index_start = None
+        self.index_count = None
+        self.vertex_start = None
+        self.vertex_count = None
+
+class MAPGeoModel:
+    def __init__(self):
+        self.submeshes = []
+        self.vertices = []
+        self.indices = []
+
+
+class MAPGEO:
+    def __init__(self):
+        self.models = []
+        self.bucket_grid = None
+
+    def read(self, path):
+        with open(path, 'rb') as f:
+            bs = BinaryStream(f)
+
+            magic = bs.read_bytes(4).decode('ascii')
+            if magic != 'OEGM':
+                print('wrog magic')
+                return
+
+            version = bs.read_uint32()
+            if version not in [5, 6, 7, 9, 11]:
+                print('wrong version')
+                return
+
+            use_seperate_point_lights = False
+            if version < 7:
+                use_seperate_point_lights = bs.read_bool()
+
+            if version >= 9:
+                #unknown str 1
+                s1 = bs.read_bytes(bs.read_int32()).decode('ascii')
+                if version >= 11:
+                    # unknown str 2
+                    s2 = bs.read_bytes(bs.read_int32()).decode('ascii')
+
+            # vertex elements
+            vegs = [] # list of ve groups
+            veg_count = bs.read_uint32()
+            for i in range(0, veg_count):
+                veg = MAPGEOVertexElementGroup() # group of ves
+                veg.usage = bs.read_uint32()
+
+                ve_count = bs.read_uint32()
+                for j in range(0, ve_count):
+                    ve = MAPGEOVertexElement() # ve
+                    ve.name = bs.read_uint32()
+                    ve.format = bs.read_uint32()
+                    veg.vertex_elements.append(ve)
+                
+                vegs.append(veg)
+                bs.stream.seek(8 * (15 - ve_count), 1)
+
+            # vertex buffers
+            vbs = []
+            vb_count = bs.read_uint32()
+            for i in range(0, vb_count):
+                buffer = bs.read_uint32()
+                vbs.append(bs.stream.tell())
+                bs.stream.seek(buffer, 1)
+
+            # index buffers
+            ibs = [] # list of list
+            ib_count = bs.read_uint32()
+            for i in range(0, ib_count):
+                buffer = bs.read_uint32()
+
+                ib = []
+                for j in range(0, buffer // 2):
+                    ib.append(bs.read_uint16())
+                
+                ibs.append(ib) # list of list
+
+            model_count = bs.read_uint32()
+
+            for m in range(0, model_count):
+                model = MAPGeoModel()
+                model.name = bs.read_bytes(bs.read_int32()).decode('ascii')
+                
+                vertex_count = bs.read_uint32()
+                vb_count = bs.read_uint32()
+                veg = bs.read_int32()
+
+                # init vertices
+                for i in range(0, vertex_count):
+                    model.vertices.append(MAPGEOVertex())
+
+                for i in range(0, vb_count):
+                    vb_id = bs.read_int32()
+                    return_offset = bs.stream.tell()
+                    bs.stream.seek(vbs[vb_id])
+
+                    for j in range(0, vertex_count):
+                        vertex = MAPGEOVertex()
+                        for element in vegs[veg+i].vertex_elements:
+                            if element.name == 0:
+                                vertex.position = bs.read_vec3()
+                            elif element.name == 2:
+                                vertex.normal = bs.read_vec3()
+                            elif element.name == 7:
+                                vertex.diffuse_uv = bs.read_vec2()
+                            elif element.name == 14:
+                                vertex.lightmap_uv = bs.read_vec2()
+                            elif element.name == 4:
+                                bs.read_byte()
+                                bs.read_byte()
+                                bs.read_byte()
+                                bs.read_byte() # pad color idk
+                            else:
+                                print('error unknown element')
+                                return
+                        model.vertices[j] = MAPGEOVertex.combine(model.vertices[j], vertex)
+
+                    bs.stream.seek(return_offset)
+
+                # indices
+                index_count = bs.read_uint32()
+                ib = bs.read_int32()
+                model.indices += ibs[ib]
+
+                # submeshes
+                submesh_count = bs.read_uint32()
+                for i in range(0, submesh_count):
+                    submesh = MAPGEOSubmesh()
+                    submesh.parent = model
+                    submesh.hash = bs.read_uint32()
+                    submesh.name = bs.read_bytes(bs.read_int32()).decode('ascii')
+
+                    submesh.index_start = bs.read_uint32()
+                    submesh.index_count = bs.read_uint32()
+                    submesh.vertex_start = bs.read_uint32()
+                    submesh.vertex_count = bs.read_uint32()
+                    if submesh.vertex_start > 0:
+                        submesh.vertex_start -= 1
+                    model.submeshes.append(submesh)
+
+                if version != 5:
+                    model.flip_normals = bs.read_bool()
+
+                # bounding box
+                bs.read_vec3()
+                bs.read_vec3()
+
+                # transform matrix
+                py_list = []
+                for i in range(0, 4):
+                    for j in range(0, 4):
+                        py_list.append(bs.read_float())
+                
+                model.matrix = MMatrix()
+                MScriptUtil.createMatrixFromList(py_list, model.matrix)
+
+                model.flags = bs.read_byte()
+                
+                if version >= 7:
+                    model.layer = bs.read_byte()
+                    if version >= 11:
+                        # unknown byte
+                        bs.read_byte()
+
+                if use_seperate_point_lights and version < 7:
+                    # pad seperated point light
+                    bs.read_vec3()
+                
+                if version < 9:
+                    for i in range(0, 9):
+                        bs.read_vec3()
+                        # pad unknow vec3
+                    
+                    model.lightmap = bs.read_bytes(bs.read_int32()).decode('ascii')
+                    # pad color
+                    bs.read_byte()
+                    bs.read_byte()
+                    bs.read_byte()
+                    bs.read_byte()
+                elif version >= 9:
+                    model.lightmap = bs.read_bytes(bs.read_int32()).decode('ascii')
+                    bs.read_float()
+                    bs.read_float()
+                    bs.read_float()
+                    bs.read_float()
+                    
+                    model.baked_paint_texture = bs.read_bytes(bs.read_int32()).decode('ascii')
+                    bs.read_float()
+                    bs.read_float()
+                    bs.read_float()
+                    bs.read_float()
+
+                self.models.append(model)
+
+
+    def load(self):
+        # ensure far clip plane, allow to see big objects like whole map
+        MGlobal.executeCommand('setAttr "perspShape.farClipPlane" 100000')
+
+        for model in self.models:
+            mesh = MFnMesh()
+            vertices_count = len(model.vertices)
+            indices_count = len(model.indices)
+
+            # create mesh with vertices, indices
+            vertices = MFloatPointArray()
+            for i in range(0, vertices_count):
+                vertex = model.vertices[i]
+                vertices.append(MFloatPoint(
+                    vertex.position.x, vertex.position.y, vertex.position.z))
+            poly_index_count = MIntArray(indices_count // 3, 3)
+            poly_indices = MIntArray()
+            MScriptUtil.createIntArrayFromList(model.indices, poly_indices)
+            mesh.create(
+                vertices_count,
+                indices_count // 3,
+                vertices,
+                poly_index_count,
+                poly_indices,
+            )
+
+            # assign uv
+            u_values = MFloatArray(vertices_count)
+            v_values = MFloatArray(vertices_count)
+            for i in range(0, vertices_count):
+                vertex = model.vertices[i]
+                u_values[i] = vertex.diffuse_uv.x
+                v_values[i] = 1.0 - vertex.diffuse_uv.y
+            mesh.setUVs(
+                u_values, v_values
+            )
+            mesh.assignUVs(
+                poly_index_count, poly_indices
+            )
+
+            # normal 
+            """
+            normals = MVectorArray()
+            normal_indices = MIntArray(vertices_count)
+            for i in range(0, vertices_count):
+                vertex = model.vertices[i]
+                normals.append(
+                    MVector(vertex.normal.x, vertex.normal.y, vertex.normal.z))
+                normal_indices[i] = i
+            mesh.setVertexNormals(
+                normals,
+                normal_indices
+            )"""
+
+            # dag_path and name
+            mesh_dag_path = MDagPath()
+            mesh.getPath(mesh_dag_path)
+            mesh.setName(model.name)
+            transform_node = MFnTransform(mesh.parent(0))
+            transform_node.setName(model.name)
+
+            transform_node.set(MTransformationMatrix(model.matrix))
+            #break
+
+
+
+
+def db():
+    #mg = MAPGEO()
+    #mg.read('D:\\base_srx.mapgeo')
+    #mg.load()
+    skn = SKN()
+    skn.read('D:\\zac.skn')
+    skn.flip()
+    skn.load()
+
+#db()

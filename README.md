@@ -13,6 +13,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - You must have all `riot.skl` joints on your skin cluster.
         - You can add extra joints to your skin, but not allow to remove joints.
         - If there is no `riot.skl` found in the export location, the plugin will export the normal way.
+    - When run into the problem: vertices have weights affect more than 4 influences, those vertices will be selected/highlighted in scene.
 2. SKN: 
     - Read: 
         - `33 22 11 00`: V0, V1, V2, V3, V4

@@ -3126,7 +3126,6 @@ class MAPGEO:
                 ibs.append(ib)  # list of list
 
             model_count = bs.read_uint32()
-
             for m in range(0, model_count):
                 model = MAPGeoModel()
                 model.name = bs.read_bytes(bs.read_int32()).decode('ascii')
@@ -3182,6 +3181,9 @@ class MAPGEO:
                     submesh.name = bs.read_bytes(
                         bs.read_int32()).decode('ascii')
 
+                    # maya doesnt allow '/' in name, so use __ instead, bruh
+                    submesh.name = submesh.name.replace('/', '__')
+
                     submesh.index_start = bs.read_uint32()
                     submesh.index_count = bs.read_uint32()
                     submesh.vertex_start = bs.read_uint32()
@@ -3220,36 +3222,34 @@ class MAPGEO:
 
                 if use_seperate_point_lights and version < 7:
                     # pad seperated point light
-                    bs.read_vec3()
+                    t = bs.read_vec3()
+                    print('point light: ', t.x, t.y, t.z)
+                    # need to create pointlight?
 
                 if version < 9:
                     for i in range(0, 9):
                         bs.read_vec3()
                         # pad unknow vec3
 
-                    model.lightmap = bs.read_bytes(
-                        bs.read_int32()).decode('ascii')
-                    # pad color
-                    bs.read_byte()
-                    bs.read_byte()
-                    bs.read_byte()
-                    bs.read_byte()
-                else:
-                    model.lightmap = bs.read_bytes(
-                        bs.read_int32()).decode('ascii')
-                    # pad color
-                    bs.read_float()
-                    bs.read_float()
-                    bs.read_float()
-                    bs.read_float()
-                    model.baked_paint_texture = bs.read_bytes(
-                        bs.read_int32()).decode('ascii')
-                    bs.read_float()
+                model.lightmap = bs.read_bytes(
+                    bs.read_int32()).decode('ascii')
+                model.lm_scale_u = bs.read_float()  # this is not color
+                model.lm_scale_v = bs.read_float()  # we have been tricked
+                model.lm_offset_u = bs.read_float()  # backstabbed
+                model.lm_offset_v = bs.read_float()  # and possibly, bamboozled
+
+                if version >= 9:
+                    # pretty pad all this since idk
+                    bs.read_bytes(bs.read_int32()).decode(
+                        'ascii')  # baked paintexture
+                    bs.read_float()  # probably some UVs things
                     bs.read_float()
                     bs.read_float()
                     bs.read_float()
 
                 self.models.append(model)
+
+            # bro its actually still bucked grid here, forgot
 
     def load(self, mgbin=None):
         # ensure far clip plane, allow to see big objects like whole map
@@ -3294,8 +3294,10 @@ class MAPGEO:
                 u_values[i] = vertex.diffuse_uv.x
                 v_values[i] = 1.0 - vertex.diffuse_uv.y
                 if len(model.lightmap) > 0:
-                    u_values_lm[i] = vertex.lightmap_uv.x
-                    v_values_lm[i] = 1.0 - vertex.lightmap_uv.y
+                    u_values_lm[i] = vertex.lightmap_uv.x * \
+                        model.lm_scale_u + model.lm_offset_u
+                    v_values_lm[i] = 1.0-(vertex.lightmap_uv.y *
+                                          model.lm_scale_v + model.lm_offset_v)
 
             mesh.setUVs(
                 u_values, v_values
@@ -3361,83 +3363,146 @@ class MAPGEO:
                 if model not in shader_models[submesh.name]:
                     shader_models[submesh.name].append(model)
 
-        modifier = MDGModifier()
-        set = MFnSet()
-        for shader_name in shader_models:
-            # create lambert
+        lamberts = {}
+        for submesh_name in shader_models:
             lambert = MFnLambertShader()
             lambert.create(True)
-            submesh_name = shader_name.split('/')[-1]
-            # shader name = full name with path /
-            # submesh name = last name
             lambert.setName(submesh_name)
+            lamberts[submesh_name] = lambert
 
-            # some shader stuffs
-            dependency_node = MFnDependencyNode()
-            shading_engine = dependency_node.create(
-                'shadingEngine', f'{submesh_name}_SG')
-            material_info = dependency_node.create(
-                'materialInfo', f'{submesh_name}_MaterialInfo')
+        modifier = MDGModifier()
+        set = MFnSet()
+        for model in self.models:
+            for submesh in model.submeshes:
+                submesh_name = submesh.name
+                lambert = lamberts[submesh_name]
 
-            if found_rp:
-                partition = MFnDependencyNode(
-                    shading_engine).findPlug('partition')
+                # some shader stuffs
+                dependency_node = MFnDependencyNode()
+                shading_engine = dependency_node.create(
+                    'shadingEngine', f'{model.name}__{submesh_name}_SG')
+                material_info = dependency_node.create(
+                    'materialInfo', f'{submesh_name}_MaterialInfo')
 
-                sets = render_partition.findPlug('sets')
-                the_plug_we_need = None
-                count = 0
-                while True:
-                    the_plug_we_need = sets.elementByLogicalIndex(count)
-                    if not the_plug_we_need.isConnected():  # find the one that not connected
-                        break
-                    count += 1
+                if found_rp:
+                    partition = MFnDependencyNode(
+                        shading_engine).findPlug('partition')
+
+                    sets = render_partition.findPlug('sets')
+                    the_plug_we_need = None
+                    count = 0
+                    while True:
+                        the_plug_we_need = sets.elementByLogicalIndex(count)
+                        if not the_plug_we_need.isConnected():  # find the one that not connected
+                            break
+                        count += 1
 
                 modifier.connect(partition, the_plug_we_need)
 
-            # connect node
-            out_color = lambert.findPlug('outColor')
-            surface_shader = MFnDependencyNode(
-                shading_engine).findPlug('surfaceShader')
-            modifier.connect(out_color, surface_shader)
+                # connect node
+               # out_color = lambert.findPlug('outColor')
+                # surface_shader = MFnDependencyNode(
+                #    shading_engine).findPlug('surfaceShader')
+                #modifier.connect(out_color, surface_shader)
 
-            message = MFnDependencyNode(shading_engine).findPlug('message')
-            shading_group = MFnDependencyNode(
-                material_info).findPlug('shadingGroup')
-            modifier.connect(message, shading_group)
+                message = MFnDependencyNode(shading_engine).findPlug('message')
+                shading_group = MFnDependencyNode(
+                    material_info).findPlug('shadingGroup')
+                modifier.connect(message, shading_group)
 
-            modifier.doIt()
+                modifier.doIt()
 
-            set.setObject(shading_engine)
-            for model in shader_models[shader_name]:
+                set.setObject(shading_engine)
                 # assign face to material
                 component = MFnSingleIndexedComponent()
                 face_component = component.create(MFn.kMeshPolygonComponent)
                 group_poly_indices = MIntArray()
-                for submesh in model.submeshes:
-                    if submesh.name == shader_name:
-                        break
                 for index in range(submesh.index_start // 3, (submesh.index_start + submesh.index_count) // 3):
                     group_poly_indices.append(index)
                 component.addElements(group_poly_indices)
 
                 set.addMember(model.mesh_dag_path, face_component)
 
+                MGlobal.executeCommand(
+                    f'shadingNode -asUtility blendColors -name "{model.name}__{submesh_name}_BC"')
+                MGlobal.executeCommand(
+                    f'connectAttr -f {model.name}__{submesh_name}_BC.output {model.name}__{submesh_name}_SG.surfaceShader')
+
+                MGlobal.executeCommand(
+                    f'connectAttr -f {submesh_name}.outColor {model.name}__{submesh_name}_BC.color1')
+                MGlobal.executeCommand(
+                    f'connectAttr -f {submesh_name}.outColor {model.name}__{submesh_name}_BC.color2')
+
         for mesh in meshes:
             mesh.updateSurface()
 
+        # parsing the py and assign material attributes
+        # little bit complicated
         if mgbin:
-            for shader_name in shader_models:
-                submesh_name = shader_name.split('/')[-1]
+            for submesh_name in shader_models:
+                if mgbin.textures[submesh_name]:
+                    # create file node
+                    MGlobal.executeCommand(
+                        f'shadingNode -asTexture -isColorManaged file -name "{submesh_name}_file"')
+                    MGlobal.executeCommand(
+                        f'setAttr {submesh_name}_file.fileTextureName -type "string" "{mgbin.full_path(mgbin.textures[submesh_name])}"')
 
+                    # create place2dTexture node (p2d)
+                    MGlobal.executeCommand(
+                        f'shadingNode -asUtility place2dTexture -name "{submesh_name}_p2d"')
+
+                    # connect p2d - file
+                    attributes = [
+                        'coverage',
+                        'translateFrame',
+                        'rotateFrame',
+                        'mirrorU',
+                        'mirrorV',
+                        'stagger',
+                        'wrapU',
+                        'wrapV',
+                        'repeatUV',
+                        'offset',
+                        'rotateUV',
+                        'noiseUV',
+                        'vertexUvOne',
+                        'vertexUvTwo',
+                        'vertexUvThree',
+                        'vertexCameraOne'
+                    ]
+                    for attribute in attributes:
+                        MGlobal.executeCommand(
+                            f'connectAttr -f {submesh_name}_p2d.{attribute} {submesh_name}_file.{attribute}')
+                    MGlobal.executeCommand(
+                        f'connectAttr -f {submesh_name}_p2d.outUV {submesh_name}_file.uv')
+                    MGlobal.executeCommand(
+                        f'connectAttr -f {submesh_name}_p2d.outUvFilterSize {submesh_name}_file.uvFilterSize')
+
+                    MGlobal.executeCommand(
+                        f'connectAttr -f {submesh_name}_file.outColor {submesh_name}.color')
+                    MGlobal.executeCommand(
+                        f'connectAttr -f {submesh_name}_file.outTransparency {submesh_name}.transparency')
+
+            # lightmaps
+            lightmap_models = {}
+            for model in self.models:
+                if model.lightmap not in lightmap_models:
+                    lightmap_models[model.lightmap] = []
+                if model not in lightmap_models[model.lightmap]:
+                    lightmap_models[model.lightmap].append(model)
+
+            for lightmap in lightmap_models:
+                lightmap_name = 'LM_' + \
+                    lightmap.split('/')[-1].split('.dds')[0]
                 # create file node
                 MGlobal.executeCommand(
-                    f'shadingNode -asTexture -isColorManaged file -name "{submesh_name}_file"')
+                    f'shadingNode -asTexture -isColorManaged file -name "{lightmap_name}_fileLM"')
                 MGlobal.executeCommand(
-                    f'setAttr {submesh_name}_file.fileTextureName -type "string" "{mgbin.textures[submesh_name]}"')
+                    f'setAttr {lightmap_name}_fileLM.fileTextureName -type "string" "{mgbin.full_path(lightmap)}"')
 
                 # create place2dTexture node (p2d)
                 MGlobal.executeCommand(
-                    f'shadingNode -asUtility place2dTexture -name "{submesh_name}_p2d"')
+                    f'shadingNode -asUtility place2dTexture -name "{lightmap_name}_p2dLM"')
 
                 # connect p2d - file
                 attributes = [
@@ -3460,31 +3525,41 @@ class MAPGEO:
                 ]
                 for attribute in attributes:
                     MGlobal.executeCommand(
-                        f'connectAttr -f {submesh_name}_p2d.{attribute} {submesh_name}_file.{attribute}')
+                        f'connectAttr -f {lightmap_name}_p2dLM.{attribute} {lightmap_name}_fileLM.{attribute}')
                 MGlobal.executeCommand(
-                    f'connectAttr -f {submesh_name}_p2d.outUV {submesh_name}_file.uv')
+                    f'connectAttr -f {lightmap_name}_p2dLM.outUV {lightmap_name}_fileLM.uv')
                 MGlobal.executeCommand(
-                    f'connectAttr -f {submesh_name}_p2d.outUvFilterSize {submesh_name}_file.uvFilterSize')
+                    f'connectAttr -f {lightmap_name}_p2dLM.outUvFilterSize {lightmap_name}_fileLM.uvFilterSize')
 
-                # connect file - lambert
-                MGlobal.executeCommand(
-                    f'connectAttr -f {submesh_name}_file.outColor {submesh_name}.color')
-                MGlobal.executeCommand(
-                    f'connectAttr -f {submesh_name}_file.outTransparency {submesh_name}.transparency')
+                for model in lightmap_models[lightmap]:
+                    for submesh in model.submeshes:
+                        submesh_name = submesh.name
+                        MGlobal.executeCommand(
+                            f'connectAttr -f {lightmap_name}_fileLM.outColor {model.name}__{submesh_name}_BC.color2')
 
+                    MGlobal.executeCommand(
+                        f'uvLink -uvSet "|{model.name}|{model.name}.uvSet[1].uvSetName" -texture "{lightmap_name}_fileLM"')
 
 # sorry its a py instead
+# probaly need a sub class
+
+
 class MAPGEOBin():
     def __init__(self):
+        self.path = None  # this is the dynamic parent path of assets
         self.textures = {}
 
+    def full_path(self, path):
+        return self.path + '/' + path
+
     def read(self, path):
-        mat_lines = []
         with open(path, 'r') as f:
-            base_path = '/'.join(path.split('/')[:-1])
+            self.path = '/'.join(path.split('/')[:-1])
             lines = f.readlines()
+
             i = 0
             len12345 = len(lines)
+            mat_lines = []
             while i < len12345:
                 if 'StaticMaterialDef' in lines[i]:
                     a = i
@@ -3496,13 +3571,28 @@ class MAPGEOBin():
                     i = b
                 i += 1
 
+            # redo this
             for a, b in mat_lines:
+                path = None
                 for i in range(a, b):
                     if 'StaticMaterialDef' in lines[i]:
-                        name = lines[i].split('=')[0].split(
-                            '/')[-1][:-1].replace('"', '')
-                        self.textures[name] = None
+                        name = lines[i+1].split('=')[1][1:-
+                                                        1].replace('"', '').replace('/', '__')
                     if 'DiffuseTexture' in lines[i]:
-                        path = base_path + '/' + lines[i +
-                                                       1].split('=')[1][1:].replace('"', '')[:-1]
+                        path = lines[i +
+                                     1].split('=')[1][1:].replace('"', '')[:-1]
                 self.textures[name] = path
+
+
+def db():
+    mgbin = MAPGEOBin()
+    mgbin.read('D:/base.materials.py')
+    # for path in mgbin.textures:
+    #    print(path, mgbin.textures[path])
+    mg = MAPGEO()
+    mg.read('D:/base.mapgeo')
+    mg.flip()
+    mg.load(mgbin)
+
+
+#db()

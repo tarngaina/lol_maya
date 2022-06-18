@@ -3252,204 +3252,269 @@ class MAPGEO:
             # bro its actually still bucked grid here, forgot
 
     def load(self, mgbin=None):
-        # ensure far clip plane, allow to see big objects like whole map
-        MGlobal.executeCommand('setAttr "perspShape.farClipPlane" 300000')
+        def load_both():
+            # ensure far clip plane, allow to see big objects like whole map
+            MGlobal.executeCommand('setAttr "perspShape.farClipPlane" 300000')
 
-        # render with alpha cut
-        MGlobal.executeCommand(
-            'setAttr "hardwareRenderingGlobals.transparencyAlgorithm" 5')
+            # render with alpha cut
+            MGlobal.executeCommand(
+                'setAttr "hardwareRenderingGlobals.transparencyAlgorithm" 5')
 
-        meshes = []
-        for model in self.models:
-            mesh = MFnMesh()
-            vertices_count = len(model.vertices)
-            indices_count = len(model.indices)
+            meshes = []
+            for model in self.models:
+                mesh = MFnMesh()
+                vertices_count = len(model.vertices)
+                indices_count = len(model.indices)
 
-            # create mesh with vertices, indices
-            vertices = MFloatPointArray()
-            for i in range(0, vertices_count):
-                vertex = model.vertices[i]
-                vertices.append(MFloatPoint(
-                    vertex.position.x, vertex.position.y, vertex.position.z))
-            poly_index_count = MIntArray(indices_count // 3, 3)
-            poly_indices = MIntArray()
-            MScriptUtil.createIntArrayFromList(model.indices, poly_indices)
-            mesh.create(
-                vertices_count,
-                indices_count // 3,
-                vertices,
-                poly_index_count,
-                poly_indices,
-            )
+                # create mesh with vertices, indices
+                vertices = MFloatPointArray()
+                for i in range(0, vertices_count):
+                    vertex = model.vertices[i]
+                    vertices.append(MFloatPoint(
+                        vertex.position.x, vertex.position.y, vertex.position.z))
+                poly_index_count = MIntArray(indices_count // 3, 3)
+                poly_indices = MIntArray()
+                MScriptUtil.createIntArrayFromList(model.indices, poly_indices)
+                mesh.create(
+                    vertices_count,
+                    indices_count // 3,
+                    vertices,
+                    poly_index_count,
+                    poly_indices,
+                )
 
-            # assign uv
-            # lightmap not always available, skip if we dont have
-            u_values = MFloatArray(vertices_count)
-            v_values = MFloatArray(vertices_count)
-            if len(model.lightmap) > 0:
-                u_values_lm = MFloatArray(vertices_count)
-                v_values_lm = MFloatArray(vertices_count)
-            for i in range(0, vertices_count):
-                vertex = model.vertices[i]
-                u_values[i] = vertex.diffuse_uv.x
-                v_values[i] = 1.0 - vertex.diffuse_uv.y
+                # assign uv
+                # lightmap not always available, skip if we dont have
+                u_values = MFloatArray(vertices_count)
+                v_values = MFloatArray(vertices_count)
                 if len(model.lightmap) > 0:
-                    u_values_lm[i] = vertex.lightmap_uv.x * \
-                        model.lm_scale_u + model.lm_offset_u
-                    v_values_lm[i] = 1.0-(vertex.lightmap_uv.y *
-                                          model.lm_scale_v + model.lm_offset_v)
+                    u_values_lm = MFloatArray(vertices_count)
+                    v_values_lm = MFloatArray(vertices_count)
+                for i in range(0, vertices_count):
+                    vertex = model.vertices[i]
+                    u_values[i] = vertex.diffuse_uv.x
+                    v_values[i] = 1.0 - vertex.diffuse_uv.y
+                    if len(model.lightmap) > 0:
+                        u_values_lm[i] = vertex.lightmap_uv.x * \
+                            model.lm_scale_u + model.lm_offset_u
+                        v_values_lm[i] = 1.0-(vertex.lightmap_uv.y *
+                                              model.lm_scale_v + model.lm_offset_v)
 
-            mesh.setUVs(
-                u_values, v_values
-            )
-            mesh.assignUVs(
-                poly_index_count, poly_indices
-            )
-            if len(model.lightmap) > 0:
-                mesh.createUVSetWithName('lightmap')
                 mesh.setUVs(
-                    u_values_lm, v_values_lm, 'lightmap'
+                    u_values, v_values
                 )
-
                 mesh.assignUVs(
-                    poly_index_count, poly_indices, 'lightmap'
+                    poly_index_count, poly_indices
+                )
+                if len(model.lightmap) > 0:
+                    mesh.createUVSetWithName('lightmap')
+                    mesh.setUVs(
+                        u_values_lm, v_values_lm, 'lightmap'
+                    )
+
+                    mesh.assignUVs(
+                        poly_index_count, poly_indices, 'lightmap'
+                    )
+
+                # normal
+                normals = MVectorArray()
+                normal_indices = MIntArray(vertices_count)
+                for i in range(0, vertices_count):
+                    vertex = model.vertices[i]
+                    normals.append(
+                        MVector(vertex.normal.x, vertex.normal.y, vertex.normal.z))
+                    normal_indices[i] = i
+                mesh.setVertexNormals(
+                    normals,
+                    normal_indices
                 )
 
-            # normal
-            normals = MVectorArray()
-            normal_indices = MIntArray(vertices_count)
-            for i in range(0, vertices_count):
-                vertex = model.vertices[i]
-                normals.append(
-                    MVector(vertex.normal.x, vertex.normal.y, vertex.normal.z))
-                normal_indices[i] = i
-            mesh.setVertexNormals(
-                normals,
-                normal_indices
-            )
+                # dag_path and name
+                mesh_dag_path = MDagPath()
+                mesh.getPath(mesh_dag_path)
+                mesh.setName(model.name)
+                transform_node = MFnTransform(mesh.parent(0))
+                transform_node.setName(model.name)
 
-            # dag_path and name
-            mesh_dag_path = MDagPath()
-            mesh.getPath(mesh_dag_path)
-            mesh.setName(model.name)
-            transform_node = MFnTransform(mesh.parent(0))
-            transform_node.setName(model.name)
+                transform_node.set(MTransform.compose(
+                    model.translation, model.scale, model.rotation,
+                    MSpace.kWorld
+                ))
 
-            transform_node.set(MTransform.compose(
-                model.translation, model.scale, model.rotation,
-                MSpace.kWorld
-            ))
+                model.mesh_dag_path = MDagPath(mesh_dag_path)
+                meshes.append(mesh)
 
-            model.mesh_dag_path = MDagPath(mesh_dag_path)
-            meshes.append(mesh)
+            # find render partition
+            render_partition = MFnPartition()
+            found_rp = False
+            iterator = MItDependencyNodes(MFn.kPartition)
+            while not iterator.isDone():
+                render_partition.setObject(iterator.thisNode())
+                if render_partition.name() == 'renderPartition' and render_partition.isRenderPartition():
+                    found_rp = True
+                    break
+                iterator.next()
 
-        # find render partition
-        render_partition = MFnPartition()
-        found_rp = False
-        iterator = MItDependencyNodes(MFn.kPartition)
-        while not iterator.isDone():
-            render_partition.setObject(iterator.thisNode())
-            if render_partition.name() == 'renderPartition' and render_partition.isRenderPartition():
-                found_rp = True
-                break
-            iterator.next()
+            # materials
+            shader_models = {}
+            for model in self.models:
+                for submesh in model.submeshes:
+                    if submesh.name not in shader_models:
+                        shader_models[submesh.name] = []
+                    if model not in shader_models[submesh.name]:
+                        shader_models[submesh.name].append(model)
 
-        # materials
-        shader_models = {}
-        for model in self.models:
-            for submesh in model.submeshes:
-                if submesh.name not in shader_models:
-                    shader_models[submesh.name] = []
-                if model not in shader_models[submesh.name]:
-                    shader_models[submesh.name].append(model)
+            # lightmaps
+            lightmap_models = {}
+            for model in self.models:
+                if model.lightmap:
+                    if model.lightmap not in lightmap_models:
+                        lightmap_models[model.lightmap] = []
+                    if model not in lightmap_models[model.lightmap]:
+                        lightmap_models[model.lightmap].append(model)
 
-        lamberts = {}
-        for submesh_name in shader_models:
-            lambert = MFnLambertShader()
-            lambert.create(True)
-            lambert.setName(submesh_name)
-            lamberts[submesh_name] = lambert
+            modifier = MDGModifier()
+            set = MFnSet()
+            for model in self.models:
+                for submesh in model.submeshes:
+                    submesh_name = submesh.name
+                    lambert = MFnLambertShader()
+                    lambert.create(True)
+                    lambert.setName(f'{model.name}__{submesh_name}')
 
-        modifier = MDGModifier()
-        set = MFnSet()
-        for model in self.models:
-            for submesh in model.submeshes:
-                submesh_name = submesh.name
-                lambert = lamberts[submesh_name]
+                    # some shader stuffs
+                    dependency_node = MFnDependencyNode()
+                    shading_engine = dependency_node.create(
+                        'shadingEngine', f'{model.name}__{submesh_name}_SG')
+                    material_info = dependency_node.create(
+                        'materialInfo', f'{model.name}__{submesh_name}_MaterialInfo')
 
-                # some shader stuffs
-                dependency_node = MFnDependencyNode()
-                shading_engine = dependency_node.create(
-                    'shadingEngine', f'{model.name}__{submesh_name}_SG')
-                material_info = dependency_node.create(
-                    'materialInfo', f'{submesh_name}_MaterialInfo')
+                    if found_rp:
+                        partition = MFnDependencyNode(
+                            shading_engine).findPlug('partition')
 
-                if found_rp:
-                    partition = MFnDependencyNode(
-                        shading_engine).findPlug('partition')
+                        sets = render_partition.findPlug('sets')
+                        the_plug_we_need = None
+                        count = 0
+                        while True:
+                            the_plug_we_need = sets.elementByLogicalIndex(
+                                count)
+                            if not the_plug_we_need.isConnected():  # find the one that not connected
+                                break
+                            count += 1
 
-                    sets = render_partition.findPlug('sets')
-                    the_plug_we_need = None
-                    count = 0
-                    while True:
-                        the_plug_we_need = sets.elementByLogicalIndex(count)
-                        if not the_plug_we_need.isConnected():  # find the one that not connected
-                            break
-                        count += 1
+                    modifier.connect(partition, the_plug_we_need)
 
-                modifier.connect(partition, the_plug_we_need)
+                    # connect node
+                    out_color = lambert.findPlug('outColor')
+                    surface_shader = MFnDependencyNode(
+                        shading_engine).findPlug('surfaceShader')
+                    modifier.connect(out_color, surface_shader)
 
-                # connect node
-               # out_color = lambert.findPlug('outColor')
-                # surface_shader = MFnDependencyNode(
-                #    shading_engine).findPlug('surfaceShader')
-                #modifier.connect(out_color, surface_shader)
+                    message = MFnDependencyNode(
+                        shading_engine).findPlug('message')
+                    shading_group = MFnDependencyNode(
+                        material_info).findPlug('shadingGroup')
+                    modifier.connect(message, shading_group)
 
-                message = MFnDependencyNode(shading_engine).findPlug('message')
-                shading_group = MFnDependencyNode(
-                    material_info).findPlug('shadingGroup')
-                modifier.connect(message, shading_group)
+                    modifier.doIt()
 
-                modifier.doIt()
+                    set.setObject(shading_engine)
+                    # assign face to material
+                    component = MFnSingleIndexedComponent()
+                    face_component = component.create(
+                        MFn.kMeshPolygonComponent)
+                    group_poly_indices = MIntArray()
+                    for index in range(submesh.index_start // 3, (submesh.index_start + submesh.index_count) // 3):
+                        group_poly_indices.append(index)
+                    component.addElements(group_poly_indices)
 
-                set.setObject(shading_engine)
-                # assign face to material
-                component = MFnSingleIndexedComponent()
-                face_component = component.create(MFn.kMeshPolygonComponent)
-                group_poly_indices = MIntArray()
-                for index in range(submesh.index_start // 3, (submesh.index_start + submesh.index_count) // 3):
-                    group_poly_indices.append(index)
-                component.addElements(group_poly_indices)
+                    set.addMember(model.mesh_dag_path, face_component)
 
-                set.addMember(model.mesh_dag_path, face_component)
+                    MGlobal.executeCommand(
+                        f'shadingNode -asUtility blendColors -name "{model.name}__{submesh_name}_BC"')
+                    MGlobal.executeCommand(
+                        f'connectAttr -f {model.name}__{submesh_name}_BC.output {model.name}__{submesh_name}.color')
 
-                MGlobal.executeCommand(
-                    f'shadingNode -asUtility blendColors -name "{model.name}__{submesh_name}_BC"')
-                MGlobal.executeCommand(
-                    f'connectAttr -f {model.name}__{submesh_name}_BC.output {model.name}__{submesh_name}_SG.surfaceShader')
+            # parsing the py and assign material attributes
+            # little bit complicated
+            if mgbin:
+                for submesh_name in shader_models:
+                    material = mgbin.materials[submesh_name]
+                    if material.texture:
+                        # create file node
+                        MGlobal.executeCommand(
+                            f'shadingNode -asTexture -isColorManaged file -name "{submesh_name}_file"')
+                        MGlobal.executeCommand(
+                            f'setAttr {submesh_name}_file.fileTextureName -type "string" "{mgbin.full_path(material.texture)}"')
 
-                MGlobal.executeCommand(
-                    f'connectAttr -f {submesh_name}.outColor {model.name}__{submesh_name}_BC.color1')
-                MGlobal.executeCommand(
-                    f'connectAttr -f {submesh_name}.outColor {model.name}__{submesh_name}_BC.color2')
+                        # create place2dTexture node (p2d)
+                        MGlobal.executeCommand(
+                            f'shadingNode -asUtility place2dTexture -name "{submesh_name}_p2d"')
 
-        for mesh in meshes:
-            mesh.updateSurface()
+                        # connect p2d - file
+                        attributes = [
+                            'coverage',
+                            'translateFrame',
+                            'rotateFrame',
+                            'mirrorU',
+                            'mirrorV',
+                            'stagger',
+                            'wrapU',
+                            'wrapV',
+                            'repeatUV',
+                            'offset',
+                            'rotateUV',
+                            'noiseUV',
+                            'vertexUvOne',
+                            'vertexUvTwo',
+                            'vertexUvThree',
+                            'vertexCameraOne'
+                        ]
+                        for attribute in attributes:
+                            MGlobal.executeCommand(
+                                f'connectAttr -f {submesh_name}_p2d.{attribute} {submesh_name}_file.{attribute}')
+                        MGlobal.executeCommand(
+                            f'connectAttr -f {submesh_name}_p2d.outUV {submesh_name}_file.uv')
+                        MGlobal.executeCommand(
+                            f'connectAttr -f {submesh_name}_p2d.outUvFilterSize {submesh_name}_file.uvFilterSize')
 
-        # parsing the py and assign material attributes
-        # little bit complicated
-        if mgbin:
-            for submesh_name in shader_models:
-                if mgbin.textures[submesh_name]:
+                        for model in shader_models[submesh_name]:
+                            MGlobal.executeCommand(
+                                f'connectAttr -f {submesh_name}_file.outColor {model.name}__{submesh_name}_BC.color1')
+                            MGlobal.executeCommand(
+                                f'connectAttr -f {submesh_name}_file.outColor {model.name}__{submesh_name}_BC.color2')
+
+                            MGlobal.executeCommand(
+                                f'connectAttr -f {submesh_name}_file.outTransparency {model.name}__{submesh_name}.transparency')
+                    else:
+                        if material.color:
+                            for model in shader_models[submesh_name]:
+                                MGlobal.executeCommand(
+                                    f'setAttr "{model.name}__{submesh_name}_BC.color1" -type double3 {material.color[0]} {material.color[1]} {material.color[2]}')
+                                MGlobal.executeCommand(
+                                    f'setAttr "{model.name}__{submesh_name}_BC.color2" -type double3 {material.color[0]} {material.color[1]} {material.color[2]}')
+                    if material.ambient:
+                        for model in shader_models[submesh_name]:
+                            MGlobal.executeCommand(
+                                f'setAttr "{model.name}__{submesh_name}.ambientColor" -type double3 {material.ambient[0]} {material.ambient[1]} {material.ambient[2]}')
+                    if material.incandescence:
+                        for model in shader_models[submesh_name]:
+                            MGlobal.executeCommand(
+                                f'setAttr "{model.name}__{submesh_name}.incandescence" -type double3 {material.incandescence[0]} {material.incandescence[1]} {material.incandescence[2]}')
+
+                for lightmap in lightmap_models:
+                    lightmap_name = 'LM_' + \
+                        lightmap.split('/')[-1].split('.dds')[0]
                     # create file node
                     MGlobal.executeCommand(
-                        f'shadingNode -asTexture -isColorManaged file -name "{submesh_name}_file"')
+                        f'shadingNode -asTexture -isColorManaged file -name "{lightmap_name}_fileLM"')
                     MGlobal.executeCommand(
-                        f'setAttr {submesh_name}_file.fileTextureName -type "string" "{mgbin.full_path(mgbin.textures[submesh_name])}"')
+                        f'setAttr {lightmap_name}_fileLM.fileTextureName -type "string" "{mgbin.full_path(lightmap)}"')
 
                     # create place2dTexture node (p2d)
                     MGlobal.executeCommand(
-                        f'shadingNode -asUtility place2dTexture -name "{submesh_name}_p2d"')
+                        f'shadingNode -asUtility place2dTexture -name "{lightmap_name}_p2dLM"')
 
                     # connect p2d - file
                     attributes = [
@@ -3472,16 +3537,330 @@ class MAPGEO:
                     ]
                     for attribute in attributes:
                         MGlobal.executeCommand(
-                            f'connectAttr -f {submesh_name}_p2d.{attribute} {submesh_name}_file.{attribute}')
+                            f'connectAttr -f {lightmap_name}_p2dLM.{attribute} {lightmap_name}_fileLM.{attribute}')
                     MGlobal.executeCommand(
-                        f'connectAttr -f {submesh_name}_p2d.outUV {submesh_name}_file.uv')
+                        f'connectAttr -f {lightmap_name}_p2dLM.outUV {lightmap_name}_fileLM.uv')
                     MGlobal.executeCommand(
-                        f'connectAttr -f {submesh_name}_p2d.outUvFilterSize {submesh_name}_file.uvFilterSize')
+                        f'connectAttr -f {lightmap_name}_p2dLM.outUvFilterSize {lightmap_name}_fileLM.uvFilterSize')
 
-                    MGlobal.executeCommand(
-                        f'connectAttr -f {submesh_name}_file.outColor {submesh_name}.color')
-                    MGlobal.executeCommand(
-                        f'connectAttr -f {submesh_name}_file.outTransparency {submesh_name}.transparency')
+                    for model in lightmap_models[lightmap]:
+                        for submesh in model.submeshes:
+                            submesh_name = submesh.name
+                            MGlobal.executeCommand(
+                                f'connectAttr -f {lightmap_name}_fileLM.outColor {model.name}__{submesh_name}_BC.color2')
+
+                        MGlobal.executeCommand(
+                            f'uvLink -uvSet "|{model.name}|{model.name}.uvSet[1].uvSetName" -texture "{lightmap_name}_fileLM"')
+
+            for mesh in meshes:
+                mesh.updateSurface()
+
+        def load_diffuse():
+            # ensure far clip plane, allow to see big objects like whole map
+            MGlobal.executeCommand('setAttr "perspShape.farClipPlane" 300000')
+
+            # render with alpha cut
+            MGlobal.executeCommand(
+                'setAttr "hardwareRenderingGlobals.transparencyAlgorithm" 5')
+
+            meshes = []
+            for model in self.models:
+                mesh = MFnMesh()
+                vertices_count = len(model.vertices)
+                indices_count = len(model.indices)
+
+                # create mesh with vertices, indices
+                vertices = MFloatPointArray()
+                for i in range(0, vertices_count):
+                    vertex = model.vertices[i]
+                    vertices.append(MFloatPoint(
+                        vertex.position.x, vertex.position.y, vertex.position.z))
+                poly_index_count = MIntArray(indices_count // 3, 3)
+                poly_indices = MIntArray()
+                MScriptUtil.createIntArrayFromList(model.indices, poly_indices)
+                mesh.create(
+                    vertices_count,
+                    indices_count // 3,
+                    vertices,
+                    poly_index_count,
+                    poly_indices,
+                )
+
+                # assign uv
+                u_values = MFloatArray(vertices_count)
+                v_values = MFloatArray(vertices_count)
+                for i in range(0, vertices_count):
+                    vertex = model.vertices[i]
+                    u_values[i] = vertex.diffuse_uv.x
+                    v_values[i] = 1.0 - vertex.diffuse_uv.y
+
+                mesh.setUVs(
+                    u_values, v_values
+                )
+                mesh.assignUVs(
+                    poly_index_count, poly_indices
+                )
+
+                # normal
+                normals = MVectorArray()
+                normal_indices = MIntArray(vertices_count)
+                for i in range(0, vertices_count):
+                    vertex = model.vertices[i]
+                    normals.append(
+                        MVector(vertex.normal.x, vertex.normal.y, vertex.normal.z))
+                    normal_indices[i] = i
+                mesh.setVertexNormals(
+                    normals,
+                    normal_indices
+                )
+
+                # dag_path and name
+                mesh_dag_path = MDagPath()
+                mesh.getPath(mesh_dag_path)
+                mesh.setName(model.name)
+                transform_node = MFnTransform(mesh.parent(0))
+                transform_node.setName(model.name)
+
+                # transform
+                transform_node.set(MTransform.compose(
+                    model.translation, model.scale, model.rotation,
+                    MSpace.kWorld
+                ))
+
+                model.mesh_dag_path = MDagPath(mesh_dag_path)
+                meshes.append(mesh)
+
+            # find render partition
+            render_partition = MFnPartition()
+            found_rp = False
+            iterator = MItDependencyNodes(MFn.kPartition)
+            while not iterator.isDone():
+                render_partition.setObject(iterator.thisNode())
+                if render_partition.name() == 'renderPartition' and render_partition.isRenderPartition():
+                    found_rp = True
+                    break
+                iterator.next()
+
+            # materials
+            shader_models = {}
+            for model in self.models:
+                for submesh in model.submeshes:
+                    if submesh.name not in shader_models:
+                        shader_models[submesh.name] = []
+                    if model not in shader_models[submesh.name]:
+                        shader_models[submesh.name].append(model)
+
+            modifier = MDGModifier()
+            set = MFnSet()
+            for submesh_name in shader_models:
+                lambert = MFnLambertShader()
+                lambert.create(True)
+                lambert.setName(f'{submesh_name}')
+
+                # some shader stuffs
+                dependency_node = MFnDependencyNode()
+                shading_engine = dependency_node.create(
+                    'shadingEngine', f'{submesh_name}_SG')
+                material_info = dependency_node.create(
+                    'materialInfo', f'{submesh_name}_MaterialInfo')
+
+                if found_rp:
+                    partition = MFnDependencyNode(
+                        shading_engine).findPlug('partition')
+
+                    sets = render_partition.findPlug('sets')
+                    the_plug_we_need = None
+                    count = 0
+                    while True:
+                        the_plug_we_need = sets.elementByLogicalIndex(count)
+                        if not the_plug_we_need.isConnected():  # find the one that not connected
+                            break
+                        count += 1
+
+                modifier.connect(partition, the_plug_we_need)
+
+                # connect node
+                out_color = lambert.findPlug('outColor')
+                surface_shader = MFnDependencyNode(
+                    shading_engine).findPlug('surfaceShader')
+                modifier.connect(out_color, surface_shader)
+
+                message = MFnDependencyNode(shading_engine).findPlug('message')
+                shading_group = MFnDependencyNode(
+                    material_info).findPlug('shadingGroup')
+                modifier.connect(message, shading_group)
+
+                modifier.doIt()
+
+                set.setObject(shading_engine)
+                # assign face to material
+                for model in shader_models[submesh_name]:
+                    component = MFnSingleIndexedComponent()
+                    face_component = component.create(
+                        MFn.kMeshPolygonComponent)
+                    for submesh in model.submeshes:
+                        if submesh.name == submesh_name:
+                            break
+                    group_poly_indices = MIntArray()
+                    for index in range(submesh.index_start // 3, (submesh.index_start + submesh.index_count) // 3):
+                        group_poly_indices.append(index)
+                    component.addElements(group_poly_indices)
+
+                    set.addMember(model.mesh_dag_path, face_component)
+
+            # parsing the py and assign material attributes
+            # little bit complicated
+            if mgbin:
+                for submesh_name in shader_models:
+                    material = mgbin.materials[submesh_name]
+                    if material.texture:
+                        # create file node
+                        MGlobal.executeCommand(
+                            f'shadingNode -asTexture -isColorManaged file -name "{submesh_name}_file"')
+                        MGlobal.executeCommand(
+                            f'setAttr {submesh_name}_file.fileTextureName -type "string" "{mgbin.full_path(material.texture)}"')
+
+                        # create place2dTexture node (p2d)
+                        MGlobal.executeCommand(
+                            f'shadingNode -asUtility place2dTexture -name "{submesh_name}_p2d"')
+
+                        # connect p2d - file
+                        attributes = [
+                            'coverage',
+                            'translateFrame',
+                            'rotateFrame',
+                            'mirrorU',
+                            'mirrorV',
+                            'stagger',
+                            'wrapU',
+                            'wrapV',
+                            'repeatUV',
+                            'offset',
+                            'rotateUV',
+                            'noiseUV',
+                            'vertexUvOne',
+                            'vertexUvTwo',
+                            'vertexUvThree',
+                            'vertexCameraOne'
+                        ]
+                        for attribute in attributes:
+                            MGlobal.executeCommand(
+                                f'connectAttr -f {submesh_name}_p2d.{attribute} {submesh_name}_file.{attribute}')
+                        MGlobal.executeCommand(
+                            f'connectAttr -f {submesh_name}_p2d.outUV {submesh_name}_file.uv')
+                        MGlobal.executeCommand(
+                            f'connectAttr -f {submesh_name}_p2d.outUvFilterSize {submesh_name}_file.uvFilterSize')
+
+                        MGlobal.executeCommand(
+                            f'connectAttr -f {submesh_name}_file.outColor {submesh_name}.color')
+                        MGlobal.executeCommand(
+                            f'connectAttr -f {submesh_name}_file.outTransparency {submesh_name}.transparency')
+
+                    else:
+                        if material.color:
+                            MGlobal.executeCommand(
+                                f'setAttr "{submesh_name}.color" -type double3 {material.color[0]} {material.color[1]} {material.color[2]}')
+                    if material.ambient:
+                        MGlobal.executeCommand(
+                            f'setAttr "{submesh_name}.ambientColor" -type double3 {material.ambient[0]} {material.ambient[1]} {material.ambient[2]}')
+                    if material.incandescence:
+                        MGlobal.executeCommand(
+                            f'setAttr "{submesh_name}.incandescence" -type double3 {material.incandescence[0]} {material.incandescence[1]} {material.incandescence[2]}')
+
+            for mesh in meshes:
+                mesh.updateSurface()
+
+        def load_lightmap():
+            # ensure far clip plane, allow to see big objects like whole map
+            MGlobal.executeCommand('setAttr "perspShape.farClipPlane" 300000')
+
+            # render with alpha cut
+            MGlobal.executeCommand(
+                'setAttr "hardwareRenderingGlobals.transparencyAlgorithm" 5')
+
+            meshes = []
+            for model in self.models:
+                if not model.lightmap:
+                    raise FunnyError(
+                        '[MAPGEO.load().load_lightmap()]: No lightmap data found.')
+
+                mesh = MFnMesh()
+                vertices_count = len(model.vertices)
+                indices_count = len(model.indices)
+
+                # create mesh with vertices, indices
+                vertices = MFloatPointArray()
+                for i in range(0, vertices_count):
+                    vertex = model.vertices[i]
+                    vertices.append(MFloatPoint(
+                        vertex.position.x, vertex.position.y, vertex.position.z))
+                poly_index_count = MIntArray(indices_count // 3, 3)
+                poly_indices = MIntArray()
+                MScriptUtil.createIntArrayFromList(model.indices, poly_indices)
+                mesh.create(
+                    vertices_count,
+                    indices_count // 3,
+                    vertices,
+                    poly_index_count,
+                    poly_indices,
+                )
+
+                # assign uv
+                # lightmap not always available, skip if we dont have
+                u_values_lm = MFloatArray(vertices_count)
+                v_values_lm = MFloatArray(vertices_count)
+                for i in range(0, vertices_count):
+                    vertex = model.vertices[i]
+                    u_values_lm[i] = vertex.lightmap_uv.x * \
+                        model.lm_scale_u + model.lm_offset_u
+                    v_values_lm[i] = 1.0-(vertex.lightmap_uv.y *
+                                          model.lm_scale_v + model.lm_offset_v)
+                mesh.setUVs(
+                    u_values_lm, v_values_lm
+                )
+                mesh.assignUVs(
+                    poly_index_count, poly_indices
+                )
+
+                # normal
+                normals = MVectorArray()
+                normal_indices = MIntArray(vertices_count)
+                for i in range(0, vertices_count):
+                    vertex = model.vertices[i]
+                    normals.append(
+                        MVector(vertex.normal.x, vertex.normal.y, vertex.normal.z))
+                    normal_indices[i] = i
+                mesh.setVertexNormals(
+                    normals,
+                    normal_indices
+                )
+
+                # dag_path and name
+                mesh_dag_path = MDagPath()
+                mesh.getPath(mesh_dag_path)
+                mesh.setName(model.name)
+                transform_node = MFnTransform(mesh.parent(0))
+                transform_node.setName(model.name)
+
+                # transform
+                transform_node.set(MTransform.compose(
+                    model.translation, model.scale, model.rotation,
+                    MSpace.kWorld
+                ))
+
+                model.mesh_dag_path = MDagPath(mesh_dag_path)
+                meshes.append(mesh)
+
+            # find render partition
+            render_partition = MFnPartition()
+            found_rp = False
+            iterator = MItDependencyNodes(MFn.kPartition)
+            while not iterator.isDone():
+                render_partition.setObject(iterator.thisNode())
+                if render_partition.name() == 'renderPartition' and render_partition.isRenderPartition():
+                    found_rp = True
+                    break
+                iterator.next()
 
             # lightmaps
             lightmap_models = {}
@@ -3491,63 +3870,140 @@ class MAPGEO:
                 if model not in lightmap_models[model.lightmap]:
                     lightmap_models[model.lightmap].append(model)
 
+            modifier = MDGModifier()
+            set = MFnSet()
             for lightmap in lightmap_models:
-                lightmap_name = 'LM_' + \
-                    lightmap.split('/')[-1].split('.dds')[0]
-                # create file node
-                MGlobal.executeCommand(
-                    f'shadingNode -asTexture -isColorManaged file -name "{lightmap_name}_fileLM"')
-                MGlobal.executeCommand(
-                    f'setAttr {lightmap_name}_fileLM.fileTextureName -type "string" "{mgbin.full_path(lightmap)}"')
+                lightmap_name = lightmap.replace('/', '__').split('.dds')[0]
+                lambert = MFnLambertShader()
+                lambert.create(True)
+                lambert.setName(f'{lightmap_name}')
 
-                # create place2dTexture node (p2d)
-                MGlobal.executeCommand(
-                    f'shadingNode -asUtility place2dTexture -name "{lightmap_name}_p2dLM"')
+                # some shader stuffs
+                dependency_node = MFnDependencyNode()
+                shading_engine = dependency_node.create(
+                    'shadingEngine', f'{lightmap_name}_SG')
+                material_info = dependency_node.create(
+                    'materialInfo', f'{lightmap_name}_MaterialInfo')
 
-                # connect p2d - file
-                attributes = [
-                    'coverage',
-                    'translateFrame',
-                    'rotateFrame',
-                    'mirrorU',
-                    'mirrorV',
-                    'stagger',
-                    'wrapU',
-                    'wrapV',
-                    'repeatUV',
-                    'offset',
-                    'rotateUV',
-                    'noiseUV',
-                    'vertexUvOne',
-                    'vertexUvTwo',
-                    'vertexUvThree',
-                    'vertexCameraOne'
-                ]
-                for attribute in attributes:
-                    MGlobal.executeCommand(
-                        f'connectAttr -f {lightmap_name}_p2dLM.{attribute} {lightmap_name}_fileLM.{attribute}')
-                MGlobal.executeCommand(
-                    f'connectAttr -f {lightmap_name}_p2dLM.outUV {lightmap_name}_fileLM.uv')
-                MGlobal.executeCommand(
-                    f'connectAttr -f {lightmap_name}_p2dLM.outUvFilterSize {lightmap_name}_fileLM.uvFilterSize')
+                if found_rp:
+                    partition = MFnDependencyNode(
+                        shading_engine).findPlug('partition')
 
+                    sets = render_partition.findPlug('sets')
+                    the_plug_we_need = None
+                    count = 0
+                    while True:
+                        the_plug_we_need = sets.elementByLogicalIndex(
+                            count)
+                        if not the_plug_we_need.isConnected():  # find the one that not connected
+                            break
+                        count += 1
+
+                modifier.connect(partition, the_plug_we_need)
+
+                # connect node
+                out_color = lambert.findPlug('outColor')
+                surface_shader = MFnDependencyNode(
+                    shading_engine).findPlug('surfaceShader')
+                modifier.connect(out_color, surface_shader)
+
+                message = MFnDependencyNode(
+                    shading_engine).findPlug('message')
+                shading_group = MFnDependencyNode(
+                    material_info).findPlug('shadingGroup')
+                modifier.connect(message, shading_group)
+
+                modifier.doIt()
+
+                set.setObject(shading_engine)
                 for model in lightmap_models[lightmap]:
-                    for submesh in model.submeshes:
-                        submesh_name = submesh.name
+                    # assign face to material
+                    component = MFnSingleIndexedComponent()
+                    face_component = component.create(
+                        MFn.kMeshPolygonComponent)
+                    group_poly_indices = MIntArray()
+                    for index in range(0, len(model.indices) // 3):
+                        group_poly_indices.append(index)
+                    component.addElements(group_poly_indices)
+
+                    set.addMember(model.mesh_dag_path, face_component)
+
+            # parsing the py and assign material attributes
+            # little bit complicated
+            if mgbin:
+                for lightmap in lightmap_models:
+                    lightmap_name = lightmap.replace(
+                        '/', '__').split('.dds')[0]
+                    # create file node
+                    MGlobal.executeCommand(
+                        f'shadingNode -asTexture -isColorManaged file -name "{lightmap_name}_file"')
+                    MGlobal.executeCommand(
+                        f'setAttr {lightmap_name}_file.fileTextureName -type "string" "{mgbin.full_path(lightmap)}"')
+
+                    # create place2dTexture node (p2d)
+                    MGlobal.executeCommand(
+                        f'shadingNode -asUtility place2dTexture -name "{lightmap_name}_p2d"')
+
+                    # connect p2d - file
+                    attributes = [
+                        'coverage',
+                        'translateFrame',
+                        'rotateFrame',
+                        'mirrorU',
+                        'mirrorV',
+                        'stagger',
+                        'wrapU',
+                        'wrapV',
+                        'repeatUV',
+                        'offset',
+                        'rotateUV',
+                        'noiseUV',
+                        'vertexUvOne',
+                        'vertexUvTwo',
+                        'vertexUvThree',
+                        'vertexCameraOne'
+                    ]
+                    for attribute in attributes:
                         MGlobal.executeCommand(
-                            f'connectAttr -f {lightmap_name}_fileLM.outColor {model.name}__{submesh_name}_BC.color2')
+                            f'connectAttr -f {lightmap_name}_p2d.{attribute} {lightmap_name}_file.{attribute}')
+                    MGlobal.executeCommand(
+                        f'connectAttr -f {lightmap_name}_p2d.outUV {lightmap_name}_file.uv')
+                    MGlobal.executeCommand(
+                        f'connectAttr -f {lightmap_name}_p2d.outUvFilterSize {lightmap_name}_file.uvFilterSize')
 
                     MGlobal.executeCommand(
-                        f'uvLink -uvSet "|{model.name}|{model.name}.uvSet[1].uvSetName" -texture "{lightmap_name}_fileLM"')
+                        f'connectAttr -f {lightmap_name}_file.outColor {lightmap_name}.color')
+
+            for mesh in meshes:
+                mesh.updateSurface()
+
+        mode = MGlobal.executeCommandStringResult(
+            'confirmDialog -title "Choose load mode:" -button "Load diffuse" -button "Load lightmap" -button "Load both (unable to export)" -icon "question" -defaultButton "Load diffuse"')
+        if mode == 'Load diffuse':
+            load_diffuse()
+        elif mode == 'Load lightmap':
+            load_lightmap()
+        elif mode == 'Load both (unable to export)':
+            load_both()
+        else:
+            MGlobal.displayInfo(f'[MAPGEO.load()]: Invalid mode: {mode}')
 
 # sorry its a py instead
 # probaly need a sub class
 
 
+class MAPGEOMaterial():
+    def __init__(self):
+        self.texture = None
+        self.color = None
+        self.ambient = None
+        self.incandescence = None
+
+
 class MAPGEOBin():
     def __init__(self):
         self.path = None  # this is the dynamic parent path of assets
-        self.textures = {}
+        self.materials = {}
 
     def full_path(self, path):
         return self.path + '/' + path
@@ -3574,25 +4030,55 @@ class MAPGEOBin():
             # redo this
             for a, b in mat_lines:
                 path = None
+                material = MAPGEOMaterial()
                 for i in range(a, b):
                     if 'StaticMaterialDef' in lines[i]:
-                        name = lines[i+1].split('=')[1][1:-
-                                                        1].replace('"', '').replace('/', '__')
+                        material.name = lines[i+1].split('=')[1][1:-
+                                                                 1].replace('"', '').replace('/', '__')
                     if 'DiffuseTexture' in lines[i]:
-                        path = lines[i +
-                                     1].split('=')[1][1:].replace('"', '')[:-1]
-                self.textures[name] = path
+                        material.texture = lines[i +
+                                                 1].split('=')[1][1:].replace('"', '')[:-1]
+                    if 'Diffuse_Texture' in lines[i]:
+                        material.texture = lines[i +
+                                                 1].split('=')[1][1:].replace('"', '')[:-1]
+                    if 'Mask_Textures' in lines[i]:
+                        material.texture = lines[i +
+                                                 1].split('=')[1][1:].replace('"', '')[:-1]
+                        for j in range(i+2, b):
+                            if 'BaseColor' in lines[j]:
+                                colors = lines[j+1].split('=')[1][2:-
+                                                                  1].replace(' ', '').split(',')
+                                material.ambient = (
+                                    float(colors[0]), float(colors[1]), float(colors[2]))
+                        break
+                    if 'GlowTexture' in lines[i]:
+                        material.texture = lines[i +
+                                                 1].split('=')[1][1:].replace('"', '')[:-1]
+                        for j in range(i+2, b):
+                            if 'Color_Mult' in lines[j]:
+                                colors = lines[j+1].split('=')[1][2:-
+                                                                  1].replace(' ', '').split(',')
+                                material.incandescence = (
+                                    float(colors[0]), float(colors[1]), float(colors[2]))
+                        break
+                    if 'Emissive_Color' in lines[i]:
+                        colors = lines[i+1].split('=')[1][2:-
+                                                          1].replace(' ', '').split(',')
+                        material.color = (float(colors[0]), float(
+                            colors[1]), float(colors[2]))
+                        material.ambient = material.color
+                self.materials[material.name] = material
 
 
 def db():
     mgbin = MAPGEOBin()
-    mgbin.read('D:/base.materials.py')
+    mgbin.read('D:/base_srx.materials.py')
     # for path in mgbin.textures:
     #    print(path, mgbin.textures[path])
     mg = MAPGEO()
-    mg.read('D:/base.mapgeo')
+    mg.read('D:/base_srx.mapgeo')
     mg.flip()
-    mg.load(mgbin)
+    mg.load(mgbin=mgbin)
 
 
-#db()
+# db()

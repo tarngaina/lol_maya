@@ -5,7 +5,6 @@ from math import sqrt, isclose
 from maya.OpenMayaMPx import *
 from maya.OpenMayaAnim import *
 from maya.OpenMaya import *
-from maya import cmds
 
 # really need to clean things up
 
@@ -831,7 +830,7 @@ class SKL:
                         joint.iglobal_scale = bs.read_vec3()
                         joint.iglobal_rotation = bs.read_quat()
                         # name
-                        joint_name_offset = bs.read_int32()  # joint name offset - pad
+                        joint_name_offset = bs.read_int32()  # joint name offset
                         return_offset = bs.stream.tell()
                         bs.stream.seek(return_offset - 4 + joint_name_offset)
                         joint.name = bs.read_zero_terminated_string()
@@ -1213,9 +1212,14 @@ class SKN:
                     bs.read_vec3()
                     bs.read_float()
 
-                # read indices
-                for i in range(0, index_count):
-                    self.indices.append(bs.read_uint16())
+                # read indices by face
+                face_count = index_count // 3
+                for i in range(0, face_count):
+                    face = [bs.read_uint16(), bs.read_uint16(),
+                            bs.read_uint16()]
+                    # check dupe index in a face
+                    if not (face[0] == face[1] or face[1] == face[2] or face[2] == face[0]):
+                        self.indices += face
 
                 # read vertices
                 for i in range(0, vertex_count):
@@ -1251,6 +1255,7 @@ class SKN:
         mesh = MFnMesh()
         vertices_count = len(self.vertices)
         indices_count = len(self.indices)
+
         # create mesh with vertices, indices
         vertices = MFloatPointArray()
         for i in range(0, vertices_count):
@@ -1274,6 +1279,7 @@ class SKN:
         for i in range(0, vertices_count):
             u_values[i] = self.vertices[i].uv.x
             v_values[i] = 1.0 - self.vertices[i].uv.y
+
         mesh.setUVs(
             u_values, v_values
         )
@@ -1493,7 +1499,7 @@ class SKN:
         while not iterator.isDone():
             if not iterator.hasValidTriangulation():
                 raise FunnyError(
-                    f'[SKN.dump({mesh.name()})]: Mesh contains a non-triangulated polygon, try Mesh -> Triangulate.')
+                    f'[SKN.dump({mesh.name()})]: Mesh contains a invalid triangulation polygon, try Mesh -> Triangulate.')
 
             index = iterator.index()
             shader_index = poly_shaders[index]
@@ -2797,13 +2803,13 @@ class SO:
         if hole_info.length() > 0:
             raise FunnyError(f'[SO.dump()]: Mesh contains holes.')
 
-        # check triangulation
+        # check valid triangulation
         iterator = MItMeshPolygon(mesh_dag_path)
         iterator.reset()
         while not iterator.isDone():
             if not iterator.hasValidTriangulation():
                 raise FunnyError(
-                    f'[SO.dump()]: Mesh contains a non-triangulated polygon, try Mesh -> Triangulate.')
+                    f'[SO.dump()]: Mesh contains a invalid triangulation polygon, try Mesh -> Triangulate.')
             iterator.next()
 
         # vertices
@@ -2829,6 +2835,13 @@ class SO:
         face_count = MIntArray()
         face_vertices = MIntArray()
         mesh.getTriangles(face_count, face_vertices)
+
+        # cehck triangulated: 1 tri per face = gud
+        for triangle_count in face_count:
+            if triangle_count > 1:
+                raise FunnyError(
+                    f'[SO.dump()]: Mesh contains a non-triangulated face, try Mesh -> Triangulate.')
+
         len666 = mesh.numPolygons()
         index = 0
         for i in range(0, len666):
@@ -3044,6 +3057,8 @@ class MAPGeoModel:
         self.scale = None
         self.rotation = None
 
+        self.layer = None
+
         # empty = no light map
         self.lightmap = None
 
@@ -3214,8 +3229,9 @@ class MAPGEO:
 
                 bs.read_byte()  # flags
 
+                model.layer = 0
                 if version >= 7:
-                    bs.read_byte()  # layer
+                    model.layer = bs.read_byte()[0]
                     if version >= 11:
                         # unknown byte
                         bs.read_byte()
@@ -3563,6 +3579,19 @@ class MAPGEO:
             MGlobal.executeCommand(
                 'setAttr "hardwareRenderingGlobals.transparencyAlgorithm" 5')
 
+            layers = []
+            for model in self.models:
+                if model.layer not in layers:
+                    layers.append(model.layer)
+
+            layer_transforms = {}
+            for layer in layers:
+                transform = MFnTransform()
+                transform.create()
+
+                transform.setName(f'layer_{layer}')
+                layer_transforms[layer] = transform
+
             meshes = []
             for model in self.models:
                 mesh = MFnMesh()
@@ -3620,6 +3649,9 @@ class MAPGEO:
                 mesh.setName(model.name)
                 transform_node = MFnTransform(mesh.parent(0))
                 transform_node.setName(model.name)
+
+                dag_node = MFnDagNode(layer_transforms[model.layer].object())
+                dag_node.addChild(transform_node.object())
 
                 # transform
                 transform_node.set(MTransform.compose(
@@ -3977,16 +4009,19 @@ class MAPGEO:
             for mesh in meshes:
                 mesh.updateSurface()
 
+        """ hmmmmmmmmmmm
         mode = MGlobal.executeCommandStringResult(
-            'confirmDialog -title "Choose load mode:" -button "Load diffuse" -button "Load lightmap" -button "Load both (unable to export)" -icon "question" -defaultButton "Load diffuse"')
-        if mode == 'Load diffuse':
+            'confirmDialog -title "[MAPGEO.load()]:" -message "Choose load mode:" -button "Diffuse" -button "Lightmap" -button "Both (unable to export)" -icon "question" -defaultButton "Diffuse"')
+        if mode == 'Diffuse':
             load_diffuse()
-        elif mode == 'Load lightmap':
+        elif mode == 'Lightmap':
             load_lightmap()
-        elif mode == 'Load both (unable to export)':
+        elif mode == 'Both (unable to export)':
             load_both()
         else:
             MGlobal.displayInfo(f'[MAPGEO.load()]: Invalid mode: {mode}')
+        """
+        load_diffuse()
 
 # sorry its a py instead
 # probaly need a sub class

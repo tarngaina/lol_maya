@@ -1427,7 +1427,7 @@ class SKN:
                     weight = vertex.weights[j]
                     # treate bytes as a list, element with index 0 of [byte] is byte
                     influence = vertex.bones_indices[j][0]
-                    if weight != 0:
+                    if weight > 0:
                         weights[i * influence_count + influence] = weight
             skin_cluster.setWeights(
                 mesh_dag_path, vertex_component, influences_indices, weights, False)
@@ -1539,15 +1539,16 @@ class SKN:
             weight_sum = 0.0
             for j in range(0, weight_influence_count):
                 weight = weights[i * weight_influence_count + j]
-                if weight != 0:
+                if weight > 0:
                     temp_count += 1
                     weight_sum += weight
             if temp_count > 4:
                 bad_vertex[i] = 1
 
-            # normalize weights
-            for j in range(0, weight_influence_count):
-                weights[i * weight_influence_count + j] /= weight_sum
+            if weight_sum > 0:
+                # normalize weights
+                for j in range(0, weight_influence_count):
+                    weights[i * weight_influence_count + j] /= weight_sum
 
         # get 4+ influences vertices
         bad_vertices = MIntArray()
@@ -1598,7 +1599,7 @@ class SKN:
             j = 0
             while j < weight_influence_count and f < 4:
                 weight = weights[index * weight_influence_count + j]
-                if weight != 0:
+                if weight > 0:
                     temp_bones_indices[f] = bytes([mask_influence[j]])
                     temp_weights[f] = float(weight)
                     f += 1
@@ -2208,10 +2209,13 @@ class ANM:
         # this only ensure the "import scene", not the "opening/existing scene" in maya, to make this work:
         # select "Override to Math Source" for both Framerate % Animation Range in Maya's import options panel
         MGlobal.executeCommand('currentUnit -time ntsc')
-
         # adjust animation range
-        MGlobal.executeCommand(
-            f'playbackOptions -e -min 0 -max {self.duration-1} -animationStartTime 0 -animationEndTime {self.duration-1} -playbackSpeed 1')
+        if self.duration == 1:
+            MGlobal.executeCommand(
+                f'playbackOptions -e -min 0 -max 1 -animationStartTime 0 -animationEndTime 1 -playbackSpeed 1')
+        else:
+            MGlobal.executeCommand(
+                f'playbackOptions -e -min 0 -max {self.duration-1} -animationStartTime 0 -animationEndTime {self.duration-1} -playbackSpeed 1')
 
         if self.compressed:
             # slow but safe load for compressed anm
@@ -2769,7 +2773,7 @@ class SO:
         in_mesh = mesh.findPlug('inMesh')
         in_mesh_connections = MPlugArray()
         in_mesh.connectedTo(in_mesh_connections, True, False)
-        if in_mesh_connections.length() != 0:
+        if in_mesh_connections.length() > 0:
             if in_mesh_connections[0].node().apiType() == MFn.kSkinClusterFilter:
                 skin_cluster = MFnSkinCluster(in_mesh_connections[0].node())
                 influences_dag_path = MDagPathArray()
@@ -3229,9 +3233,9 @@ class MAPGEO:
 
                 bs.read_byte()  # flags
 
-                model.layer = 0
+                model.layer = f'{255:08b}'[::-1]
                 if version >= 7:
-                    model.layer = bs.read_byte()[0]
+                    model.layer = f'{bs.read_byte()[0]:08b}'[::-1]
                     if version >= 11:
                         # unknown byte
                         bs.read_byte()
@@ -3579,18 +3583,12 @@ class MAPGEO:
             MGlobal.executeCommand(
                 'setAttr "hardwareRenderingGlobals.transparencyAlgorithm" 5')
 
-            layers = []
-            for model in self.models:
-                if model.layer not in layers:
-                    layers.append(model.layer)
-
-            layer_transforms = {}
-            for layer in layers:
-                transform = MFnTransform()
-                transform.create()
-
-                transform.setName(f'layer_{layer}')
-                layer_transforms[layer] = transform
+            # create 8 layers, because max = 8, bruh
+            layer_models = {}
+            for i in range(0, 8):
+                MGlobal.executeCommand(
+                    f'createDisplayLayer -name "layer{i}" -number {i} -empty')
+                layer_models[i] = []
 
             meshes = []
             for model in self.models:
@@ -3650,17 +3648,25 @@ class MAPGEO:
                 transform_node = MFnTransform(mesh.parent(0))
                 transform_node.setName(model.name)
 
-                dag_node = MFnDagNode(layer_transforms[model.layer].object())
-                dag_node.addChild(transform_node.object())
-
                 # transform
                 transform_node.set(MTransform.compose(
                     model.translation, model.scale, model.rotation,
                     MSpace.kWorld
                 ))
 
+                # add the model to the layer, where it belong too
+                for i in range(0, 8):
+                    if model.layer[i] == '1':
+                        layer_models[i].append(f'|{model.name}')
+
                 model.mesh_dag_path = MDagPath(mesh_dag_path)
                 meshes.append(mesh)
+
+            # set model to layers
+            for i in range(0, 8):
+                model_names = ' '.join(layer_models[i])
+                MGlobal.executeCommand(
+                    f'editDisplayLayerMembers -noRecurse layer{i} {model_names}')
 
             # find render partition
             render_partition = MFnPartition()

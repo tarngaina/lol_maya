@@ -7,13 +7,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
 ### Infos:
 1. Misc:
     - Add fix for read/write file with suffix in name.
-    - Add fix for SKL bad joints order which caused bad animation blending like: Samira reload, Jhin reload,...
-        - Extract the original skl in wad file, rename it to `riot.skl`, put it in export location.
-        - When exporting, plugin will attempt to sort your joints to match `riot.skl` joints order. (not affect the scene)
-        - You must have all `riot.skl` joints on your skin cluster.
-        - You can add extra joints to your skin, but not allow to remove joints.
-        - If there is no `riot.skl` found in the export location, the plugin will export the normal way.
-    - When run into the problem: vertices have weights affect more than 4 influences, those vertices will be selected/highlighted in scene.
+    - When run into the problem: vertices have 4+ influences, those vertices will be selected in scene.
 2. SKN: 
     - Read: 
         - `33 22 11 00`: V0, V1, V2, V3, V4
@@ -23,12 +17,21 @@ An attempt to update RiotFileTranslator to Maya 2023.
     - Write: 
         - `33 22 11 00`: V1
         - Add fix for Maya duplicate name system on joint-material nodes, example: joint `Fish` and material `Fish1` will export as `Fish`. (no effect on index 2, 3, 4,...)
+        - Add check for limit vertices: 65536 
 3. SKL:
     - Read: 
         - `r3d2sklt`: V1, V2
         - `C3 4F FD 22`: V0
     - Write:
-        - `C3 4F FD 22`: V0 (new SKL, no need to update/convert after)
+        - `C3 4F FD 22`: V0 
+        - New SKL data, no need to update/convert.
+        - Add check for limit joints: 256
+        - Add fix for SKL bad joints order that caused bad animation layers/animation blending like: Samira reload, Jhin reload,...
+            - Extract the original skl in wad file, rename it to `riot.skl`, put it in export location.
+            - When exporting, plugin will attempt to sort your joints to match `riot.skl` joints order. (not affect the scene)
+            - You must have all `riot.skl` joints on your skin cluster.
+            - You can add extra joints to your skin, but not allow to remove joints.
+            - If there is no `riot.skl` found in the export location, the plugin will export normal way - unsorted.
 4. ANM:
     - Read: 
         - `r3d2canm`
@@ -37,7 +40,8 @@ An attempt to update RiotFileTranslator to Maya 2023.
         
             ![](https://i.imgur.com/2hJvlGt.png)
     - Write:
-        - `r3d2anmd`: V4 (uncompressed, scaling support)
+        - `r3d2anmd`: V4 
+            - Uncompressed, scaling support.
 5. Static object:
     - Read:
         - SCO 
@@ -47,7 +51,8 @@ An attempt to update RiotFileTranslator to Maya 2023.
             - Pivot point (optional): is translation of a joint that bound with the mesh.
 
                 ![](https://i.imgur.com/XZFvV3V.png)
-        - SCB: `r3d2Mesh`: V3 (no need to convert with Wooxy)
+        - SCB: `r3d2Mesh`: V3 
+            - No need to convert with Wooxy.
 
 
 

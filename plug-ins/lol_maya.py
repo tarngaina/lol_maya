@@ -505,11 +505,15 @@ def uninitializePlugin(obj):
         MGlobal.displayWarning(
             f'Couldn\'t deregister MAPGEOTranslator: [{e}]: {e.message}')
 
-
 # helper functions and structures
+
+
 class FunnyError(Exception):
-    def __init__(self, message):
-        self.show(message)
+    fix_button = 'Ignore (not recommended)'
+
+    def __init__(self, message, consider=None):
+        self.consider = consider
+        self.cmd = self.show(message)
 
     def show(self, message):
         title = 'Error:'
@@ -519,9 +523,12 @@ class FunnyError(Exception):
             message = temp[1]
         button = choice(
             ['UwU', '<(\")', 'ok boomer', 'funny man', 'jesus', 'bruh',
-             'stop', 'get some help', 'haha', 'lmao', 'ay yo', 'SUS'])
-        MGlobal.executeCommand(
-            f'confirmDialog -title "{title}" -message "{message}" -button "{button}" -icon "critical"')
+             'stop', 'get some help', 'haha', 'lmao', 'ay yo', 'SUS', 'sOcIEtY.'])
+        dialog = f'confirmDialog -title "{title}" -message "{message}" -button "{button}" -icon "critical"'
+        if self.consider:
+            dialog += f' -button "{FunnyError.fix_button}" -defaultButton "{button}"'
+
+        return MGlobal.executeCommandStringResult(dialog)
 
 
 # for read/write file in a binary way
@@ -1044,6 +1051,11 @@ class SKL:
                 # must be batman
                 self.joints[i].parent = -1
 
+        len1235 = len(self.joints)
+        if len1235 > 256:
+            raise FunnyError(
+                f'[SKL.dump()]: Too many joints: {len1235}, max allowed: 256.')
+
     def write(self, path):
         with open(path, 'wb') as f:
             bs = BinaryStream(f)
@@ -1126,7 +1138,7 @@ class SKL:
 class SKNVertex:
     def __init__(self):
         self.position = None
-        self.bones_indices = None
+        self.influences = None
         self.weights = None
         self.normal = None
         self.uv = None
@@ -1225,7 +1237,7 @@ class SKN:
                 for i in range(0, vertex_count):
                     vertex = SKNVertex()
                     vertex.position = bs.read_vec3()
-                    vertex.bones_indices = [
+                    vertex.influences = [
                         bs.read_byte(), bs.read_byte(), bs.read_byte(), bs.read_byte()]
                     vertex.weights = [
                         bs.read_float(), bs.read_float(), bs.read_float(), bs.read_float()]
@@ -1379,7 +1391,6 @@ class SKN:
             selections = MSelectionList()
             selections.add(mesh_dag_path)
             for i in range(0, influence_count):
-                # joint = skl.joints[skl.influences[i]]
                 selections.add(skl.dag_paths[skl.influences[i]])
 
             # bind selections
@@ -1426,7 +1437,7 @@ class SKN:
                 for j in range(0, 4):
                     weight = vertex.weights[j]
                     # treate bytes as a list, element with index 0 of [byte] is byte
-                    influence = vertex.bones_indices[j][0]
+                    influence = vertex.influences[j][0]
                     if weight > 0:
                         weights[i * influence_count + influence] = weight
             skin_cluster.setWeights(
@@ -1467,7 +1478,7 @@ class SKN:
         influence_dag_paths = MDagPathArray()
         influence_count = skin_cluster.influenceObjects(influence_dag_paths)
 
-        # idk what this is, used for SKNVertex.bones_indices
+        # idk what this is, used for SKNVertex.influences
         mask_influence = MIntArray(influence_count)
         for i in range(0, influence_count):
             for j in range(0, skl.dag_paths.length()):
@@ -1530,45 +1541,72 @@ class SKN:
         ptr = util.asUintPtr()
         skin_cluster.getWeights(mesh_dag_path, vertex_component, weights, ptr)
 
-        weight_influence_count = util.getUint(ptr)
         #  weight stuffs
-        bad_vertex = MIntArray(vertices_num, 0)  # 4+ influences vertices
+        weight_influence_count = util.getUint(ptr)
+        bad_vertices = MIntArray()
         for i in range(0, vertices_num):
-            # if vertices don't have more than 4 influences
-            temp_count = 0
+            # count influences
+            inf_count = 0
             weight_sum = 0.0
+            found_weights = []
             for j in range(0, weight_influence_count):
                 weight = weights[i * weight_influence_count + j]
                 if weight > 0:
-                    temp_count += 1
+                    inf_count += 1
                     weight_sum += weight
-            if temp_count > 4:
-                bad_vertex[i] = 1
+                    found_weights.append((weight, j))
+
+            # 4+ influences fix
+            if inf_count > 4:
+                bad_vertices.append(i)
+
+                # get sorted weights + influence
+                found_weights = sorted(
+                    found_weights, key=lambda f: f[0], reverse=True)
+
+                # 4 highest weights
+                high_weights = found_weights[:4]
+                # the rest small weights
+                low_weights = found_weights[4:]
+
+                # sum all low weights and remove them
+                low_sum = 0.0
+                for weight, influence in low_weights:
+                    low_sum += weight
+                    weights[i * weight_influence_count + influence] = 0.0
+
+                # distributed low weights to high weights + re calculate weight sum for normalize
+                low_sum /= 4
+                weight_sum = 0.0
+                for weight, influence in high_weights:
+                    weights[i * weight_influence_count + influence] += low_sum
+                    weight_sum += weights[i *
+                                          weight_influence_count + influence]
 
             if weight_sum > 0:
                 # normalize weights
                 for j in range(0, weight_influence_count):
                     weights[i * weight_influence_count + j] /= weight_sum
 
-        # get 4+ influences vertices
-        bad_vertices = MIntArray()
-        for i in range(0, vertices_num):
-            if bad_vertex[i] == 1:
-                bad_vertices.append(i)
-
         if bad_vertices.length() > 0:
-            # select 4+ influences vertices
-            temp_component = MFnSingleIndexedComponent()
-            temp_vertex_component = temp_component.create(
-                MFn.kMeshVertComponent)
-            temp_component.addElements(bad_vertices)
+            e = FunnyError(
+                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices that have weight on 4+ influences. Those vertices will be selected in scene. Try repaint weight on those vertices, or rebind the skin with max 4 influences setting, or prune small weights.',
+                consider=True
+            )
+            if e.cmd != FunnyError.fix_button:
+                # select 4+ influences vertices
+                component = MFnSingleIndexedComponent()
+                temp_component = component.create(
+                    MFn.kMeshVertComponent)
+                component.addElements(bad_vertices)
 
-            temp_selections = MSelectionList()
-            temp_selections.add(mesh_dag_path, temp_vertex_component)
-            MGlobal.setActiveSelectionList(temp_selections)
-
-            raise FunnyError(
-                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices that have weight afftected more than 4 influences. Those vertices have been highlighted in scene, zoom out to see. Try to repaint weight on those vertices or rebind the skin with max 4 influences setting or prune weights.')
+                temp_selections = MSelectionList()
+                temp_selections.add(mesh_dag_path, temp_component)
+                MGlobal.selectCommand(temp_selections)
+                raise e
+            else:
+                MGlobal.displayWarning(
+                    f'[SKN.dump({mesh.name()})]: All vertices weights will be re-calculated to fit 4 influences.')
 
         # init some important thing
         shader_vertex_indices = []
@@ -1579,7 +1617,8 @@ class SKN:
             shader_vertices.append([])
             shader_indices.append(MIntArray())
 
-        # SKNVertex
+        # dump vertices
+        bad_vertices = MIntArray()
         iterator = MItMeshVertex(mesh_dag_path)
         iterator.reset()
         while not iterator.isDone():
@@ -1589,10 +1628,10 @@ class SKN:
                 continue
 
             # position
-            temp_position = iterator.position(MSpace.kWorld)
+            position = iterator.position(MSpace.kWorld)
 
-            # bones_indcies and weights
-            temp_bones_indices = [bytes([0]), bytes(
+            # influences and weights
+            influences = [bytes([0]), bytes(
                 [0]), bytes([0]), bytes([0])]
             temp_weights = [0.0, 0.0, 0.0, 0.0]
             f = 0
@@ -1600,7 +1639,7 @@ class SKN:
             while j < weight_influence_count and f < 4:
                 weight = weights[index * weight_influence_count + j]
                 if weight > 0:
-                    temp_bones_indices[f] = bytes([mask_influence[j]])
+                    influences[f] = bytes([mask_influence[j]])
                     temp_weights[f] = float(weight)
                     f += 1
                 j += 1
@@ -1608,46 +1647,59 @@ class SKN:
             # normal - also normalized
             normals = MVectorArray()
             iterator.getNormals(normals)
-            temp_normal = MVector(0.0, 0.0, 0.0)
+            normal = MVector(0.0, 0.0, 0.0)
             len123 = normals.length()
             for i in range(0, len123):
-                temp_normal.x += normals[i].x
-                temp_normal.y += normals[i].y
-                temp_normal.z += normals[i].z
-            temp_normal.x /= len123
-            temp_normal.y /= len123
-            temp_normal.z /= len123
+                normal.x += normals[i].x
+                normal.y += normals[i].y
+                normal.z += normals[i].z
+            normal.x /= len123
+            normal.y /= len123
+            normal.z /= len123
 
             # unique uv
             uv_indices = MIntArray()
             iterator.getUVIndices(uv_indices)
             len555 = uv_indices.length()
+
             if len555 > 0:
                 seen = []
-                for j in range(0, len555):
+                for j in range(len555):
                     uv_index = uv_indices[j]
-                    temp_uv_index = uv_index
                     if not uv_index in seen:
-                        u_util = MScriptUtil()  # lay trua tren cao, turn down for this
-                        u_ptr = u_util.asFloatPtr()
-                        v_util = MScriptUtil()
-                        v_ptr = v_util.asFloatPtr()
-                        mesh.getUV(uv_index, u_ptr, v_ptr)
-                        temp_uv = MVector(
-                            u_util.getFloat(u_ptr),
-                            1.0 - v_util.getFloat(v_ptr)
-                        )
+                        if uv_index == -1:
+                            # this is sure a weird problem
+                            # so basically there are no UV assigned on this vertex
+                            # only use 0, 0 value for them, idk
+                            component = MFnSingleIndexedComponent(
+                                iterator.currentItem())
+                            temp_bad_vertices = MIntArray()
+                            component.getElements(temp_bad_vertices)
+                            for vertex in temp_bad_vertices:
+                                if vertex not in bad_vertices:
+                                    bad_vertices.append(vertex)
+                            uv = MVector(0.0, 0.0)
+                        else:
+                            u_util = MScriptUtil()  # lay trua tren cao, turn down for this
+                            u_ptr = u_util.asFloatPtr()
+                            v_util = MScriptUtil()
+                            v_ptr = v_util.asFloatPtr()
+                            mesh.getUV(uv_index, u_ptr, v_ptr)
+                            uv = MVector(
+                                u_util.getFloat(u_ptr),
+                                1.0 - v_util.getFloat(v_ptr)
+                            )
 
                         # create SKNVertex - recreate pointer for safe
                         vertex = SKNVertex()
                         vertex.position = MVector(
-                            temp_position.x, temp_position.y, temp_position.z)
-                        vertex.bones_indices = temp_bones_indices
+                            position.x, position.y, position.z)
+                        vertex.influences = influences
                         vertex.weights = temp_weights
                         vertex.normal = MVector(
-                            temp_normal.x, temp_normal.y, temp_normal.z)
-                        vertex.uv = MVector(temp_uv.x, temp_uv.y)
-                        vertex.uv_index = temp_uv_index
+                            normal.x, normal.y, normal.z)
+                        vertex.uv = MVector(uv.x, uv.y)
+                        vertex.uv_index = uv_index
 
                         shader_vertices[shader].append(vertex)
                         shader_vertex_indices[shader].append(index)
@@ -1657,6 +1709,27 @@ class SKN:
                 raise FunnyError(
                     f'[SKN.dump({mesh.name()})]: Mesh contains a vertex with no UVs.')
             iterator.next()
+
+        # show vertex with no UV assigned
+        if bad_vertices.length() > 0:
+            e = FunnyError(
+                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices with no UV assigned. Those vertices will be selected in scene. Try Edit Mesh -> Delete Edge/Vertex to delete those vertices, or assign uv to them.',
+                consider=True
+            )
+            if e.cmd != FunnyError.fix_button:
+                # select vertices with no UV
+                component = MFnSingleIndexedComponent()
+                temp_component = component.create(MFn.kMeshVertComponent)
+                component.addElements(bad_vertices)
+
+                temp_selections = MSelectionList()
+                temp_selections.add(
+                    mesh_dag_path, temp_component)
+                MGlobal.selectCommand(temp_selections)
+                raise e
+            else:
+                MGlobal.displayWarning(
+                    f'[SKN.dump({mesh.name()})]: All vertices with no UV will be assigned new value: (0.0, 0.0)')
 
         # idk what this block does, must be not important
         current_index = 0
@@ -1722,7 +1795,7 @@ class SKN:
 
             iterator.next()
 
-        # SKNSubmesh
+        # dump submeshes
         index_start = 0
         vertex_start = 0
         for i in range(0, shader_count):
@@ -1758,6 +1831,12 @@ class SKN:
                 if joint.name + '1' == submesh.name:
                     submesh.name = joint.name
                     break
+
+        # check max vertex/face
+        max_vertex = max(self.indices)
+        if max_vertex > 65536:
+            raise FunnyError(
+                f'[SKN.dump({mesh.name()})]: Too many vertices: {max_vertex}, max allowed: 65536.')
         # ay yo finally
 
     def write(self, path):
@@ -1783,7 +1862,7 @@ class SKN:
                 bs.write_uint16(index)
             for vertex in self.vertices:
                 bs.write_vec3(vertex.position)
-                for byte in vertex.bones_indices:  # must have for, this is a list of bytes, not an array of byte
+                for byte in vertex.influences:  # must have for, this is a list of bytes, not an array of byte
                     bs.write_bytes(byte)
                 for weight in vertex.weights:
                     bs.write_float(weight)
@@ -2505,11 +2584,6 @@ class SO:
                     index += 1
                     continue
 
-                # if inp[0] == 'Name=':
-                    # self.name = inp[1]
-                    # if ':' in self.name:
-                    #    self.name = self.name.split(':')[1]
-
                 if inp[0] == 'CentralPoint=':
                     self.central = MVector(
                         float(inp[1]), float(inp[2]), float(inp[3]))
@@ -3061,6 +3135,7 @@ class MAPGeoModel:
         self.scale = None
         self.rotation = None
 
+        # depend which layer that model appear on
         self.layer = None
 
         # empty = no light map
@@ -3233,6 +3308,10 @@ class MAPGEO:
 
                 bs.read_byte()  # flags
 
+                # layer data - 8 char binary string of an byte, example: 10101010
+                # need to be reversed
+                # if the char at index 3 is '1' -> the object appear on layer index 3
+                # default layer data: 11111111 - appear on all layers
                 model.layer = f'{255:08b}'[::-1]
                 if version >= 7:
                     model.layer = f'{bs.read_byte()[0]:08b}'[::-1]

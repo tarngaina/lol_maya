@@ -1290,10 +1290,6 @@ class SKN:
             poly_index_count,
             poly_indices,
         )
-        for index in self.indices:
-            if index < 0 or index > len(self.vertices):
-                print(index)
-        return
         # assign uv
         u_values = MFloatArray(vertices_count)
         v_values = MFloatArray(vertices_count)

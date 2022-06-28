@@ -1244,12 +1244,18 @@ class SKN:
                     vertex.normal = bs.read_vec3()
                     vertex.uv = bs.read_vec2()
                     # if vertex has color
-                    if vertex_color == 1:
+                    if vertex_color > 0:
                         # pad all color (4 byte = r,g,b,a) since we dont need it
                         bs.read_byte()
                         bs.read_byte()
                         bs.read_byte()
                         bs.read_byte()
+                        # pad more 16 bytes if vertex color == 2, ex: akali
+                        if vertex_color > 1:
+                            bs.read_float()
+                            bs.read_float()
+                            bs.read_float()
+                            bs.read_float()
                     self.vertices.append(vertex)
 
                 if major == 0:
@@ -1284,7 +1290,10 @@ class SKN:
             poly_index_count,
             poly_indices,
         )
-
+        for index in self.indices:
+            if index < 0 or index > len(self.vertices):
+                print(index)
+        return
         # assign uv
         u_values = MFloatArray(vertices_count)
         v_values = MFloatArray(vertices_count)

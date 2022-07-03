@@ -6,8 +6,6 @@ from maya.OpenMayaMPx import *
 from maya.OpenMayaAnim import *
 from maya.OpenMaya import *
 
-# really need to clean things up
-
 
 # maya file translator set up
 class SKNTranslator(MPxFileTranslator):
@@ -42,13 +40,16 @@ class SKNTranslator(MPxFileTranslator):
         skn.read(path)
         skn.flip()
 
+        # check options to read skl
         skl = None
         if 'skl=0' not in options:
-            # with skl
-            skl = SKL()
-            skl.read(path.split('.skn')[0] + '.skl')
-            skl.flip()
-            skl.load()
+            mfo = MFileObject()
+            mfo.setRawFullName(path.split('.skn')[0] + '.skl')
+            if mfo.exists():
+                skl = SKL()
+                skl.read(mfo.rawFullName())
+                skl.flip()
+                skl.load()
 
         skn.load(skl)
         return True
@@ -118,11 +119,10 @@ class SkinTranslator(MPxFileTranslator):
                 f'[SkinTranslator.writer()]: Stop! u violated the law, use Export Selection or i violate u UwU.')
 
         path = file.rawFullName()
-        # fix for file with mutiple '.', this api is just meh
         if not path.endswith('.skn'):
             path += '.skn'
 
-        # for sorting joints to match riot.skl
+        # read riot.skl
         riot = None
         mfo = MFileObject()
         mfo.setRawFullName('/'.join(path.split('/')[:-1]+['riot.skl']))
@@ -349,9 +349,8 @@ class MAPGEOTranslator(MPxFileTranslator):
     def writer(self, file, options, access):
         return True
 
+
 # plugin register
-
-
 def initializePlugin(obj):
     # totally not copied code
     plugin = MFnPlugin(obj, 'tarngaina', '1.0')
@@ -361,7 +360,7 @@ def initializePlugin(obj):
             None,
             SKNTranslator.creator,
             'SKNTranslatorOpts',
-            'skl=1',  # idk wtf wrong with default options
+            'skl=1',
             True
         )
     except Exception as e:
@@ -505,11 +504,10 @@ def uninitializePlugin(obj):
         MGlobal.displayWarning(
             f'Couldn\'t deregister MAPGEOTranslator: [{e}]: {e.message}')
 
+
 # helper functions and structures
-
-
 class FunnyError(Exception):
-    fix_button = 'Ignore (not recommended)'
+    ignore_button = 'Ignore (auto fix error - not recommended)'
 
     def __init__(self, message, consider=None):
         self.consider = consider
@@ -524,18 +522,26 @@ class FunnyError(Exception):
         button = choice(
             ['UwU', '<(\")', 'ok boomer', 'funny man', 'jesus', 'bruh',
              'stop', 'get some help', 'haha', 'lmao', 'ay yo', 'SUS', 'sOcIEtY.'])
-        dialog = f'confirmDialog -title "{title}" -message "{message}" -button "{button}" -icon "critical"'
+        dialog = f'confirmDialog -title "{title}" -message "{message}" -button "{button}" -icon "critical"  -defaultButton "{button}"'
         if self.consider:
-            dialog += f' -button "{FunnyError.fix_button}" -defaultButton "{button}"'
-
+            dialog += f' -button "{FunnyError.ignore_button}"'
         return MGlobal.executeCommandStringResult(dialog)
 
 
 # for read/write file in a binary way
+# totally not copied code
 class BinaryStream:
-    # totally not copied code
     def __init__(self, f):
         self.stream = f
+
+    def seek(self, pos, mode=0):
+        self.stream.seek(pos, mode)
+
+    def tell(self):
+        return self.stream.tell()
+
+    def pad(self, length):
+        self.stream.seek(length, 1)
 
     def read_byte(self):
         return self.stream.read(1)
@@ -690,13 +696,11 @@ class MTransform():
     def decompose(transform, space):
         # get translation, scale and rotation (quaternion) out of transformation matrix
 
-        # get scale by cursed api
         util = MScriptUtil()
         util.createFromDouble(0.0, 0.0, 0.0)
         ptr = util.asDoublePtr()
         transform.getScale(ptr, space)
 
-        # get roration (quaternion) by cursed api
         util_x = MScriptUtil()
         ptr_x = util_x.asDoublePtr()
         util_y = MScriptUtil()
@@ -747,7 +751,9 @@ class MTransform():
 class SKLJoint:
     def __init__(self):
         self.name = None
-        self.parent = None  # just id, not actual parent, especially not asian parent
+
+        # just id, not actual parent, especially not asian parent
+        self.parent = None
 
         # fuck transform matrix
         self.local_translation = None
@@ -755,6 +761,7 @@ class SKLJoint:
         self.local_rotation = None
 
         # yeah its actually inversed global, not global
+        # for dumping only
         self.iglobal_translation = None
         self.iglobal_scale = None
         self.iglobal_rotation = None
@@ -762,16 +769,16 @@ class SKLJoint:
         # for converting legacy skl
         self.global_matrix = None
 
+        # for finding joint
+        self.dagpath = None
+
 
 class SKL:
     def __init__(self):
         self.joints = []
 
-        # for dumping
-        self.dag_paths = None
-
-        # for loading
-        self.influences = []  # for load both skn + skl as skincluster
+        # for loading as skincluster
+        self.influences = []
 
     def flip(self):
         # flip the L with R: https://youtu.be/2yzMUs3badc
@@ -781,15 +788,15 @@ class SKL:
             joint.local_rotation.y *= -1.0
             joint.local_rotation.z *= -1.0
             # inversed global
-            joint.iglobal_translation.x *= -1.0
-            joint.iglobal_rotation.y *= -1.0
-            joint.iglobal_rotation.z *= -1.0
+            if joint.iglobal_translation:
+                joint.iglobal_translation.x *= -1.0
+                joint.iglobal_rotation.y *= -1.0
+                joint.iglobal_rotation.z *= -1.0
 
     def read(self, path):
         with open(path, 'rb') as f:
             bs = BinaryStream(f)
-
-            bs.read_uint32()  # file size - pad
+            bs.pad(4)  # resource size
             magic = bs.read_uint32()
             if magic == 0x22FD4FC3:
                 # new skl data
@@ -799,59 +806,53 @@ class SKL:
                     raise FunnyError(
                         f'[SKL.read()]: Unsupported file version: {version}')
 
-                flags = bs.read_uint16()  # flags - pad
+                bs.pad(2)  # flags
                 joint_count = bs.read_uint16()
                 influence_count = bs.read_uint32()
 
                 joints_offset = bs.read_int32()
-                bs.read_int32()  # joint indices offset
+                bs.pad(4)  # joint indices offset
                 influences_offset = bs.read_int32()
-                bs.read_int32()  # name offset - pad
-                bs.read_int32()  # asset name offset - pad
-                bs.read_int32()  # joint names offset
 
-                bs.read_uint32()  # reserved offset - pad
-                bs.read_uint32()
-                bs.read_uint32()
-                bs.read_uint32()
-                bs.read_uint32()
+                # name offset, asset name offset, joint names offset, 5 reserved offset
+                bs.pad(4*8)
 
                 # read joints
                 if joints_offset > 0 and joint_count > 0:
-                    bs.stream.seek(joints_offset)
+                    bs.seek(joints_offset)
                     for i in range(0, joint_count):
                         joint = SKLJoint()
-                        # read each joint
-                        bs.read_uint16()  # flags - pad
-                        bs.read_uint16()  # id - pad
+
+                        bs.pad(2+2)  # flag and id
                         joint.parent = bs.read_int16()  # cant be uint
-                        bs.read_uint16()  # pad
-                        bs.read_uint32()  # joint name's hash - pad
-                        bs.read_float()  # radius/scale - pad
+                        bs.pad(2+4+4)  # flag, joint hash, radius
+
                         # local
                         joint.local_translation = bs.read_vec3()
                         joint.local_scale = bs.read_vec3()
                         joint.local_rotation = bs.read_quat()
-                        # inversed global
-                        joint.iglobal_translation = bs.read_vec3()
-                        joint.iglobal_scale = bs.read_vec3()
-                        joint.iglobal_rotation = bs.read_quat()
+
+                        # inversed global - no need when readinh
+                        # translation, scale, rotation (quat))
+                        bs.pad(12+12+16)
+
                         # name
-                        joint_name_offset = bs.read_int32()  # joint name offset
-                        return_offset = bs.stream.tell()
-                        bs.stream.seek(return_offset - 4 + joint_name_offset)
+                        joint_name_offset = bs.read_int32()
+                        return_offset = bs.tell()
+                        bs.seek(return_offset - 4 + joint_name_offset)
                         joint.name = bs.read_zero_terminated_string()
-                        # bad "..ot" -> should be "Root"
-                        # caused by old skl convert app where it write 2 byte asset name offset overide 2 byte of Root
-                        if i == 0 and joint.name == '':
-                            joint.name = 'Root'
-                        bs.stream.seek(return_offset)
+                        bs.seek(return_offset)
 
                         self.joints.append(joint)
 
+                # fix: bad "..ot" -> should be "Root"
+                # caused by old skl convert app where it overide asset name offset on first 2 bytes of Root
+                if self.joints[0] == '':
+                    joint.name = 'Root'
+
                 # read influences
                 if influences_offset > 0 and influence_count > 0:
-                    bs.stream.seek(influences_offset)
+                    bs.seek(influences_offset)
                     for i in range(0, influence_count):
                         self.influences.append(bs.read_uint16())
 
@@ -860,7 +861,7 @@ class SKL:
                 # legacy
                 # because signature in old skl is first 8bytes
                 # need to go back pos 0 to read 8bytes again
-                bs.stream.seek(0)
+                bs.seek(0)
 
                 magic = bs.read_bytes(8).decode('ascii')
                 if magic != 'r3d2sklt':
@@ -872,16 +873,15 @@ class SKL:
                     raise FunnyError(
                         f'[SKL.read()]: Unsupported file version: {version}')
 
-                bs.read_uint32()  # designer id or skl id - pad this
+                bs.pad(4)  # designer id or skl id
 
-                # read joints
                 joint_count = bs.read_uint32()
                 for i in range(0, joint_count):
                     joint = SKLJoint()
-                    # dont need id
+
                     joint.name = bs.read_padded_string(32)
                     joint.parent = bs.read_int32()  # -1, cant be uint
-                    bs.read_float()  # radius/scale - pad
+                    bs.pad(4)  # radius/scale - pad
                     py_list = list([0.0] * 16)
                     for i in range(0, 3):
                         for j in range(0, 4):
@@ -890,22 +890,20 @@ class SKL:
                     matrix = MMatrix()
                     MScriptUtil.createMatrixFromList(py_list, matrix)
                     joint.global_matrix = matrix
+
                     self.joints.append(joint)
 
                 # read influences
+                if version == 1:
+                    self.influences = list(range(0, joint_count))
+
                 if version == 2:
                     influence_count = bs.read_uint32()
                     for i in range(0, influence_count):
                         self.influences.append(bs.read_uint32())
-                if version == 1:
-                    self.influences = list(range(0, joint_count))
 
                 # convert old skl to new skl
                 for joint in self.joints:
-                    joint.iglobal_translation, joint.iglobal_scale, joint.iglobal_rotation = MTransform.decompose(
-                        MTransformationMatrix(joint.global_matrix),
-                        MSpace.kWorld
-                    )
                     if joint.parent == -1:
                         joint.local_translation, joint.local_scale, joint.local_rotation = MTransform.decompose(
                             MTransformationMatrix(joint.global_matrix),
@@ -919,72 +917,56 @@ class SKL:
                         )
 
     def load(self):
-        self.dag_paths = MDagPathArray()
-        dag_path = MDagPath()
         for joint in self.joints:
-            # create ik joint
+            # create ik joint + name + transform
             ik_joint = MFnIkJoint()
             ik_joint.create()
-
-            # get dag path
-            ik_joint.getPath(dag_path)
-            self.dag_paths.append(dag_path)
-
-            # name
             ik_joint.setName(joint.name)
-
-            # transform
             ik_joint.set(MTransform.compose(
                 joint.local_translation, joint.local_scale, joint.local_rotation, MSpace.kWorld
             ))
 
-        # link parent
-        len123 = len(self.joints)
-        for i in range(0, len123):
-            joint = self.joints[i]
-            if joint.parent != -1:  # skip our ancestor
-                ik_parent = MFnIkJoint(self.dag_paths[joint.parent])
-                ik_joint = MFnIkJoint(self.dag_paths[i])
+            # get dag path
+            joint.dagpath = MDagPath()
+            ik_joint.getPath(joint.dagpath)
 
-                ik_parent.addChild(ik_joint.object())
+        # link parent
+        for joint in self.joints:
+            if joint.parent != -1:
+                parent_node = MFnDagNode(self.joints[joint.parent].dagpath)
+                parent_node.addChild(joint.dagpath.node())
 
     def dump(self, riot=None):
-        # joint data + dag path
-        self.dag_paths = MDagPathArray()
-        dag_path = MDagPath()
-        ik_joint = MFnIkJoint()
-
+        # dump ik joint
         iterator = MItDag(MItDag.kDepthFirst, MFn.kJoint)
         while not iterator.isDone():
-            iterator.getPath(dag_path)
-            self.dag_paths.append(dag_path)  # identify joint by DAG path
-            ik_joint.setObject(dag_path)  # to get the joint transform
-
             joint = SKLJoint()
+
+            # dagpath
+            joint.dagpath = MDagPath()
+            iterator.getPath(joint.dagpath)
+
+            # name + transform
+            ik_joint = MFnIkJoint(joint.dagpath)
             joint.name = ik_joint.name()
-            # mama mia
             joint.local_translation, joint.local_scale, joint.local_rotation = MTransform.decompose(
                 MTransformationMatrix(ik_joint.transformationMatrix()),
                 MSpace.kTransform
             )
             joint.iglobal_translation, joint.iglobal_scale, joint.iglobal_rotation = MTransform.decompose(
-                MTransformationMatrix(dag_path.inclusiveMatrixInverse()),
+                MTransformationMatrix(joint.dagpath.inclusiveMatrixInverse()),
                 MSpace.kWorld
             )
-            self.joints.append(joint)
 
+            self.joints.append(joint)
             iterator.next()
 
-        # testing
-        # okay so here is the thing
-        # this section try to sort the joints to match original riot.skl's joints in the same export location
-        # this is the fix for some animation layering: jhin reload / samira reload and much more...
+        # sort joints to match riot.skl joints order
         if riot:
             MGlobal.displayInfo(
                 '[SKL.dump(riot.skl)]: Found riot.skl, sorting joints...')
-            new_joints = []
-            new_dag_paths = MDagPathArray()
 
+            new_joints = []
             joint_count = len(self.joints)
             riot_joint_count = len(riot.joints)
             # for adding extra joint at the end of list
@@ -996,7 +978,6 @@ class SKL:
                 for i in range(0, joint_count):
                     if flags[i] and self.joints[i].name.lower() == riot_joint_name:
                         new_joints.append(self.joints[i])
-                        new_dag_paths.append(MDagPath(self.dag_paths[i]))
                         flags[i] = False
                         found = True
                         break
@@ -1011,45 +992,39 @@ class SKL:
             new_joint_count = len(new_joints)
             if new_joint_count < riot_joint_count:
                 MGlobal.displayWarning(
-                    f'[SKL.dump(riot.skl)]: Missing {riot_joint_count - new_joint_count} joints compared to riot.skl, the joints index might be wrong.')
+                    f'[SKL.dump(riot.skl)]: Missing {riot_joint_count - new_joint_count} joints compared to riot.skl, joints order might be wrong.')
             else:
                 MGlobal.displayInfo(
                     f'[SKL.dump(riot.skl)]: Successfully matched {new_joint_count} joints with riot.skl.')
 
             # add extra/addtional joints to the end of list
+            # layer weight for those joint will auto be 1
             for i in range(0, joint_count):
                 if flags[i]:
                     new_joints.append(self.joints[i])
-                    new_dag_paths.append(MDagPath(self.dag_paths[i]))
                     flags[i] = False
                     MGlobal.displayInfo(
                         f'[SKL.dump(riot.skl)]: New joints: {self.joints[i].name}')
 
             # assign new list
             self.joints = new_joints
-            self.dag_paths = new_dag_paths
 
-        parent_joint = MFnIkJoint()
-        parent_dag_path = MDagPath()
-        len1 = len(self.joints)
-        len2 = self.dag_paths.length()
-        for i in range(0, len1):
-            ik_joint.setObject(self.dag_paths[i])
+        joint_count = len(self.joints)
+        for joint in self.joints:
+            ik_joint = MFnIkJoint(joint.dagpath)
             if ik_joint.parentCount() == 1 and ik_joint.parent(0).apiType() == MFn.kJoint:
-                # if ik_joint has parent (same as if joint has parent)
+                # get parent dagpath of this joint node
+                parent_dagpath = MDagPath()
+                MFnIkJoint(ik_joint.parent(0)).getPath(parent_dagpath)
 
-                # get ik_parent through ik_joint instance of current joint
-                parent_joint.setObject(ik_joint.parent(0))
-                parent_joint.getPath(parent_dag_path)
-
-                # find parent of current joint in joints list by ik_parent
-                for id in range(0, len2):
-                    if self.dag_paths[id] == parent_dag_path:
-                        self.joints[i].parent = id
+                # find parent id by parent dagpath
+                for i in range(joint_count):
+                    if self.joints[i].dagpath == parent_dagpath:
+                        joint.parent = i
                         break
             else:
                 # must be batman
-                self.joints[i].parent = -1
+                joint.parent = -1
 
         len1235 = len(self.joints)
         if len1235 > 256:
@@ -1067,7 +1042,7 @@ class SKL:
             len1235 = len(self.joints)
 
             bs.write_uint16(0)  # flags
-            bs.write_uint16(len1235)
+            bs.write_uint16(len1235)  # joints
             bs.write_uint32(len1235)  # influences
 
             joints_offset = 64
@@ -1089,23 +1064,22 @@ class SKL:
             bs.write_uint32(0xFFFFFFFF)
 
             joint_offset = {}
-            bs.stream.seek(joint_names_offset)
-
+            bs.seek(joint_names_offset)
             for i in range(0, len1235):
-                joint_offset[i] = bs.stream.tell()
+                joint_offset[i] = bs.tell()
                 bs.write_bytes(self.joints[i].name.encode('ascii'))
                 bs.write_bytes(bytes([0]))  # pad
 
-            bs.stream.seek(joints_offset)
+            bs.seek(joints_offset)
             for i in range(0, len1235):
                 joint = self.joints[i]
-                # write skljoint in this func
+
                 bs.write_uint16(0)  # flags
                 bs.write_uint16(i)  # id
                 bs.write_int16(joint.parent)  # -1, cant be uint
                 bs.write_uint16(0)  # pad
                 bs.write_uint32(Hash.elf(joint.name))
-                bs.write_float(2.1)  # scale
+                bs.write_float(2.1)  # radius/scale
                 # local
                 bs.write_vec3(joint.local_translation)
                 bs.write_vec3(joint.local_scale)
@@ -1115,22 +1089,24 @@ class SKL:
                 bs.write_vec3(joint.iglobal_scale)
                 bs.write_quat(joint.iglobal_rotation)
 
-                bs.write_int32(joint_offset[i] - bs.stream.tell())
+                bs.write_int32(joint_offset[i] - bs.tell())
 
-            # influences - right now its the same as joint, idk why
-            bs.stream.seek(influences_offset)
+            # influences v1: 0, 1, 2... -> len(joints)
+            bs.seek(influences_offset)
             for i in range(0, len1235):
                 bs.write_uint16(i)
 
-            bs.stream.seek(joint_indices_offset)
+            # joint indices
+            bs.seek(joint_indices_offset)
             for i in range(0, len1235):
                 bs.write_uint16(i)
                 bs.write_uint16(0)  # pad
                 bs.write_uint32(Hash.elf(joint.name))
 
-            bs.stream.seek(0, 2)
-            fsize = bs.stream.tell()
-            bs.stream.seek(0)
+            # resource size
+            bs.seek(0, 2)
+            fsize = bs.tell()
+            bs.seek(0)
             bs.write_uint32(fsize)
 
 
@@ -1167,7 +1143,6 @@ class SKN:
         self.name = None
 
     def flip(self):
-        # read SKL.flip()
         for vertex in self.vertices:
             vertex.position.x *= -1.0
             vertex.normal.y *= -1.0
@@ -1189,10 +1164,19 @@ class SKN:
                     f'[SKN.read()]: Unsupported file version: {major}.{minor}')
 
             self.name = path.split('/')[-1].split('.')[0]
+            vertex_type = 0
             if major == 0:
-                # version 0 doesn't have submesh wrote in file
+                # version 0 doesn't have submesh data
                 index_count = bs.read_uint32()
                 vertex_count = bs.read_uint32()
+
+                submesh = SKNSubmesh()
+                submesh.name = 'Base'
+                submesh.vertex_start = 0
+                submesh.vertex_count = vertex_count
+                submesh.index_start = 0
+                submesh.index_count = index_count
+                self.submeshes.append(submesh)
             else:
                 # read submeshes
                 submesh_count = bs.read_uint32()
@@ -1205,254 +1189,188 @@ class SKN:
                     submesh.index_count = bs.read_uint32()
                     self.submeshes.append(submesh)
 
-                #  junk stuff from version 4
                 if major == 4:
-                    bs.read_uint32()  # pad flags
+                    bs.pad(4)  # flags
 
                 index_count = bs.read_uint32()
                 vertex_count = bs.read_uint32()
 
                 # junk stuff from version 4
-                vertex_color = 0
                 if major == 4:  # pad all this, cause we dont need?
-                    bs.read_uint32()  # vertex size
-                    vertex_color = bs.read_uint32()  # vertex type, only need this for padding later
-                    # bouding box
-                    bs.read_vec3()
-                    bs.read_vec3()
-                    # bouding sphere
-                    bs.read_vec3()
-                    bs.read_float()
+                    bs.pad(4)  # vertex size
+                    vertex_type = bs.read_uint32()
+                    bs.pad(24)  # bouding box: 2 vec3 min-max
+                    # bouding sphere: vec3 central + float radius
+                    bs.pad(12 + 4)
 
-                # read indices by face
-                face_count = index_count // 3
-                for i in range(0, face_count):
-                    face = [bs.read_uint16(), bs.read_uint16(),
-                            bs.read_uint16()]
-                    # check dupe index in a face
-                    if not (face[0] == face[1] or face[1] == face[2] or face[2] == face[0]):
-                        self.indices += face
+            if index_count % 3 > 0:
+                raise FunnyError(
+                    f'[SKN.read()]: Bad indices data: {index_count}')
 
-                # read vertices
-                for i in range(0, vertex_count):
-                    vertex = SKNVertex()
-                    vertex.position = bs.read_vec3()
-                    vertex.influences = [
-                        bs.read_byte(), bs.read_byte(), bs.read_byte(), bs.read_byte()]
-                    vertex.weights = [
-                        bs.read_float(), bs.read_float(), bs.read_float(), bs.read_float()]
-                    vertex.normal = bs.read_vec3()
-                    vertex.uv = bs.read_vec2()
-                    # if vertex has color
-                    if vertex_color > 0:
-                        # pad all color (4 byte = r,g,b,a) since we dont need it
-                        bs.read_byte()
-                        bs.read_byte()
-                        bs.read_byte()
-                        bs.read_byte()
-                        # pad more 16 bytes if vertex color == 2, ex: akali
-                        if vertex_color > 1:
-                            bs.read_float()
-                            bs.read_float()
-                            bs.read_float()
-                            bs.read_float()
-                    self.vertices.append(vertex)
+            # read indices by face
+            face_count = index_count // 3
+            for i in range(0, face_count):
+                face = (bs.read_uint16(), bs.read_uint16(),
+                        bs.read_uint16())
+                # check dupe index in a face
+                if not (face[0] == face[1] or face[1] == face[2] or face[2] == face[0]):
+                    self.indices += face
 
-                if major == 0:
-                    # again version 0 doesnt have submesh wrote in file
-                    # so we need to give it a submesh
-                    submesh = SKNSubmesh
-                    submesh.name = 'Base'
-                    submesh.vertex_start = 0
-                    submesh.vertex_count = len(self.vertices)
-                    submesh.index_start = 0
-                    submesh.index_count = len(self.indices)
-                    self.submeshes.append(submesh)
+            # read vertices
+            for i in range(0, vertex_count):
+                vertex = SKNVertex()
+                vertex.position = bs.read_vec3()
+                vertex.influences = [
+                    bs.read_byte(), bs.read_byte(), bs.read_byte(), bs.read_byte()]
+                vertex.weights = [
+                    bs.read_float(), bs.read_float(), bs.read_float(), bs.read_float()]
+                vertex.normal = bs.read_vec3()
+                vertex.uv = bs.read_vec2()
+                # 0: basic, 1: color, 2: color and tangent
+                if vertex_type >= 1:
+                    # pad 4 byte color
+                    bs.pad(4)
+                    if vertex_type == 2:
+                        # pad vec4 tangent
+                        bs.pad(16)
+                self.vertices.append(vertex)
 
     def load(self, skl=None):
-        mesh = MFnMesh()
-        vertices_count = len(self.vertices)
-        indices_count = len(self.indices)
+        vertex_count = len(self.vertices)
+        index_count = len(self.indices)
+        face_count = index_count // 3
 
-        # create mesh with vertices, indices
+        # create mesh
         vertices = MFloatPointArray()
-        for i in range(0, vertices_count):
-            vertex = self.vertices[i]
+        u_values = MFloatArray()
+        v_values = MFloatArray()
+        normals = MVectorArray()
+        for vertex in self.vertices:
             vertices.append(MFloatPoint(
                 vertex.position.x, vertex.position.y, vertex.position.z))
-        poly_index_count = MIntArray(indices_count // 3, 3)
-        poly_indices = MIntArray()
-        MScriptUtil.createIntArrayFromList(self.indices, poly_indices)
-        mesh.create(
-            vertices_count,
-            indices_count // 3,
-            vertices,
-            poly_index_count,
-            poly_indices,
-        )
-        # assign uv
-        u_values = MFloatArray(vertices_count)
-        v_values = MFloatArray(vertices_count)
-        for i in range(0, vertices_count):
-            u_values[i] = self.vertices[i].uv.x
-            v_values[i] = 1.0 - self.vertices[i].uv.y
-
-        mesh.setUVs(
-            u_values, v_values
-        )
-        mesh.assignUVs(
-            poly_index_count, poly_indices
-        )
-
-        # normal
-        normals = MVectorArray()
-        normal_indices = MIntArray(vertices_count)
-        for i in range(0, vertices_count):
-            vertex = self.vertices[i]
+            u_values.append(vertex.uv.x)
+            v_values.append(1.0 - vertex.uv.y)
             normals.append(
                 MVector(vertex.normal.x, vertex.normal.y, vertex.normal.z))
-            normal_indices[i] = i
+
+        poly_count = MIntArray(face_count, 3)
+        poly_indices = MIntArray()
+        MScriptUtil.createIntArrayFromList(self.indices, poly_indices)
+        normal_indices = MIntArray()
+        MScriptUtil.createIntArrayFromList(
+            list(range(len(self.vertices))), normal_indices)
+
+        mesh = MFnMesh()
+        mesh.create(
+            vertex_count,
+            face_count,
+            vertices,
+            poly_count,
+            poly_indices,
+            u_values,
+            v_values
+        )
+        mesh.assignUVs(
+            poly_count, poly_indices
+        )
         mesh.setVertexNormals(
             normals,
             normal_indices
         )
 
-        # dag_path and name
-        mesh_dag_path = MDagPath()
-        mesh.getPath(mesh_dag_path)
+        # name
         mesh.setName(self.name)
-        transform_node = MFnTransform(mesh.parent(0))
-        transform_node.setName(f'mesh_{self.name}')
+        mesh_name = mesh.name()
+        MFnTransform(mesh.parent(0)).setName(f'mesh_{self.name}')
 
-        # find render partition
-        render_partition = MFnPartition()
-        found_rp = False
-        iterator = MItDependencyNodes(MFn.kPartition)
-        while not iterator.isDone():
-            render_partition.setObject(iterator.thisNode())
-            if render_partition.name() == 'renderPartition' and render_partition.isRenderPartition():
-                found_rp = True
-                break
-            iterator.next()
         # materials
-        modifier = MDGModifier()
-        set = MFnSet()
         for submesh in self.submeshes:
-            # create lambert
-            lambert = MFnLambertShader()
-            lambert.create(True)
-            lambert.setName(submesh.name)
-
-            # some shader stuffs
-            dependency_node = MFnDependencyNode()
-            shading_engine = dependency_node.create(
-                'shadingEngine', f'{submesh.name}_SG')
-            material_info = dependency_node.create(
-                'materialInfo', f'{submesh.name}_MaterialInfo')
-            if found_rp:
-                partition = MFnDependencyNode(
-                    shading_engine).findPlug('partition')
-
-                sets = render_partition.findPlug('sets')
-                the_plug_we_need = None
-                count = 0
-                while True:
-                    the_plug_we_need = sets.elementByLogicalIndex(count)
-                    if not the_plug_we_need.isConnected():  # find the one that not connected
+            # check duplicate name node
+            if skl:
+                for joint in skl.joints:
+                    if joint.name == submesh.name:
+                        submesh.name = submesh.name.lower()
                         break
-                    count += 1
 
-                modifier.connect(partition, the_plug_we_need)
-
-            # connect node
-            out_color = lambert.findPlug('outColor')
-            surface_shader = MFnDependencyNode(
-                shading_engine).findPlug('surfaceShader')
-            modifier.connect(out_color, surface_shader)
-
-            message = MFnDependencyNode(shading_engine).findPlug('message')
-            shading_group = MFnDependencyNode(
-                material_info).findPlug('shadingGroup')
-            modifier.connect(message, shading_group)
-
-            modifier.doIt()
-
-            # assign face to material
-            component = MFnSingleIndexedComponent()
-            face_component = component.create(MFn.kMeshPolygonComponent)
-            group_poly_indices = MIntArray()
-            for index in range(submesh.index_start // 3, (submesh.index_start + submesh.index_count) // 3):
-                group_poly_indices.append(index)
-            component.addElements(group_poly_indices)
-
-            set.setObject(shading_engine)
-            set.addMember(mesh_dag_path, face_component)
+            # lambert material
+            lambert = MFnLambertShader()
+            lambert.create()
+            lambert.setName(submesh.name)
+            lambert_name = lambert.name()
+            # shading group
+            face_start = submesh.index_start // 3
+            face_end = (submesh.index_start + submesh.index_count) // 3
+            MGlobal.executeCommand((
+                # create renderable, independent shading group
+                f'sets -renderable true -noSurfaceShader true -empty -name "{lambert_name}_SG";'
+                # add submesh faces to shading group
+                f'sets -e -forceElement "{lambert_name}_SG" {mesh_name}.f[{face_start}:{face_end}];'
+            ))
+            # connect lambert to shading group
+            MGlobal.executeCommand(
+                f'connectAttr -f {lambert_name}.outColor {lambert_name}_SG.surfaceShader;')
 
         if skl:
             influence_count = len(skl.influences)
-            vertices_count = len(self.vertices)
+            mesh_dagpath = MDagPath()
+            mesh.getPath(mesh_dagpath)
 
             # select mesh + joint
             selections = MSelectionList()
-            selections.add(mesh_dag_path)
-            for i in range(0, influence_count):
-                selections.add(skl.dag_paths[skl.influences[i]])
+            selections.add(mesh_dagpath)
+            for influence in skl.influences:
+                selections.add(skl.joints[influence].dagpath)
+            MGlobal.selectCommand(selections)
 
             # bind selections
-            MGlobal.selectCommand(selections)
             MGlobal.executeCommand(
-                f'skinCluster -mi 4 -tsb -n skinCluster_{self.name}')
+                f'skinCluster -mi 4 -tsb -n {self.name}_skinCluster')
 
             # get skin cluster
             in_mesh = mesh.findPlug('inMesh')
             in_mesh_connections = MPlugArray()
             in_mesh.connectedTo(in_mesh_connections, True, False)
-            if in_mesh_connections.length() == 0:
-                raise FunnyError(
-                    f'[SKN.load({self.name}, skl)]: Failed to find created skin cluster.')
             skin_cluster = MFnSkinCluster(in_mesh_connections[0].node())
+            skin_cluster_name = skin_cluster.name()
 
-            # some mask
-            influences_dag_paths = MDagPathArray()
-            skin_cluster.influenceObjects(influences_dag_paths)
-            influences_indices = MIntArray(influence_count)
+            # mask influence
+            influences_dagpath = MDagPathArray()
+            skin_cluster.influenceObjects(influences_dagpath)
+            mask_influence = MIntArray(influence_count)
             for i in range(0, influence_count):
-                influence_dag_path = skl.dag_paths[skl.influences[i]]
+                dagpath = skl.joints[skl.influences[i]].dagpath
 
                 for j in range(0, influence_count):
-                    if influence_dag_path == influences_dag_paths[j]:
-                        influences_indices[i] = j
+                    if dagpath == influences_dagpath[j]:
+                        mask_influence[i] = j
                         break
 
-            # random things
+            # weights
+            MGlobal.executeCommand(
+                f'setAttr {skin_cluster_name}.normalizeWeights 0')
+
             component = MFnSingleIndexedComponent()
             vertex_component = component.create(MFn.kMeshVertComponent)
-            group_vertex_indices = MIntArray()
-            py_list = list(range(0, vertices_count))
-            MScriptUtil.createIntArrayFromList(py_list, group_vertex_indices)
-            component.addElements(group_vertex_indices)
+            vertex_indices = MIntArray()
+            MScriptUtil.createIntArrayFromList(
+                list(range(0, vertex_count)), vertex_indices)
+            component.addElements(vertex_indices)
 
-            MGlobal.executeCommand(
-                f'setAttr {skin_cluster.name()}.normalizeWeights 0')
-
-            # set weights
-            weights = MDoubleArray(vertices_count * influence_count)
-            for i in range(0, vertices_count):
+            weights = MDoubleArray(vertex_count * influence_count)
+            for i in range(0, vertex_count):
                 vertex = self.vertices[i]
                 for j in range(0, 4):
                     weight = vertex.weights[j]
-                    # treate bytes as a list, element with index 0 of [byte] is byte
                     influence = vertex.influences[j][0]
                     if weight > 0:
                         weights[i * influence_count + influence] = weight
             skin_cluster.setWeights(
-                mesh_dag_path, vertex_component, influences_indices, weights, False)
+                mesh_dagpath, vertex_component, mask_influence, weights, False)
 
-            # random things
             MGlobal.executeCommand(
-                f'setAttr {skin_cluster.name()}.normalizeWeights 1')
+                f'setAttr {skin_cluster_name}.normalizeWeights 1')
             MGlobal.executeCommand(
-                f'skinPercent -normalize true {skin_cluster.name()} {mesh.name()}')
+                f'skinPercent -normalize true {skin_cluster_name} {mesh_name}')
 
         # shud be final line
         mesh.updateSurface()
@@ -1464,37 +1382,18 @@ class SKN:
         iterator = MItSelectionList(selections, MFn.kMesh)
         if iterator.isDone():
             raise FunnyError(f'[SKN.dump()]: Please select a mesh.')
-        mesh_dag_path = MDagPath()
-        iterator.getDagPath(mesh_dag_path)  # get first mesh
+        mesh_dagpath = MDagPath()
+        iterator.getDagPath(mesh_dagpath)  # get first mesh
         iterator.next()
         if not iterator.isDone():
             raise FunnyError(
                 f'[SKN.dump()]: More than 1 mesh selected., combine all meshes if you have mutiple meshes.')
-        mesh = MFnMesh(mesh_dag_path)
-
-        # find skin cluster
-        in_mesh = mesh.findPlug('inMesh')
-        in_mesh_connections = MPlugArray()
-        in_mesh.connectedTo(in_mesh_connections, True, False)
-        if in_mesh_connections.length() == 0:
-            raise FunnyError(
-                f'[SKN.dump({mesh.name()})]: Failed to find skin cluster, make sure you binded the skin.')
-        skin_cluster = MFnSkinCluster(in_mesh_connections[0].node())
-        influence_dag_paths = MDagPathArray()
-        influence_count = skin_cluster.influenceObjects(influence_dag_paths)
-
-        # idk what this is, used for SKNVertex.influences
-        mask_influence = MIntArray(influence_count)
-        for i in range(0, influence_count):
-            for j in range(0, skl.dag_paths.length()):
-                if influence_dag_paths[i] == skl.dag_paths[j]:
-                    mask_influence[i] = j
-                    break
+        mesh = MFnMesh(mesh_dagpath)
 
         # get shaders
         shaders = MObjectArray()
         poly_shaders = MIntArray()
-        instance_num = mesh_dag_path.instanceNumber() if mesh_dag_path.isInstanced() else 0
+        instance_num = mesh_dagpath.instanceNumber() if mesh_dagpath.isInstanced() else 0
         mesh.getConnectedShaders(instance_num, shaders, poly_shaders)
         shader_count = shaders.length()
         vertices_num = mesh.numVertices()
@@ -1507,21 +1406,21 @@ class SKN:
             raise FunnyError(
                 f'[SKN.dump({mesh.name()})]: Mesh contains holes: {hole_info.length()}')
 
-        # check non-triangulated polygons
-        # check vertex has multiple shaders
+        # check non-triangulated polygon
+        # check face has multiple shaders
         vertex_shaders = MIntArray(vertices_num, -1)
-        iterator = MItMeshPolygon(mesh_dag_path)
+        iterator = MItMeshPolygon(mesh_dagpath)
         iterator.reset()
         while not iterator.isDone():
             if not iterator.hasValidTriangulation():
                 raise FunnyError(
-                    f'[SKN.dump({mesh.name()})]: Mesh contains a invalid triangulation polygon, try Mesh -> Triangulate.')
+                    f'[SKN.dump({mesh.name()})]: Mesh contains a invalid triangulation polygon.')
 
             index = iterator.index()
             shader_index = poly_shaders[index]
             if shader_index == -1:
                 raise FunnyError(
-                    f'[SKN.dump({mesh.name()})]: Mesh contains a face with no shader, make sure you assigned a material to all faces.')
+                    f'[SKN.dump({mesh.name()})]: Mesh contains a face with no material, make sure you assigned material.')
 
             vertices = MIntArray()
             iterator.getVertices(vertices)
@@ -1529,25 +1428,47 @@ class SKN:
             for i in range(0, len69):
                 if shader_count > 1 and vertex_shaders[vertices[i]] not in [-1, shader_index]:
                     raise FunnyError(
-                        f'[SKN.dump({mesh.name()})]: Mesh contains a vertex with multiple shaders, try re-assign a lambert material to this mesh.')
+                        f'[SKN.dump({mesh.name()})]: Mesh contains a vertex with multiple shaders, re-assign a single material to this mesh.')
                 vertex_shaders[vertices[i]] = shader_index
 
             iterator.next()
 
+        # find skin cluster
+        in_mesh = mesh.findPlug('inMesh')
+        in_mesh_connections = MPlugArray()
+        in_mesh.connectedTo(in_mesh_connections, True, False)
+        if in_mesh_connections.length() == 0:
+            raise FunnyError(
+                f'[SKN.dump({mesh.name()})]: Failed to find skin cluster, make sure you binded the skin.')
+        skin_cluster = MFnSkinCluster(in_mesh_connections[0].node())
+
+        # mask influence
+        influences_dagpath = MDagPathArray()
+        influence_count = skin_cluster.influenceObjects(influences_dagpath)
+        mask_influence = MIntArray(influence_count)
+        joint_count = len(skl.joints)
+        for i in range(0, influence_count):
+            dagpath = influences_dagpath[i]
+
+            for j in range(0, joint_count):
+                if dagpath == skl.joints[j].dagpath:
+                    mask_influence[i] = j
+                    break
+
         # get weights
-        vcomponent = MFnSingleIndexedComponent()
-        vertex_component = vcomponent.create(MFn.kMeshVertComponent)
-        temp_list = list(range(0, vertices_num))
-        group_vertex_indices = MIntArray()
-        MScriptUtil.createIntArrayFromList(temp_list, group_vertex_indices)
-        vcomponent.addElements(group_vertex_indices)
+        component = MFnSingleIndexedComponent()
+        vertex_component = component.create(MFn.kMeshVertComponent)
+        vertex_indices = MIntArray()
+        MScriptUtil.createIntArrayFromList(
+            list(range(0, vertices_num)), vertex_indices)
+        component.addElements(vertex_indices)
         weights = MDoubleArray()
-        util = MScriptUtil()  # cursed api
+        util = MScriptUtil()
         ptr = util.asUintPtr()
-        skin_cluster.getWeights(mesh_dag_path, vertex_component, weights, ptr)
+        skin_cluster.getWeights(mesh_dagpath, vertex_component, weights, ptr)
+        weight_influence_count = util.getUint(ptr)
 
         #  weight stuffs
-        weight_influence_count = util.getUint(ptr)
         bad_vertices = MIntArray()
         for i in range(0, vertices_num):
             # count influences
@@ -1588,17 +1509,21 @@ class SKN:
                     weight_sum += weights[i *
                                           weight_influence_count + influence]
 
+            # normalize weights
             if weight_sum > 0:
-                # normalize weights
                 for j in range(0, weight_influence_count):
                     weights[i * weight_influence_count + j] /= weight_sum
 
         if bad_vertices.length() > 0:
             e = FunnyError(
-                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices that have weight on 4+ influences. Those vertices will be selected in scene. Try repaint weight on those vertices, or rebind the skin with max 4 influences setting, or prune small weights.',
+                (
+                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices that have weight on 4+ influences. '
+                    'Those vertices will be selected in scene. '
+                    'Try: repaint weight, or prune small weights.'
+                ),
                 consider=True
             )
-            if e.cmd != FunnyError.fix_button:
+            if e.cmd != FunnyError.ignore_button:
                 # select 4+ influences vertices
                 component = MFnSingleIndexedComponent()
                 temp_component = component.create(
@@ -1606,7 +1531,7 @@ class SKN:
                 component.addElements(bad_vertices)
 
                 temp_selections = MSelectionList()
-                temp_selections.add(mesh_dag_path, temp_component)
+                temp_selections.add(mesh_dagpath, temp_component)
                 MGlobal.selectCommand(temp_selections)
                 raise e
             else:
@@ -1624,7 +1549,7 @@ class SKN:
 
         # dump vertices
         bad_vertices = MIntArray()
-        iterator = MItMeshVertex(mesh_dag_path)
+        iterator = MItMeshVertex(mesh_dagpath)
         iterator.reset()
         while not iterator.isDone():
             index = iterator.index()
@@ -1721,7 +1646,7 @@ class SKN:
                 f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices with no UV assigned. Those vertices will be selected in scene. Try Edit Mesh -> Delete Edge/Vertex to delete those vertices, or assign uv to them.',
                 consider=True
             )
-            if e.cmd != FunnyError.fix_button:
+            if e.cmd != FunnyError.ignore_button:
                 # select vertices with no UV
                 component = MFnSingleIndexedComponent()
                 temp_component = component.create(MFn.kMeshVertComponent)
@@ -1729,7 +1654,7 @@ class SKN:
 
                 temp_selections = MSelectionList()
                 temp_selections.add(
-                    mesh_dag_path, temp_component)
+                    mesh_dagpath, temp_component)
                 MGlobal.selectCommand(temp_selections)
                 raise e
             else:
@@ -1753,7 +1678,7 @@ class SKN:
             self.vertices += shader_vertices[i]
 
         # i only get that we got shader_indices after this block
-        iterator = MItMeshPolygon(mesh_dag_path)
+        iterator = MItMeshPolygon(mesh_dagpath)
         iterator.reset()
         len333 = len(self.vertices)
         while not iterator.isDone():
@@ -1828,20 +1753,12 @@ class SKN:
             index_start += index_count
             vertex_start += vertex_count
 
-        # fix same name of joint and material, example: Yone's Fish
-        # if the name of node is already in maya, it adds "1" in the second name (and 2, 3, 4 ...)
-        # -> remove "1" for material that has same name as joint
-        for submesh in self.submeshes:
-            for joint in skl.joints:
-                if joint.name + '1' == submesh.name:
-                    submesh.name = joint.name
-                    break
-
         # check max vertex/face
-        max_vertex = max(self.indices)
-        if max_vertex > 65536:
+        vertices_count = max(self.indices)+1
+        if vertices_count > 65536:
             raise FunnyError(
-                f'[SKN.dump({mesh.name()})]: Too many vertices: {max_vertex}, max allowed: 65536.')
+                f'[SKN.dump({mesh.name()})]: Too many vertices: {vertices_count}, max allowed: 65536.')
+
         # ay yo finally
 
     def write(self, path):
@@ -1865,9 +1782,10 @@ class SKN:
 
             for index in self.indices:
                 bs.write_uint16(index)
+
             for vertex in self.vertices:
                 bs.write_vec3(vertex.position)
-                for byte in vertex.influences:  # must have for, this is a list of bytes, not an array of byte
+                for byte in vertex.influences:
                     bs.write_bytes(byte)
                 for weight in vertex.weights:
                     bs.write_float(weight)
@@ -1878,13 +1796,11 @@ class SKN:
 # anm
 class ANMPose:
     def __init__(self):
-        self.time = None
-
         self.translation = None
         self.scale = None
         self.rotation = None
 
-        # for dumping
+        # for dumping v4
         self.translation_index = None
         self.scale_index = None
         self.rotation_index = None
@@ -1894,18 +1810,18 @@ class ANMTrack:
     def __init__(self):
         self.joint_hash = None
 
-        self.poses = []
+        self.poses = {}
 
         # for loading
         self.joint_name = None
-        self.dag_path = None
+        self.dagpath = None
 
 
 class ANM:
     def __init__(self):
-        self.duration = None
-
         self.tracks = []
+        self.fps = None
+        self.duration = None  # normalized
 
         # for loading
         self.compressed = None
@@ -1913,7 +1829,8 @@ class ANM:
     def flip(self):
         # DO A FLIP!
         for track in self.tracks:
-            for pose in track.poses:
+            for time in track.poses:
+                pose = track.poses[time]
                 if pose.translation:
                     pose.translation.x *= -1.0
 
@@ -1929,30 +1846,25 @@ class ANM:
             version = bs.read_uint32()
 
             if magic == 'r3d2canm':
-                self.compressed = True
-                # compressed
-
-                bs.read_uint32()  # resource_size
-                bs.read_uint32()  # format token
-                bs.read_uint32()  # flags
+                bs.pad(4*3)  # resource size, format token, flags
 
                 joint_count = bs.read_uint32()
                 frame_count = bs.read_uint32()
-                bs.read_uint32()  # jump cache count
-                duration = bs.read_float()
-                self.duration = duration * 30.0 + 1
-                bs.read_float()  # fps
-                for i in range(0, 6):  # pad some random things
-                    bs.read_float()
+                bs.pad(4)  # jump cache count
+
+                max_time = bs.read_float()
+                self.fps = bs.read_float()
+                self.duration = max_time + 1 / self.fps
+
+                bs.pad(24)  # 24 float of transform quantization properties
 
                 translation_min = bs.read_vec3()
                 translation_max = bs.read_vec3()
-
                 scale_min = bs.read_vec3()
                 scale_max = bs.read_vec3()
 
                 frames_offset = bs.read_int32()
-                bs.read_int32()  # jump caches offset
+                bs.pad(4)  # jump caches offset
                 joint_hashes_offset = bs.read_int32()
 
                 if frames_offset <= 0:
@@ -1965,7 +1877,7 @@ class ANM:
                     )
 
                 # read joint hashes
-                bs.stream.seek(joint_hashes_offset + 12)
+                bs.seek(joint_hashes_offset + 12)
                 joint_hashes = []
                 for i in range(0, joint_count):
                     joint_hashes.append(bs.read_uint32())
@@ -1976,7 +1888,7 @@ class ANM:
                     track.joint_hash = joint_hashes[i]
                     self.tracks.append(track)
 
-                bs.stream.seek(frames_offset + 12)
+                bs.seek(frames_offset + 12)
                 for i in range(0, frame_count):
                     compressed_time = bs.read_uint16()
                     bits = bs.read_uint16()
@@ -1988,19 +1900,13 @@ class ANM:
                         if track.joint_hash == joint_hash:
                             break
 
-                    # find pose existed with time
-                    time = compressed_time / 65535.0 * duration * 30.0
-                    pose = None
-                    for p in track.poses:
-                        if isclose(p.time, time, rel_tol=0, abs_tol=0.01):
-                            pose = p
-                            break
-
-                    # no pose found, create new
-                    if not pose:
+                    # set/get pose at time
+                    time = compressed_time / 65535.0 * max_time
+                    if time not in track.poses:
                         pose = ANMPose()
-                        pose.time = time
-                        track.poses.append(pose)
+                        track.poses[time] = pose
+                    else:
+                        pose = track.poses[time]
 
                     # decompress data and add to pose
                     transform_type = bits >> 14
@@ -2024,43 +1930,38 @@ class ANM:
                         )
 
             elif magic == 'r3d2anmd':
-                self.compressed = False
-
                 if version == 5:
                     # v5
 
-                    bs.read_uint32()  # resource_size
-                    bs.read_uint32()  # format_token
-                    bs.read_uint32()  # version??
-                    bs.read_uint32()  # flags
+                    bs.pad(4*4)  # resource size, format token, version, flags
 
                     track_count = bs.read_uint32()
                     frame_count = bs.read_uint32()
-                    self.duration = frame_count
-                    bs.read_float()  # frame_duration
+
+                    self.fps = 1 / bs.read_float()  # frame duration
+                    self.duration = frame_count / self.fps
 
                     joint_hashes_offset = bs.read_int32()
-                    bs.read_int32()  # asset name offset
-                    bs.read_int32()  # time offset
+                    bs.pad(4+4)  # asset name offset, time offset
                     vecs_offset = bs.read_int32()
                     quats_offset = bs.read_int32()
                     frames_offset = bs.read_int32()
 
                     if joint_hashes_offset <= 0:
                         raise FunnyError(
-                            f'[ANM.read()]: File does not contain joint hashes.'
+                            f'[ANM.read()]: File does not contain joint hashes data.'
                         )
                     if vecs_offset <= 0:
                         raise FunnyError(
-                            f'[ANM.read()]: File does not contain vectors.'
+                            f'[ANM.read()]: File does not contain unique vectors data.'
                         )
                     if quats_offset <= 0:
                         raise FunnyError(
-                            f'[ANM.read()]: File does not contain quaternion.'
+                            f'[ANM.read()]: File does not contain unique quaternions data.'
                         )
                     if frames_offset <= 0:
                         raise FunnyError(
-                            f'[ANM.read()]: File does not contain frames.'
+                            f'[ANM.read()]: File does not contain frames data.'
                         )
 
                     joint_hash_count = (
@@ -2070,26 +1971,26 @@ class ANM:
 
                     # read joint hashes
                     joint_hashes = []
-                    bs.stream.seek(joint_hashes_offset + 12)
+                    bs.seek(joint_hashes_offset + 12)
                     for i in range(0, joint_hash_count):
                         joint_hashes.append(bs.read_uint32())
 
                     # read vecs
-                    vecs = []
-                    bs.stream.seek(vecs_offset + 12)
+                    uni_vecs = []
+                    bs.seek(vecs_offset + 12)
                     for i in range(0, vec_count):
-                        vecs.append(bs.read_vec3())  # unique vec
+                        uni_vecs.append(bs.read_vec3())
 
                     # read quats
-                    quats = []
-                    bs.stream.seek(quats_offset + 12)
+                    uni_quats = []
+                    bs.seek(quats_offset + 12)
                     for i in range(0, quat_count):
-                        quats.append(
-                            CTransform.Quat.decompress(bs.read_bytes(6)))  # unique compressed quat
+                        uni_quats.append(
+                            CTransform.Quat.decompress(bs.read_bytes(6)))
 
                     # read frames
                     frames = []
-                    bs.stream.seek(frames_offset + 12)
+                    bs.seek(frames_offset + 12)
                     for i in range(0, frame_count * track_count):
                         frames.append((
                             bs.read_uint16(),  # translation index
@@ -2108,73 +2009,62 @@ class ANM:
                         for f in range(0, frame_count):
                             translation_index, scale_index, rotation_index = frames[f * track_count + t]
 
-                            # create pointer, read v4
+                            # recreate pointer
                             pose = ANMPose()
                             pose.time = f
                             pose.translation = MVector(
-                                vecs[translation_index].x,
-                                vecs[translation_index].y,
-                                vecs[translation_index].z
-                            )
-                            pose.scale = MVector(
-                                vecs[scale_index].x,
-                                vecs[scale_index].y,
-                                vecs[scale_index].z
-                            )
+                                uni_vecs[translation_index])
+                            pose.scale = MVector(uni_vecs[scale_index])
                             pose.rotation = MQuaternion(
-                                quats[rotation_index].x,
-                                quats[rotation_index].y,
-                                quats[rotation_index].z,
-                                quats[rotation_index].w
-                            )
-                            track.poses.append(pose)
+                                uni_quats[rotation_index])
+
+                            # time = index / fps
+                            index = f
+                            track.poses[index / self.fps] = pose
 
                 elif version == 4:
                     # v4
 
-                    bs.read_uint32()  # resource_size
-                    bs.read_uint32()  # format_token
-                    bs.read_uint32()  # version??
-                    bs.read_uint32()  # flags
+                    bs.pad(4*4)  # resource size, format token, version, flags
 
                     track_count = bs.read_uint32()
                     frame_count = bs.read_uint32()
-                    self.duration = frame_count
-                    bs.read_float()  # frame_duration
+                    self.fps = 1 / bs.read_float()  # frame duration
+                    self.duration = frame_count / self.fps
 
-                    bs.read_int32()  # tracks offset
-                    bs.read_int32()  # asset name offset
-                    bs.read_int32()  # time offset
+                    # tracks offset, asset name offset, time offset
+                    bs.pad(4 * 3)
                     vecs_offset = bs.read_int32()
                     quats_offset = bs.read_int32()
                     frames_offset = bs.read_int32()
 
                     if vecs_offset <= 0:
                         raise FunnyError(
-                            f'[ANM.read()]: File does not contain vectors.'
+                            f'[ANM.read()]: File does not contain unique vectors data.'
                         )
                     if quats_offset <= 0:
                         raise FunnyError(
-                            f'[ANM.read()]: File does not contain quaternion.'
+                            f'[ANM.read()]: File does not contain unique quaternions data.'
                         )
                     if frames_offset <= 0:
                         raise FunnyError(
-                            f'[ANM.read()]: File does not contain frames.'
+                            f'[ANM.read()]: File does not contain frames data.'
                         )
 
                     vec_count = (quats_offset - vecs_offset) // 12
                     quat_count = (frames_offset - quats_offset) // 16
 
-                    bs.stream.seek(vecs_offset + 12)
-                    vecs = []
+                    bs.seek(vecs_offset + 12)
+                    uni_vecs = []
                     for i in range(0, vec_count):
-                        vecs.append(bs.read_vec3())  # unique vec
+                        uni_vecs.append(bs.read_vec3())
 
-                    bs.stream.seek(quats_offset + 12)
-                    quats = []
+                    bs.seek(quats_offset + 12)
+                    uni_quats = []
                     for i in range(0, quat_count):
-                        quats.append(bs.read_quat())  # unique quat
-                    bs.stream.seek(frames_offset + 12)
+                        uni_quats.append(bs.read_quat())
+                    bs.seek(frames_offset + 12)
+
                     frames = []
                     for i in range(0, frame_count * track_count):
                         frames.append((
@@ -2183,31 +2073,17 @@ class ANM:
                             bs.read_uint16(),  # scale index
                             bs.read_uint16()  # rotation index
                         ))
-                        bs.read_uint16()  # pad
+                        bs.pad(2)  # pad
 
                     # parse data from frames
                     for joint_hash, translation_index, scale_index, rotation_index in frames:
-                        # apparently, those index can be same in total vecs/squats (i guess they want to compress it)
-                        # we need to recreate pointer
+                        # recreate pointer
                         pose = ANMPose()
-                        pose.translation = MVector(
-                            vecs[translation_index].x,
-                            vecs[translation_index].y,
-                            vecs[translation_index].z
-                        )
-                        pose.scale = MVector(
-                            vecs[scale_index].x,
-                            vecs[scale_index].y,
-                            vecs[scale_index].z
-                        )
-                        pose.rotation = MQuaternion(
-                            quats[rotation_index].x,
-                            quats[rotation_index].y,
-                            quats[rotation_index].z,
-                            quats[rotation_index].w
-                        )
+                        pose.translation = MVector(uni_vecs[translation_index])
+                        pose.scale = MVector(uni_vecs[scale_index])
+                        pose.rotation = MQuaternion(uni_quats[rotation_index])
 
-                        # find the track that already in total tracks with joint hash
+                        # find existed track with joint hash
                         track = None
                         for t in self.tracks:
                             if t.joint_hash == joint_hash:
@@ -2220,105 +2096,121 @@ class ANM:
                             track.joint_hash = joint_hash
                             self.tracks.append(track)
 
-                        # time = index
-                        pose.time = len(track.poses)
-                        track.poses.append(pose)
+                        # time = index / fps
+                        index = len(track.poses)
+                        track.poses[index / self.fps] = pose
 
                 else:
                     # legacy
 
-                    bs.read_uint32()  # skeletion id
+                    bs.pad(4)  # skl id
                     track_count = bs.read_uint32()
-                    frame_count = bs.read_uint32()  # need this to index by frame and stuffs
-                    self.duration = frame_count
-                    bs.read_uint32()  # fps
+                    frame_count = bs.read_uint32()
+
+                    self.fps = bs.read_uint32()
+                    self.duration = frame_count / self.fps
+
                     for i in range(0, track_count):
                         track = ANMTrack()
-                        track.joint_hash = Hash.elf(bs.read_padded_string(
-                            32))  # joint name -> joint hash
-                        bs.read_uint32()  # flags
-                        for j in range(0, frame_count):
+                        track.joint_hash = Hash.elf(bs.read_padded_string(32))
+                        bs.pad(4)  # flags
+                        for index in range(0, frame_count):
                             pose = ANMPose()
-                            pose.time = j
                             pose.rotation = bs.read_quat()
                             pose.translation = bs.read_vec3()
-                            pose.scale = MVector(
-                                1.0, 1.0, 1.0)  # legacy not support scaling
-                            track.poses.append(pose)
-                        self.tracks.append(track)
+                            # legacy not support scaling
+                            pose.scale = MVector(1.0, 1.0, 1.0)
 
+                            # time = index / fps
+                            track.poses[index / self.fps] = pose
+                        self.tracks.append(track)
             else:
                 raise FunnyError(
                     f'[ANM.read()]: Wrong signature file: {magic}')
 
     def load(self):
-        # actual tracks (track of joints that found in scene)
-        actual_tracks = []
-        joint_dag_path = MDagPath()
-        track_count = len(self.tracks)
-        for i in range(0, track_count):
-            track = self.tracks[i]
+        # track of data joints that found in scene
+        scene_tracks = []
 
-            # loop through all ik joint in scenes
-            iterator = MItDag(MItDag.kDepthFirst, MFn.kJoint)
-            while not iterator.isDone():
-                iterator.getPath(joint_dag_path)
-                ik_joint = MFnIkJoint(joint_dag_path)
-                joint_name = ik_joint.name()
-                # compare ik joint's hash vs track joint's hash
+        # loop through all ik joint in scenes
+        iterator = MItDag(MItDag.kDepthFirst, MFn.kJoint)
+        while not iterator.isDone():
+            dagpath = MDagPath()
+            iterator.getPath(dagpath)
+            ik_joint = MFnIkJoint(dagpath)
+            joint_name = ik_joint.name()
+
+            # find joint in tracks data
+            found = False
+            for track in self.tracks:
                 if track.joint_hash == Hash.elf(joint_name):
-                    # found joint in scene
                     track.joint_name = joint_name
-                    track.dag_path = MDagPath(
-                        joint_dag_path)  # recreate pointer
-                    actual_tracks.append(track)
+                    track.dagpath = MDagPath(dagpath)
+                    scene_tracks.append(track)
+                    found = True
                     break
-                iterator.next()
 
-            if iterator.isDone():
-                # the loop isnt broken, mean we havent found the joint
-                # so its not in actual tracks, only in our imagination
+            # ignore data joint that not found in scene
+            if not found:
                 MGlobal.displayWarning(
-                    f'[ANM.load()]: No joint named found: {track.joint_hash}')
+                    f'[ANM.load()]: No joint hash found in scene: {track.joint_hash}')
 
-        if len(actual_tracks) == 0:
+            iterator.next()
+
+        if len(scene_tracks) == 0:
             raise FunnyError(
                 '[ANM.load()]: No data joints found in scene, please import SKL if joints are not in scene.')
 
         # delete all channel data
         MGlobal.executeCommand('delete -all -c')
 
-        # ensure 30fps scene
-        # im pretty sure all lol's anms are in 30fps, or i can change this later idk
+        # ensure scene fps
         # this only ensure the "import scene", not the "opening/existing scene" in maya, to make this work:
         # select "Override to Math Source" for both Framerate % Animation Range in Maya's import options panel
-        MGlobal.executeCommand('currentUnit -time ntsc')
-        # adjust animation range
-        if self.duration == 1:
-            MGlobal.executeCommand(
-                f'playbackOptions -e -min 0 -max 1 -animationStartTime 0 -animationEndTime 1 -playbackSpeed 1')
+        if self.fps > 59:
+            MGlobal.executeCommand('currentUnit -time ntscf')
         else:
-            MGlobal.executeCommand(
-                f'playbackOptions -e -min 0 -max {self.duration-1} -animationStartTime 0 -animationEndTime {self.duration-1} -playbackSpeed 1')
+            MGlobal.executeCommand('currentUnit -time ntsc')
 
-        if self.compressed:
-            # slow but safe load for compressed anm
-            for track in actual_tracks:
-                ik_joint = MFnIkJoint(track.dag_path)
+        # adjust animation range
+        end = self.duration * self.fps
+        MGlobal.executeCommand(
+            f'playbackOptions -e -min 0 -max {end} -animationStartTime 0 -animationEndTime {end} -playbackSpeed 1')
 
-                for pose in track.poses:
-                    # this can be float too
-                    MGlobal.executeCommand(f'currentTime {pose.time}')
+        # bind current pose to frame 0 - very helpful if its bind pose
+        MGlobal.executeCommand(f'currentTime 0')
+        joint_names = ' '.join(
+            [track.joint_name for track in scene_tracks])
+        MGlobal.executeCommand(
+            f'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0 -at translateX -at translateY -at translateZ -at scaleX -at scaleY -at scaleZ -at rotateX -at rotateY -at rotateZ {joint_names}')
 
-                    setKeyFrame = 'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0'
-                    modified = False  # check if we actually need to set key frame
+        # sync global times
+        times = []
+        for track in scene_tracks:
+            for time in track.poses:
+                if time not in times:
+                    times.append(time)
+        for track in scene_tracks:
+            for time in times:
+                if time not in track.poses:
+                    track.poses[time] = None
+
+        for time in times:
+            # anm will start from frame 1
+            MGlobal.executeCommand(f'currentTime {time * self.fps + 1}')
+
+            setKeyFrame = f'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0'
+            ekf = True  # empty keyframe
+            for track in scene_tracks:
+                pose = track.poses[time]
+                if pose:
+                    ik_joint = MFnIkJoint(track.dagpath)
                     # translation
                     if pose.translation:
-                        translation = pose.translation
                         ik_joint.setTranslation(
-                            MVector(translation.x, translation.y, translation.z), MSpace.kTransform)
-                        setKeyFrame += ' -at translateX -at translateY -at translateZ'
-                        modified = True
+                            pose.translation, MSpace.kTransform)
+                        setKeyFrame += f' {track.joint_name}.translateX {track.joint_name}.translateY {track.joint_name}.translateZ'
+                        ekf = True
                     # scale
                     if pose.scale:
                         scale = pose.scale
@@ -2326,118 +2218,91 @@ class ANM:
                         util.createFromDouble(scale.x, scale.y, scale.z)
                         ptr = util.asDoublePtr()
                         ik_joint.setScale(ptr)
-                        setKeyFrame += ' -at scaleX -at scaleY -at scaleZ'
-                        modified = True
+                        setKeyFrame += f' {track.joint_name}.scaleX {track.joint_name}.scaleY {track.joint_name}.scaleZ'
+                        ekf = True
                     # rotation
                     if pose.rotation:
-                        rotation = pose.rotation
-                        rotation = MQuaternion(
-                            rotation.x, rotation.y, rotation.z, rotation.w)  # recreate pointer
                         orient = MQuaternion()
                         ik_joint.getOrientation(orient)
                         axe = ik_joint.rotateOrientation(MSpace.kTransform)
-                        rotation = axe.inverse() * rotation * orient.inverse()
-                        ik_joint.setRotation(rotation, MSpace.kTransform)
-                        setKeyFrame += ' -at rotateX -at rotateY -at rotateZ'
-                        modified = True
+                        ik_joint.setRotation(
+                            axe.inverse() * pose.rotation * orient.inverse(), MSpace.kTransform)
+                        setKeyFrame += f' {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
+                        ekf = True
 
-                    if modified:
-                        setKeyFrame += f' {track.joint_name}'
-                        MGlobal.executeCommand(setKeyFrame)
-
-            # slerp all quaternions - EULER SUCKS!
-            rotationInterpolation = 'rotationInterpolation -c quaternionSlerp'
-            for track in actual_tracks:
-                rotationInterpolation += f' {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
-            MGlobal.executeCommand(rotationInterpolation)
-
-        else:
-            # fast load for decompressed anm
-            joint_names = ' '.join(
-                [track.joint_name for track in actual_tracks])
-            setKeyFrame = f'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0 -at translateX -at translateY -at translateZ -at scaleX -at scaleY -at scaleZ -at rotateX -at rotateY -at rotateZ {joint_names}'
-            for time in range(0, self.duration):
-                MGlobal.executeCommand(f'currentTime {time}')
-                for track in actual_tracks:
-                    pose = track.poses[time]
-                    ik_joint = MFnIkJoint(track.dag_path)
-
-                    # translation
-                    translation = pose.translation
-                    ik_joint.setTranslation(translation, MSpace.kTransform)
-                    # scale
-                    scale = pose.scale
-                    util = MScriptUtil()
-                    util.createFromDouble(scale.x, scale.y, scale.z)
-                    ptr = util.asDoublePtr()
-                    ik_joint.setScale(ptr)
-                    # rotation
-                    rotation = pose.rotation
-                    orient = MQuaternion()
-                    ik_joint.getOrientation(orient)
-                    axe = ik_joint.rotateOrientation(MSpace.kTransform)
-                    rotation = axe.inverse() * rotation * orient.inverse()
-                    ik_joint.setRotation(rotation, MSpace.kTransform)
-
+            if ekf:
                 MGlobal.executeCommand(setKeyFrame)
+
+        # slerp all quaternions - EULER SUCKS!
+        rotationInterpolation = 'rotationInterpolation -c quaternionSlerp'
+        for track in scene_tracks:
+            rotationInterpolation += f' {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
+        MGlobal.executeCommand(rotationInterpolation)
 
     def dump(self):
         # get joint in scene
-        dag_path = MDagPath()
         iterator = MItDag(MItDag.kDepthFirst, MFn.kJoint)
         while not iterator.isDone():
-            iterator.getPath(dag_path)
-            ik_joint = MFnIkJoint(dag_path)
+            # dag path + transform
+            dagpath = MDagPath()
+            iterator.getPath(dagpath)
+            ik_joint = MFnIkJoint(dagpath)
 
+            # track data
             track = ANMTrack()
-            track.dag_path = MDagPath(dag_path)
+            track.dagpath = dagpath
             track.joint_name = ik_joint.name()
             track.joint_hash = Hash.elf(track.joint_name)
             self.tracks.append(track)
+
             iterator.next()
 
-        # ensure 30 fps, read ANM.load()
-        MGlobal.executeCommand('currentUnit -time ntsc')
+        # dump fps
+        util = MScriptUtil()
+        ptr = util.asDoublePtr()
+        MGlobal.executeCommand('currentTimeUnitToFPS', ptr)
+        fps = util.getDouble(ptr)
+        if fps > 59:
+            self.fps = 60.0
+        else:
+            self.fps = 30.0
 
-        # assume that animation start time always at 0
+        # dump from frame 1 to frame end
         # if its not then well, its the ppl fault, not mine. haha suckers
-        start_util = MScriptUtil()
-        start_ptr = start_util.asDoublePtr()
-        MGlobal.executeCommand(
-            'playbackOptions -q -animationStartTime', start_ptr)
-        start = start_util.getDouble(start_ptr)
-        if int(start) != 0:
+        util = MScriptUtil()
+        ptr = util.asDoublePtr()
+        MGlobal.executeCommand('playbackOptions -q -animationStartTime', ptr)
+        start = util.getDouble(ptr)
+        if start < 0:
             raise FunnyError(
-                f'[ANM.dump()]: Animation start time is not at 0: {start}, check Time slider, make sure animation start at 0.')
+                f'[ANM.dump()]: Animation start time must be greater or equal 0: {start}')
+        util = MScriptUtil()
+        ptr = util.asDoublePtr()
+        MGlobal.executeCommand('playbackOptions -q -animationEndTime', ptr)
+        end = util.getDouble(ptr)
+        if end < 1:
+            raise FunnyError(
+                f'[ANM.dump()]: Animation end time must be greater than 1: {end}')
+        self.duration = int(end)
 
-        # get duration with cursed api
-        end_util = MScriptUtil()
-        end_ptr = end_util.asDoublePtr()
-        MGlobal.executeCommand('playbackOptions -q -animationEndTime', end_ptr)
-        end = end_util.getDouble(end_ptr)
-        self.duration = int(round(end)) + 1
-
-        for time in range(0, self.duration):
+        for time in range(1, self.duration+1):
             MGlobal.executeCommand(f'currentTime {time}')
 
             for track in self.tracks:
-                ik_joint = MFnIkJoint(track.dag_path)
+                ik_joint = MFnIkJoint(track.dagpath)
 
                 pose = ANMPose()
-                pose.time = time
                 # translation
-                translation = ik_joint.getTranslation(MSpace.kTransform)
-                pose.translation = MVector(
-                    translation.x, translation.y, translation.z)
+                pose.translation = ik_joint.getTranslation(MSpace.kTransform)
                 # scale
-                scale_util = MScriptUtil()
-                scale_util.createFromDouble(0.0, 0.0, 0.0)
-                scale_ptr = scale_util.asDoublePtr()
-                ik_joint.getScale(scale_ptr)
+                util = MScriptUtil()
+                util.createFromDouble(0.0, 0.0, 0.0)
+                ptr = util.asDoublePtr()
+                ik_joint.getScale(ptr)
                 pose.scale = MVector(
-                    scale_util.getDoubleArrayItem(scale_ptr, 0),
-                    scale_util.getDoubleArrayItem(scale_ptr, 1),
-                    scale_util.getDoubleArrayItem(scale_ptr, 2)
+                    util.getDoubleArrayItem(ptr, 0),
+                    util.getDoubleArrayItem(ptr, 1),
+                    util.getDoubleArrayItem(ptr, 2)
                 )
                 # rotation
                 orient = MQuaternion()
@@ -2445,54 +2310,40 @@ class ANM:
                 axe = ik_joint.rotateOrientation(MSpace.kTransform)
                 rotation = MQuaternion()
                 ik_joint.getRotation(rotation, MSpace.kTransform)
-                rotation = axe * rotation * orient
-                pose.rotation = MQuaternion(
-                    rotation.x, rotation.y, rotation.z, rotation.w
-                )
-                track.poses.append(pose)
+                pose.rotation = axe * rotation * orient
+                track.poses[time] = pose
 
     def write(self, path):
         # build unique vecs + quats
-        uni_vecs = []
-        uni_quats = []
-        for track in self.tracks:
-            for pose in track.poses:
-                for i in range(0, len(uni_vecs)):
-                    # find pose translation
-                    if pose.translation == uni_vecs[i]:
-                        pose.translation_index = i
+        uni_vecs = {}
+        uni_quats = {}
 
-                    # find pose scale
-                    if pose.scale == uni_vecs[i]:
-                        pose.scale_index = i
-
-                    if pose.translation_index and pose.scale_index:
-                        # if found both in unique vecs then break loop
-                        break
-
-                if not pose.translation_index:
-                    # add new unique translation
-                    pose.translation_index = len(uni_vecs)
-                    uni_vecs.append(pose.translation)
-                if not pose.scale_index:
-                    # also check if scale = translation
-                    if pose.scale == pose.translation:
-                        pose.scale_index = pose.translation_index
-                    else:
-                        # add new unique scale
-                        pose.scale_index = len(uni_vecs)
-                        uni_vecs.append(pose.scale)
-
-                for i in range(0, len(uni_quats)):
-                    if pose.rotation == uni_quats[i]:
-                        pose.rotation_index = i
-
-                    if pose.rotation_index:
-                        break
-
-                if not pose.rotation_index:
-                    pose.rotation_index = len(uni_quats)
-                    uni_quats.append(pose.rotation)
+        vec_index = 0
+        quat_index = 0
+        for time in range(1, self.duration+1):
+            for track in self.tracks:
+                pose = track.poses[time]
+                translation_key = f'{pose.translation.x:.4f} {pose.translation.y:.4f} {pose.translation.z:.4f}'
+                scale_key = f'{pose.scale.x:.4f} {pose.scale.y:.4f} {pose.scale.z:.4f}'
+                rotation_key = f'{pose.rotation.x:.4f} {pose.rotation.y:.4f} {pose.rotation.z:.4f} {pose.rotation.w:.4f}'
+                if translation_key not in uni_vecs:
+                    uni_vecs[translation_key] = vec_index
+                    pose.translation_index = vec_index
+                    vec_index += 1
+                else:
+                    pose.translation_index = uni_vecs[translation_key]
+                if scale_key not in uni_vecs:
+                    uni_vecs[scale_key] = vec_index
+                    pose.scale_index = vec_index
+                    vec_index += 1
+                else:
+                    pose.scale_index = uni_vecs[scale_key]
+                if rotation_key not in uni_quats:
+                    uni_quats[rotation_key] = quat_index
+                    pose.rotation_index = quat_index
+                    quat_index += 1
+                else:
+                    pose.rotation_index = uni_quats[rotation_key]
 
         with open(path, 'wb') as f:
             bs = BinaryStream(f)
@@ -2500,36 +2351,45 @@ class ANM:
             bs.write_bytes('r3d2anmd'.encode('ascii'))  # magic
             bs.write_uint32(4)  # ver 4
 
-            bs.write_uint32(0)  # size - later
+            bs.write_uint32(0)  # resource size - later
             bs.write_uint32(0xBE0794D3)  # format token
             bs.write_uint32(0)  # version?
             bs.write_uint32(0)  # flags
 
             bs.write_uint32(len(self.tracks))  # track count
             bs.write_uint32(self.duration)  # frame count
-            bs.write_float(1.0 / 30.0)  # frame duration = 1 / 30fps
+            bs.write_float(1.0 / self.fps)  # frame duration = 1 / fps
 
             bs.write_int32(0)  # tracks offset
             bs.write_int32(0)  # asset name offset
             bs.write_int32(0)  # time offset
 
             bs.write_int32(64)  # vecs offset
-            quats_offset_offset = bs.stream.tell()
+            quats_offset_offset = bs.tell()
             bs.write_int32(0)   # quats offset - later
             bs.write_int32(0)   # frames offset - later
 
-            bs.stream.seek(12, 1)  # pad 12 empty bytes
+            # pad 12 empty bytes
+            bs.write_int32(0)
+            bs.write_int32(0)
+            bs.write_int32(0)
 
-            # vecs
-            for vec in uni_vecs:
-                bs.write_vec3(vec)
+            # uni vecs
+            for vec_key in uni_vecs:
+                vec = vec_key.split()
+                for i in range(0, 3):
+                    bs.write_float(float(vec[i]))
 
-            quats_offset = bs.stream.tell()
-            for quat in uni_quats:
-                bs.write_quat(quat)
+            # uni quats
+            quats_offset = bs.tell()
+            for quat_key in uni_quats:
+                quat = quat_key.split()
+                for i in range(0, 4):
+                    bs.write_float(float(quat[i]))
 
-            frames_offset = bs.stream.tell()
-            for time in range(0, self.duration):
+            # frames
+            frames_offset = bs.tell()
+            for time in range(1, self.duration+1):
                 for track in self.tracks:
                     bs.write_uint32(track.joint_hash)
                     bs.write_uint16(track.poses[time].translation_index)
@@ -2538,14 +2398,15 @@ class ANM:
                     bs.write_uint16(0)
 
             # quats offset and frames offset
-            bs.stream.seek(quats_offset_offset)
-            bs.write_int32(quats_offset - 12)  # need to minus 12 bytes back
+            bs.seek(quats_offset_offset)
+            # need to minus 12 padded bytes
+            bs.write_int32(quats_offset - 12)
             bs.write_int32(frames_offset - 12)
 
             # resource size
-            bs.stream.seek(0, 2)
-            fsize = bs.stream.tell()
-            bs.stream.seek(12)
+            bs.seek(0, 2)
+            fsize = bs.tell()
+            bs.seek(12)
             bs.write_uint32(fsize)
 
 
@@ -2555,11 +2416,16 @@ class SO:
         self.central = None
         self.pivot = None
 
-        self.material = None  # assume sco/scb only have 1 material
+        # assume sco/scb only have 1 material
+        self.material = None
         self.indices = []
-        self.uvs = []  # important: uv can be different at each index, can not map UV by vertex
+        # important: uv can be different at each index, can not map this uv data by vertex
+        self.uvs = []
         # not actual vertex, its a position of vertex, no reason to create a class
         self.vertices = []
+
+        # bouding box for write scb + dump central point
+        self.bb = None
 
     def flip(self):
         for vertex in self.vertices:
@@ -2610,9 +2476,12 @@ class SO:
                     face_count = int(inp[1])
                     for i in range(index+1, index+1 + face_count):
                         inp2 = lines[i].replace('\t', ' ').split()
-                        self.indices.append(int(inp2[1]))
-                        self.indices.append(int(inp2[2]))
-                        self.indices.append(int(inp2[3]))
+
+                        # skip bad faces
+                        face = [int(inp2[1]), int(inp2[2]), int(inp2[3])]
+                        if face[0] == face[1] or face[1] == face[2] or face[2] == face[0]:
+                            continue
+                        self.indices += face
 
                         self.material = inp2[4]
 
@@ -2645,39 +2514,33 @@ class SO:
                     f'[SO.read_scb()]: Unsupported file version: {major}.{minor}')
 
             # now im trying to use name from path
-            # so i will pad name inside file, will try later
-            bs.read_padded_string(128)
+            # so i will pad name inside file
+            bs.pad(128)
             self.name = path.split('/')[-1].split('.')[0]
 
             vertex_count = bs.read_uint32()
             face_count = bs.read_uint32()
 
-            bs.read_uint32()  # flags - pad
+            bs.pad(4 + 24)  # flags, bouding box
 
-            bs.read_vec3()  # bouding box - pad
-            bs.read_vec3()
-
-            vertex_color = 0  # for padding colors later
+            vertex_type = 0  # for padding colors later
             if major == 3 and minor == 2:
-                vertex_color = bs.read_uint32()
+                vertex_type = bs.read_uint32()
 
             for i in range(0, vertex_count):
                 self.vertices.append(bs.read_vec3())
 
-            if vertex_color == 1:
-                for i in range(0, vertex_count):
-                    bs.read_byte()  # pad all color
-                    bs.read_byte()
-                    bs.read_byte()
-                    bs.read_byte()
+            if vertex_type == 1:
+                bs.pad(4 * vertex_count)  # pad all vertex colors
 
             self.central = bs.read_vec3()
             # no pivot in scb
 
             for i in range(0, face_count):
-                self.indices.append(bs.read_uint32())
-                self.indices.append(bs.read_uint32())
-                self.indices.append(bs.read_uint32())
+                face = [bs.read_uint32(), bs.read_uint32(), bs.read_uint32()]
+                if face[0] == face[1] or face[1] == face[2] or face[2] == face[0]:
+                    continue
+                self.indices += face
 
                 self.material = bs.read_padded_string(64)
 
@@ -2690,119 +2553,71 @@ class SO:
                 self.uvs.append(MVector(uvs[2], uvs[5]))
 
     def load(self):
-        mesh = MFnMesh()
-        vertices_count = len(self.vertices)
-        indices_count = len(self.indices)
+        vertex_count = len(self.vertices)
+        index_count = len(self.indices)
+        face_count = index_count // 3
 
-        # create mesh with vertices, indices
+        # create mesh
         vertices = MFloatPointArray()
-        for i in range(0, vertices_count):
-            vertex = self.vertices[i]
+        for vertex in self.vertices:
+            position = vertex - self.central
             vertices.append(MFloatPoint(
-                vertex.x - self.central.x,
-                vertex.y - self.central.y,
-                vertex.z - self.central.z))
-        poly_index_count = MIntArray(indices_count // 3, 3)
+                position.x, position.y, position.z))
+
+        u_values = MFloatArray()
+        v_values = MFloatArray()
+        uv_indices = MIntArray()
+        for i in range(0, index_count):
+            uv_indices.append(i)
+            uv = self.uvs[i]
+            u_values.append(uv.x)
+            v_values.append(1.0 - uv.y)
+
+        poly_count = MIntArray(face_count, 3)
         poly_indices = MIntArray()
         MScriptUtil.createIntArrayFromList(self.indices, poly_indices)
+
+        mesh = MFnMesh()
         mesh.create(
-            vertices_count,
-            indices_count // 3,
+            vertex_count,
+            face_count,
             vertices,
-            poly_index_count,
-            poly_indices
+            poly_count,
+            poly_indices,
+            u_values,
+            v_values
         )
-        # assign uv
-        uv_indices = MIntArray(indices_count)
-        u_values = MFloatArray(indices_count)
-        v_values = MFloatArray(indices_count)
-        for i in range(0, indices_count):
-            u_values[i] = self.uvs[i].x
-            v_values[i] = 1.0 - self.uvs[i].y
-            uv_indices[i] = i
-            # uv by index, not by vertex
-
-        mesh.setUVs(u_values, v_values)
         mesh.assignUVs(
-            poly_index_count, uv_indices
+            poly_count, uv_indices
         )
 
-        # dag_path and name
-        mesh_dag_path = MDagPath()
-        mesh.getPath(mesh_dag_path)
+        # name + central
         mesh.setName(self.name)
+        mesh_name = mesh.name()
         transform_node = MFnTransform(mesh.parent(0))
         transform_node.setName(f'mesh_{self.name}')
-
-        # translation
         transform_node.setTranslation(self.central, MSpace.kTransform)
 
-        # find render partition
-        render_partition = MFnPartition()
-        found_rp = False
-        iterator = MItDependencyNodes(MFn.kPartition)
-        while not iterator.isDone():
-            render_partition.setObject(iterator.thisNode())
-            if render_partition.name() == 'renderPartition' and render_partition.isRenderPartition():
-                found_rp = True
-                break
-            iterator.next()
-        # materials
-        modifier = MDGModifier()
-        set = MFnSet()
-
-        # create lambert
+        # material
+        # lambert material
         lambert = MFnLambertShader()
-        lambert.create(True)
+        lambert.create()
         lambert.setName(self.material)
-
-        # some shader stuffs
-        dependency_node = MFnDependencyNode()
-        shading_engine = dependency_node.create(
-            'shadingEngine', f'{self.material}_SG')
-        material_info = dependency_node.create(
-            'materialInfo', f'{self.material}_MaterialInfo')
-        if found_rp:
-            partition = MFnDependencyNode(
-                shading_engine).findPlug('partition')
-
-            sets = render_partition.findPlug('sets')
-            the_plug_we_need = None
-            count = 0
-            while True:
-                the_plug_we_need = sets.elementByLogicalIndex(count)
-                if not the_plug_we_need.isConnected():  # find the one that not connected
-                    break
-                count += 1
-
-            modifier.connect(partition, the_plug_we_need)
-
-        # connect node
-        out_color = lambert.findPlug('outColor')
-        surface_shader = MFnDependencyNode(
-            shading_engine).findPlug('surfaceShader')
-        modifier.connect(out_color, surface_shader)
-
-        message = MFnDependencyNode(shading_engine).findPlug('message')
-        shading_group = MFnDependencyNode(
-            material_info).findPlug('shadingGroup')
-        modifier.connect(message, shading_group)
-
-        modifier.doIt()
-
-        # assign face to material
-        component = MFnSingleIndexedComponent()
-        face_component = component.create(MFn.kMeshPolygonComponent)
-        group_poly_indices = MIntArray()
-        for index in range(0, indices_count // 3):
-            group_poly_indices.append(index)
-        component.addElements(group_poly_indices)
-
-        set.setObject(shading_engine)
-        set.addMember(mesh_dag_path, face_component)
+        lambert_name = lambert.name()
+        # shading group
+        MGlobal.executeCommand((
+            # create renderable, independent shading group
+            f'sets -renderable true -noSurfaceShader true -empty -name "{lambert_name}_SG";'
+            # add submesh faces to shading group
+            f'sets -e -forceElement "{lambert_name}_SG" {mesh_name}.f[0:{face_count}];'
+        ))
+        # connect lambert to shading group
+        MGlobal.executeCommand(
+            f'connectAttr -f {lambert_name}.outColor {lambert_name}_SG.surfaceShader;')
 
         # use a joint for pivot
         if self.pivot:
+
             ik_joint = MFnIkJoint()
             ik_joint.create()
             ik_joint.setName(f'pivot_{self.name}')
@@ -2811,12 +2626,15 @@ class SO:
                 self.central - self.pivot, MSpace.kTransform)
 
             # bind pivot with mesh
-            dag_path = MDagPath()
-            ik_joint.getPath(dag_path)
+            pivot_dagpath = MDagPath()
+            ik_joint.getPath(pivot_dagpath)
+
+            mesh_dagpath = MDagPath()
+            mesh.getPath(mesh_dagpath)
 
             selections = MSelectionList()
-            selections.add(mesh_dag_path)
-            selections.add(dag_path)
+            selections.add(mesh_dagpath)
+            selections.add(pivot_dagpath)
 
             MGlobal.selectCommand(selections)
             MGlobal.executeCommand(
@@ -2825,6 +2643,28 @@ class SO:
         mesh.updateSurface()
 
     def dump(self):
+        def get_bounding_box():
+            # totally not copied code
+            min = MVector(float('inf'), float('inf'), float('inf'))
+            max = MVector(float('-inf'), float('-inf'), float('-inf'))
+            for vertex in self.vertices:
+                if min.x > vertex.x:
+                    min.x = vertex.x
+                if min.y > vertex.y:
+                    min.y = vertex.y
+                if min.z > vertex.z:
+                    min.z = vertex.z
+                if max.x < vertex.x:
+                    max.x = vertex.x
+                if max.y < vertex.y:
+                    max.y = vertex.y
+                if max.z < vertex.z:
+                    max.z = vertex.z
+            return min, max
+
+        def get_central(bb):
+            return (bb[0] + bb[1]) / 2
+
         # get mesh
         selections = MSelectionList()
         MGlobal.getActiveSelectionList(selections)
@@ -2832,21 +2672,54 @@ class SO:
         if iterator.isDone():
             raise FunnyError(
                 f'[SO.dump()]: Please select a mesh.')
-        mesh_dag_path = MDagPath()
-        iterator.getDagPath(mesh_dag_path)
+        mesh_dagpath = MDagPath()
+        iterator.getDagPath(mesh_dagpath)
         iterator.next()
         if not iterator.isDone():
             raise FunnyError(
                 f'[SO.dump()]: More than 1 mesh selected.')
-        mesh = MFnMesh(mesh_dag_path)
+        mesh = MFnMesh(mesh_dagpath)
 
         # name
         self.name = mesh.name()
 
-        # get center
-        transform_node = MFnTransform(mesh.parent(0))
-        translation = transform_node.getTranslation(MSpace.kTransform)
-        self.central = translation
+        # shader
+        instance = 0
+        if mesh_dagpath.isInstanced():
+            instance = mesh_dagpath.instanceNumber()
+        shaders = MObjectArray()
+        shader_indices = MIntArray()
+        mesh.getConnectedShaders(instance, shaders, shader_indices)
+
+        # check hole
+        hole_info = MIntArray()
+        hole_vertex = MIntArray()
+        mesh.getHoles(hole_info, hole_vertex)
+        if hole_info.length() > 0:
+            raise FunnyError(f'[SO.dump()]: Mesh contains holes.')
+
+        # check valid triangulation
+        iterator = MItMeshPolygon(mesh_dagpath)
+        iterator.reset()
+        while not iterator.isDone():
+            if not iterator.hasValidTriangulation():
+                raise FunnyError(
+                    f'[SO.dump()]: Mesh contains a invalid triangulation polygon.')
+            iterator.next()
+
+        # vertices
+        vertex_count = mesh.numVertices()
+        vertices = MFloatPointArray()
+        mesh.getPoints(vertices, MSpace.kWorld)
+        for i in range(0, vertex_count):
+            vertex = vertices[i]
+            self.vertices.append(MVector(
+                vertex.x, vertex.y, vertex.z
+            ))
+
+        # get bouding box + central point
+        self.bb = get_bounding_box()
+        self.central = get_central(self.bb)
 
         # find pivot through skin cluster
         in_mesh = mesh.findPlug('inMesh')
@@ -2864,47 +2737,7 @@ class SO:
 
                 ik_joint = MFnTransform(influences_dag_path[0])
                 translation = ik_joint.getTranslation(MSpace.kTransform)
-                self.pivot = MVector(
-                    self.central.x - translation.x,
-                    self.central.y - translation.y,
-                    self.central.z - translation.z
-                )
-
-        # shader
-        instance = 0
-        if mesh_dag_path.isInstanced():
-            instance = mesh_dag_path.instanceNumber()
-        shaders = MObjectArray()
-        shader_indices = MIntArray()
-        mesh.getConnectedShaders(instance, shaders, shader_indices)
-        shader_count = shaders.length()
-
-        # check hole
-        hole_info = MIntArray()
-        hole_vertex = MIntArray()
-        mesh.getHoles(hole_info, hole_vertex)
-        if hole_info.length() > 0:
-            raise FunnyError(f'[SO.dump()]: Mesh contains holes.')
-
-        # check valid triangulation
-        iterator = MItMeshPolygon(mesh_dag_path)
-        iterator.reset()
-        while not iterator.isDone():
-            if not iterator.hasValidTriangulation():
-                raise FunnyError(
-                    f'[SO.dump()]: Mesh contains a invalid triangulation polygon, try Mesh -> Triangulate.')
-            iterator.next()
-
-        # vertices
-        vertices_count = mesh.numVertices()
-        vertices = MFloatPointArray()
-        mesh.getPoints(vertices, MSpace.kWorld)
-        for i in range(0, vertices_count):
-            vertex = vertices[i]
-            position = MVector(
-                vertex.x, vertex.y, vertex.z
-            )
-            self.vertices.append(position)
+                self.pivot = self.central - translation
 
         # uvs
         u_values = MFloatArray()
@@ -2919,11 +2752,11 @@ class SO:
         face_vertices = MIntArray()
         mesh.getTriangles(face_count, face_vertices)
 
-        # cehck triangulated: 1 tri per face = gud
+        # check triangulated: 1 tri per face = gud
         for triangle_count in face_count:
             if triangle_count > 1:
                 raise FunnyError(
-                    f'[SO.dump()]: Mesh contains a non-triangulated face, try Mesh -> Triangulate.')
+                    f'[SO.dump()]: Mesh contains a non-triangulated face, please Mesh -> Triangulate.')
 
         len666 = mesh.numPolygons()
         index = 0
@@ -2932,19 +2765,18 @@ class SO:
                 self.indices.append(face_vertices[index])
                 u = u_values[uv_indices[index]]
                 v = v_values[uv_indices[index]]
-                self.uvs.append(MVector(u, v))
+                self.uvs.append(MVector(u, 1.0-v))
                 index += 1
 
         # material name
-        # only dump shaders[0] right now
-        # this is so confused but ppl said its only 1 material for sco/scb
-        # if i find out a sco/scb use 2 materials+ in future, this section will be changed then
+        if shaders.length() > 1:
+            raise FunnyError(
+                '[SO.dump()]: There are more than 1 material assigned to this mesh.')
         surface_shaders = MFnDependencyNode(
             shaders[0]).findPlug('surfaceShader')
         plug_array = MPlugArray()
         surface_shaders.connectedTo(plug_array, True, False)
         surface_shader = MFnDependencyNode(plug_array[0].node())
-
         self.material = surface_shader.name()
 
     def write_sco(self, path):
@@ -2982,25 +2814,6 @@ class SO:
             f.write('[ObjectEnd]')
 
     def write_scb(self, path):
-        def get_bounding_box():
-            # totally not copied code
-            min = MVector(float('inf'), float('inf'), float('inf'))
-            max = MVector(float('-inf'), float('-inf'), float('-inf'))
-            for vertex in self.vertices:
-                if min.x > vertex.x:
-                    min.x = vertex.x
-                if min.y > vertex.y:
-                    min.y = vertex.y
-                if min.z > vertex.z:
-                    min.z = vertex.z
-                if max.x < vertex.x:
-                    max.x = vertex.x
-                if max.y < vertex.y:
-                    max.y = vertex.y
-                if max.z < vertex.z:
-                    max.z = vertex.z
-            return min, max
-
         with open(path, 'wb') as f:
             bs = BinaryStream(f)
 
@@ -3008,7 +2821,7 @@ class SO:
             bs.write_uint16(3)  # major
             bs.write_uint16(2)  # minor
 
-            bs.write_padded_string(128, '')  # well, scb has no name?
+            bs.write_padded_string(128, '')  # well
 
             face_count = len(self.indices) // 3
             bs.write_uint32(len(self.vertices))
@@ -3017,9 +2830,8 @@ class SO:
             bs.write_uint32(0)  # flags - pad
 
             # bounding box
-            bb_min, bb_max = get_bounding_box()
-            bs.write_vec3(bb_min)
-            bs.write_vec3(bb_max)
+            bs.write_vec3(self.bb[0])
+            bs.write_vec3(self.bb[1])
 
             bs.write_uint32(0)  # vertex color
 
@@ -3028,8 +2840,6 @@ class SO:
                 bs.write_vec3(vertex)
 
             # central
-            # this central = translation of the mesh in maya
-            # or do i need to change it?
             bs.write_vec3(self.central)
 
             # faces - easy peasy squeezy last part
@@ -3050,9 +2860,8 @@ class SO:
                 bs.write_float(self.uvs[index+1].y)
                 bs.write_float(self.uvs[index+2].y)
 
+
 # test map geo
-
-
 class MAPGEOVertexElement:
     def __init__(self):
         """

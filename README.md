@@ -7,17 +7,22 @@ An attempt to update RiotFileTranslator to Maya 2023.
 ### Infos:
 1. Misc:
     - Add fix for read/write file with suffix in name.
-    - When run into the problem: vertices have 4+ influences, those vertices will be selected in scene.
+    - SKN+SKL data in Maya scene: A single mesh that bound with joints as a skin cluster, have weighted on all vertices, and has materials assigned on all faces. -> use export selection
+    - ANM data in Maya scene: Translate+rotate+scale keyframes from time 1 to end time of all joints on Time Slider. -> use export all
+    - SCO/SCB data in Maya scene: A single mesh has 1 material assigned (;bound with a single joint to write pivot point - SCO only/optional). -> use export selection
 2. SKN: 
     - Read: 
-        - `33 22 11 00`: V0, V1, V2, V3, V4
-        - To read both SKN/SKL as skin cluster, change SKN import options to:
+        - `33 22 11 00`: V0, V1, V2, V4
+        - To read both SKN+SKL as skin cluster, change SKN import options to:
         
             ![](https://i.imgur.com/UiNIMul.png)
+
+        - Add fix for duplicate joint-material name when read both SKN+SKL, all duplicated material name will be lowercase. Example: If there is a joint named `Fish` in SKL data, material `Fish` in SKN data will be rename to `fish` in maya scene.
     - Write: 
         - `33 22 11 00`: V1
-        - Add fix for Maya duplicate name system on joint-material nodes, example: joint `Fish` and material `Fish1` will export as `Fish`. (no effect on index 2, 3, 4,...)
         - Add check for limit vertices: 65536 
+        - When run into the error: vertices have 4+ influences, those vertices will be selected in scene.
+        - When run into the error: vertices have no uv assigned, those vertices will be selected in scene.
 3. SKL:
     - Read: 
         - `r3d2sklt`: V1, V2
@@ -27,7 +32,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - New SKL data, no need to update/convert.
         - Add check for limit joints: 256
         - Add fix for SKL bad joints order that caused bad animation layers/animation blending like: Samira reload, Jhin reload,...
-            - Extract the original skl in wad file, rename it to `riot.skl`, put it in export location.
+            - Extract the original SKL in wad file, rename it to `riot.skl`, put it in export location.
             - When exporting, plugin will attempt to sort your joints to match `riot.skl` joints order. (not affect the scene)
             - You must have all `riot.skl` joints on your skin cluster.
             - You can add extra joints to your skin, but not allow to remove joints.
@@ -36,7 +41,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
     - Read: 
         - `r3d2canm`
         - `r3d2anmd`: V3, V4, V5
-        - To ensure 30FPS import, change ANM import options to:
+        - To ensure importing FPS from ANM file, change ANM import options to:
         
             ![](https://i.imgur.com/2hJvlGt.png)
     - Write:

@@ -7,27 +7,29 @@ An attempt to update RiotFileTranslator to Maya 2023.
 ### Infos:
 1. Misc:
     - Add fix for read/write file with suffix in name.
-    - SKN+SKL data in Maya scene: A single mesh that bound with joints as a skin cluster, have weighted on all vertices, and has materials assigned on all faces. -> use export selection
-    - ANM data in Maya scene: Translate+rotate+scale keyframes from time 1 to end time of all joints on Time Slider. -> use export all
-    - SCO/SCB data in Maya scene: A single mesh has 1 material assigned (;bound with a single joint to write pivot point - SCO only/optional). -> use export selection
+    - All namespaces will be removed in export data. 
 2. SKN: 
+    - SKN+SKL data in Maya scene: A single mesh that has material and uv assigned on all face, bound with joints as a skin cluster, have weighted on all vertices.
     - Read: 
         - `33 22 11 00`: V0, V1, V2, V4
         - To read both SKN+SKL as skin cluster, change SKN import options to:
         
             ![](https://i.imgur.com/UiNIMul.png)
 
-        - Add fix for duplicate joint-material name when read both SKN+SKL, all duplicated material name will be lowercase. Example: If there is a joint named `Fish` in SKL data, material `Fish` in SKN data will be rename to `fish` in maya scene.
+        - Add fix for duplicate joint-material name when read both SKN+SKL, all duplicated material name will be lowercase. Example: If there is a joint `Fish` in SKL data, material `Fish` in SKN data will be rename to `fish` in scene.
     - Write: 
+        - To export: select the mesh -> use export selection.
         - `33 22 11 00`: V1
         - Add check for limit vertices: 65536 
         - When run into the error: vertices have 4+ influences, those vertices will be selected in scene.
         - When run into the error: vertices have no uv assigned, those vertices will be selected in scene.
+        - When run into the error: vertices have no material assigned, those vertices will be selected in scene.
 3. SKL:
     - Read: 
         - `r3d2sklt`: V1, V2
         - `C3 4F FD 22`: V0
     - Write:
+        - To export: will export with SKN.
         - `C3 4F FD 22`: V0 
         - New SKL data, no need to update/convert.
         - Add check for limit joints: 256
@@ -38,24 +40,32 @@ An attempt to update RiotFileTranslator to Maya 2023.
             - You can add extra joints to your skin, but not allow to remove joints.
             - If there is no `riot.skl` found in the export location, the plugin will export normal way - unsorted.
 4. ANM:
+    - ANM data in Maya scene: 
+        - Translate + Rotate + Scale keyframes of all joints, from start time to end time on Time Slider.
+        - Animation start time for both importing/exporting must always be 1.
+        - FPS support: 30/60.
     - Read: 
         - `r3d2canm`
         - `r3d2anmd`: V3, V4, V5
         - To ensure importing FPS from ANM file, change ANM import options to:
-        
+            
             ![](https://i.imgur.com/2hJvlGt.png)
     - Write:
+        - To export: use export all.
         - `r3d2anmd`: V4 
             - Uncompressed, scaling support.
 5. Static object:
+    - Static object in Maya scene: 
+        - A single mesh has 1 material assigned.
+        - SCO only, optional: an additional pivot joint bound with mesh to set pivot point of SCO.
+            
+            ![](https://i.imgur.com/XZFvV3V.png)
     - Read:
         - SCO 
         - SCB: `r3d2Mesh`: V1, V2, V3
     - Write:
-        - SCO: 
-            - Pivot point (optional): is translation of a joint that bound with the mesh.
-
-                ![](https://i.imgur.com/XZFvV3V.png)
+        - To export: select the mesh -> use export selection.
+        - SCO
         - SCB: `r3d2Mesh`: V3 
             - No need to convert with Wooxy.
 

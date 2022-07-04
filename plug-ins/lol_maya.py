@@ -688,10 +688,11 @@ class CTransform:
             res.z *= (cz / 65535.0)
 
             res += min
-            return MVector(res.x, res.y, res.z)
-
+            return MVector(res)
 
 # for set skl joint transform (transformation matrix)
+
+
 class MTransform():
     def decompose(transform, space):
         # get translation, scale and rotation (quaternion) out of transformation matrix
@@ -732,8 +733,7 @@ class MTransform():
         transform = MTransformationMatrix()
 
         # translation
-        transform.setTranslation(
-            MVector(translation.x, translation.y, translation.z), space)
+        transform.setTranslation(translation, space)
 
         # cursed scale
         util = MScriptUtil()
@@ -917,24 +917,43 @@ class SKL:
                         )
 
     def load(self):
+        # find joint existed in scene
+        iterator = MItDag(MItDag.kDepthFirst, MFn.kJoint)
+        while not iterator.isDone():
+            dagpath = MDagPath()
+            iterator.getPath(dagpath)
+            ik_joint = MFnIkJoint(dagpath)
+            joint_name = ik_joint.name()
+            for joint in self.joints:
+                if joint_name == joint.name:
+                    joint.dagpath = dagpath
+                    break
+            iterator.next()
+
+        # create joint if not existed
+        # set transform
         for joint in self.joints:
-            # create ik joint + name + transform
-            ik_joint = MFnIkJoint()
-            ik_joint.create()
-            ik_joint.setName(joint.name)
+            if joint.dagpath:
+                ik_joint = MFnIkJoint(joint.dagpath)
+            else:
+                ik_joint = MFnIkJoint()
+                ik_joint.create()
+                ik_joint.setName(joint.name)
+                # dagpath
+                joint.dagpath = MDagPath()
+                ik_joint.getPath(joint.dagpath)
+
             ik_joint.set(MTransform.compose(
                 joint.local_translation, joint.local_scale, joint.local_rotation, MSpace.kWorld
             ))
-
-            # get dag path
-            joint.dagpath = MDagPath()
-            ik_joint.getPath(joint.dagpath)
 
         # link parent
         for joint in self.joints:
             if joint.parent != -1:
                 parent_node = MFnDagNode(self.joints[joint.parent].dagpath)
-                parent_node.addChild(joint.dagpath.node())
+                child_node = joint.dagpath.node()
+                if not parent_node.isParentOf(child_node):
+                    parent_node.addChild(child_node)
 
     def dump(self, riot=None):
         # dump ik joint
@@ -1026,10 +1045,16 @@ class SKL:
                 # must be batman
                 joint.parent = -1
 
-        len1235 = len(self.joints)
-        if len1235 > 256:
+        # check limit joint
+        joint_count = len(self.joints)
+        if joint_count > 256:
             raise FunnyError(
-                f'[SKL.dump()]: Too many joints: {len1235}, max allowed: 256.')
+                f'[SKL.dump()]: Too many joints: {joint_count}, max allowed: 256.')
+
+        # remove namespace
+        for joint in self.joints:
+            if ':' in joint.name:
+                joint.name = joint.name.split(':')[-1]
 
     def write(self, path):
         with open(path, 'wb') as f:
@@ -1250,8 +1275,7 @@ class SKN:
                 vertex.position.x, vertex.position.y, vertex.position.z))
             u_values.append(vertex.uv.x)
             v_values.append(1.0 - vertex.uv.y)
-            normals.append(
-                MVector(vertex.normal.x, vertex.normal.y, vertex.normal.z))
+            normals.append(vertex.normal)
 
         poly_count = MIntArray(face_count, 3)
         poly_indices = MIntArray()
@@ -1441,7 +1465,6 @@ class SKN:
             raise FunnyError(
                 f'[SKN.dump({mesh.name()})]: Failed to find skin cluster, make sure you binded the skin.')
         skin_cluster = MFnSkinCluster(in_mesh_connections[0].node())
-
         # mask influence
         influences_dagpath = MDagPathArray()
         influence_count = skin_cluster.influenceObjects(influences_dagpath)
@@ -1548,13 +1571,17 @@ class SKN:
             shader_indices.append(MIntArray())
 
         # dump vertices
-        bad_vertices = MIntArray()
+        bad_vertices = MIntArray()  # for no UV vertex
+        bad_vertices2 = MIntArray()  # for no material vertex
         iterator = MItMeshVertex(mesh_dagpath)
         iterator.reset()
         while not iterator.isDone():
             index = iterator.index()
             shader = vertex_shaders[index]
             if shader == -1:
+                if index not in bad_vertices2:
+                    bad_vertices2.append(index)
+                iterator.next()
                 continue
 
             # position
@@ -1622,13 +1649,11 @@ class SKN:
 
                         # create SKNVertex - recreate pointer for safe
                         vertex = SKNVertex()
-                        vertex.position = MVector(
-                            position.x, position.y, position.z)
+                        vertex.position = MVector(position)
                         vertex.influences = influences
                         vertex.weights = temp_weights
-                        vertex.normal = MVector(
-                            normal.x, normal.y, normal.z)
-                        vertex.uv = MVector(uv.x, uv.y)
+                        vertex.normal = MVector(normal)
+                        vertex.uv = MVector(uv)
                         vertex.uv_index = uv_index
 
                         shader_vertices[shader].append(vertex)
@@ -1643,7 +1668,7 @@ class SKN:
         # show vertex with no UV assigned
         if bad_vertices.length() > 0:
             e = FunnyError(
-                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices with no UV assigned. Those vertices will be selected in scene. Try Edit Mesh -> Delete Edge/Vertex to delete those vertices, or assign uv to them.',
+                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices with no UV assigned. Try assign uv to them.',
                 consider=True
             )
             if e.cmd != FunnyError.ignore_button:
@@ -1660,6 +1685,27 @@ class SKN:
             else:
                 MGlobal.displayWarning(
                     f'[SKN.dump({mesh.name()})]: All vertices with no UV will be assigned new value: (0.0, 0.0)')
+
+        # show vertex with no material assigned
+        if bad_vertices2.length() > 0:
+            e = FunnyError(
+                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices2.length()} vertices with no material assigned. Those vertices will be selected in scene. Try assign material to them.',
+                consider=True
+            )
+            if e.cmd != FunnyError.ignore_button:
+                # select vertices with no material
+                component = MFnSingleIndexedComponent()
+                temp_component = component.create(MFn.kMeshVertComponent)
+                component.addElements(bad_vertices2)
+
+                temp_selections = MSelectionList()
+                temp_selections.add(
+                    mesh_dagpath, temp_component)
+                MGlobal.selectCommand(temp_selections)
+                raise e
+            else:
+                MGlobal.displayWarning(
+                    f'[SKN.dump({mesh.name()})]: All vertices with no material assigned will be ignored.')
 
         # idk what this block does, must be not important
         current_index = 0
@@ -1753,11 +1799,16 @@ class SKN:
             index_start += index_count
             vertex_start += vertex_count
 
-        # check max vertex/face
+        # check limit vertices
         vertices_count = max(self.indices)+1
         if vertices_count > 65536:
             raise FunnyError(
                 f'[SKN.dump({mesh.name()})]: Too many vertices: {vertices_count}, max allowed: 65536.')
+
+        # remove namespace
+        for submesh in self.submeshes:
+            if ':' in submesh.name:
+                submesh.name = submesh.name.split(':')[-1]
 
         # ay yo finally
 
@@ -1809,7 +1860,6 @@ class ANMPose:
 class ANMTrack:
     def __init__(self):
         self.joint_hash = None
-
         self.poses = {}
 
         # for loading
@@ -1911,19 +1961,14 @@ class ANM:
                     # decompress data and add to pose
                     transform_type = bits >> 14
                     if transform_type == 0:
-                        rotation = CTransform.Quat.decompress(
+                        pose.rotation = CTransform.Quat.decompress(
                             compressed_transform)
-                        pose.rotation = MQuaternion(
-                            rotation.x, rotation.y, rotation.z, rotation.w)
                     elif transform_type == 1:
-                        translation = CTransform.Vec.decompress(
+                        pose.translation = CTransform.Vec.decompress(
                             translation_min, translation_max, compressed_transform)
-                        pose.translation = MVector(
-                            translation.x, translation.y, translation.z)
                     elif transform_type == 2:
-                        scale = CTransform.Vec.decompress(
+                        pose.scale = CTransform.Vec.decompress(
                             scale_min, scale_max, compressed_transform)
-                        pose.scale = MVector(scale.x, scale.y, scale.z)
                     else:
                         raise FunnyError(
                             f'[ANM.read()]: Unknown compressed transform type: {transform_type}.'
@@ -2566,9 +2611,7 @@ class SO:
 
         u_values = MFloatArray()
         v_values = MFloatArray()
-        uv_indices = MIntArray()
         for i in range(0, index_count):
-            uv_indices.append(i)
             uv = self.uvs[i]
             u_values.append(uv.x)
             v_values.append(1.0 - uv.y)
@@ -2576,6 +2619,9 @@ class SO:
         poly_count = MIntArray(face_count, 3)
         poly_indices = MIntArray()
         MScriptUtil.createIntArrayFromList(self.indices, poly_indices)
+        uv_indices = MIntArray()
+        MScriptUtil.createIntArrayFromList(
+            list(range(0, index_count)), uv_indices)
 
         mesh = MFnMesh()
         mesh.create(
@@ -2617,25 +2663,20 @@ class SO:
 
         # use a joint for pivot
         if self.pivot:
-
             ik_joint = MFnIkJoint()
             ik_joint.create()
             ik_joint.setName(f'pivot_{self.name}')
-
             ik_joint.setTranslation(
                 self.central - self.pivot, MSpace.kTransform)
 
             # bind pivot with mesh
             pivot_dagpath = MDagPath()
             ik_joint.getPath(pivot_dagpath)
-
             mesh_dagpath = MDagPath()
             mesh.getPath(mesh_dagpath)
-
             selections = MSelectionList()
             selections.add(mesh_dagpath)
             selections.add(pivot_dagpath)
-
             MGlobal.selectCommand(selections)
             MGlobal.executeCommand(
                 f'skinCluster -mi 1 -tsb -n skinCluster_{self.name}')
@@ -4013,6 +4054,3 @@ def db():
     mg.read('D:/base_srx.mapgeo')
     mg.flip()
     mg.load(mgbin=mgbin)
-
-
-# db()

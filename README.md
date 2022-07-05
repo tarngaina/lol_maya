@@ -57,7 +57,8 @@ An attempt to update RiotFileTranslator to Maya 2023.
 5. Static object:
     - Static object in Maya scene: 
         - A single mesh has 1 material assigned.
-        - SCO only, optional: an additional pivot joint bound with mesh to set pivot point of SCO.
+        - Central point: translation of mesh transform oject.
+        - Pivot point - SCO only, optional: an additional pivot joint bound with mesh.
             
             ![](https://i.imgur.com/XZFvV3V.png)
     - Read:

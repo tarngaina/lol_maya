@@ -1,10 +1,8 @@
-from random import choice
-from struct import pack, unpack
-from math import sqrt, isclose
-
-from maya.OpenMayaMPx import *
-from maya.OpenMayaAnim import *
 from maya.OpenMaya import *
+from maya.OpenMayaAnim import *
+from maya.OpenMayaMPx import *
+from math import sqrt
+from struct import pack, unpack
 
 
 # maya file translator set up
@@ -2469,9 +2467,6 @@ class SO:
         # not actual vertex, its a position of vertex, no reason to create a class
         self.vertices = []
 
-        # bouding box for write scb + dump central point
-        self.bb = None
-
     def flip(self):
         for vertex in self.vertices:
             vertex.x *= -1.0
@@ -2640,9 +2635,9 @@ class SO:
         # name + central
         mesh.setName(self.name)
         mesh_name = mesh.name()
-        transform_node = MFnTransform(mesh.parent(0))
-        transform_node.setName(f'mesh_{self.name}')
-        transform_node.setTranslation(self.central, MSpace.kTransform)
+        transform = MFnTransform(mesh.parent(0))
+        transform.setName(f'mesh_{self.name}')
+        transform.setTranslation(self.central, MSpace.kTransform)
 
         # material
         # lambert material
@@ -2684,28 +2679,6 @@ class SO:
         mesh.updateSurface()
 
     def dump(self):
-        def get_bounding_box():
-            # totally not copied code
-            min = MVector(float('inf'), float('inf'), float('inf'))
-            max = MVector(float('-inf'), float('-inf'), float('-inf'))
-            for vertex in self.vertices:
-                if min.x > vertex.x:
-                    min.x = vertex.x
-                if min.y > vertex.y:
-                    min.y = vertex.y
-                if min.z > vertex.z:
-                    min.z = vertex.z
-                if max.x < vertex.x:
-                    max.x = vertex.x
-                if max.y < vertex.y:
-                    max.y = vertex.y
-                if max.z < vertex.z:
-                    max.z = vertex.z
-            return min, max
-
-        def get_central(bb):
-            return (bb[0] + bb[1]) / 2
-
         # get mesh
         selections = MSelectionList()
         MGlobal.getActiveSelectionList(selections)
@@ -2723,6 +2696,8 @@ class SO:
 
         # name
         self.name = mesh.name()
+        transform = MFnTransform(mesh.parent(0))
+        self.central = transform.getTranslation(MSpace.kTransform)
 
         # shader
         instance = 0
@@ -2753,14 +2728,8 @@ class SO:
         vertices = MFloatPointArray()
         mesh.getPoints(vertices, MSpace.kWorld)
         for i in range(0, vertex_count):
-            vertex = vertices[i]
-            self.vertices.append(MVector(
-                vertex.x, vertex.y, vertex.z
-            ))
-
-        # get bouding box + central point
-        self.bb = get_bounding_box()
-        self.central = get_central(self.bb)
+            position = MVector(vertices[i].x, vertices[i].y, vertices[i].z)
+            self.vertices.append(MVector(position - self.central))
 
         # find pivot through skin cluster
         in_mesh = mesh.findPlug('inMesh')
@@ -2855,6 +2824,26 @@ class SO:
             f.write('[ObjectEnd]')
 
     def write_scb(self, path):
+        # dump bb before flip
+        def get_bounding_box():
+            # totally not copied code
+            min = MVector(float('inf'), float('inf'), float('inf'))
+            max = MVector(float('-inf'), float('-inf'), float('-inf'))
+            for vertex in self.vertices:
+                if min.x > vertex.x:
+                    min.x = vertex.x
+                if min.y > vertex.y:
+                    min.y = vertex.y
+                if min.z > vertex.z:
+                    min.z = vertex.z
+                if max.x < vertex.x:
+                    max.x = vertex.x
+                if max.y < vertex.y:
+                    max.y = vertex.y
+                if max.z < vertex.z:
+                    max.z = vertex.z
+            return min, max
+
         with open(path, 'wb') as f:
             bs = BinaryStream(f)
 
@@ -2868,11 +2857,15 @@ class SO:
             bs.write_uint32(len(self.vertices))
             bs.write_uint32(face_count)
 
-            bs.write_uint32(0)  # flags - pad
+            # flags:
+            # 1 - vertex color
+            # 2 - local origin locator and pivot
+            bs.write_uint32(2)
 
             # bounding box
-            bs.write_vec3(self.bb[0])
-            bs.write_vec3(self.bb[1])
+            bb = get_bounding_box()
+            bs.write_vec3(bb[0])
+            bs.write_vec3(bb[1])
 
             bs.write_uint32(0)  # vertex color
 

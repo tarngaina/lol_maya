@@ -798,7 +798,6 @@ class SKL:
             magic = bs.read_uint32()
             if magic == 0x22FD4FC3:
                 # new skl data
-
                 version = bs.read_uint32()
                 if version != 0:
                     raise FunnyError(
@@ -807,11 +806,9 @@ class SKL:
                 bs.pad(2)  # flags
                 joint_count = bs.read_uint16()
                 influence_count = bs.read_uint32()
-
                 joints_offset = bs.read_int32()
                 bs.pad(4)  # joint indices offset
                 influences_offset = bs.read_int32()
-
                 # name offset, asset name offset, joint names offset, 5 reserved offset
                 bs.pad(4*8)
 
@@ -823,7 +820,9 @@ class SKL:
 
                         bs.pad(2+2)  # flag and id
                         joint.parent = bs.read_int16()  # cant be uint
-                        bs.pad(2+4+4)  # flag, joint hash, radius
+                        bs.pad(2)  # flags
+                        joint_hash = bs.read_uint32()
+                        bs.pad(4)  # radius
 
                         # local
                         joint.local_translation = bs.read_vec3()
@@ -839,14 +838,32 @@ class SKL:
                         return_offset = bs.tell()
                         bs.seek(return_offset - 4 + joint_name_offset)
                         joint.name = bs.read_zero_terminated_string()
+
+                        # skl convert 0.1 fix before return
+                        # (2 empty bytes asset name override on first joint)
+                        if i == 0 and joint.name == '':
+                            # pad 1 more
+                            bs.pad(1)
+                            # read the rest
+                            joint.name = bs.read_zero_terminated_string()
+
+                            # brute force unhash 2 letters
+                            found = False
+                            table = '_abcdefighjklmnopqrstuvwxyz'
+                            names = [
+                                a+b+joint.name for a in table for b in table]
+                            for name in names:
+                                if Hash.elf(name) == joint_hash:
+                                    joint.name = name.capitalize()
+                                    found = True
+                                    break
+
+                            if not found:
+                                MGlobal.displayWarning(
+                                    f'[SKL.load()]: {joint.name} is bad joint name, please rename it.')
+
                         bs.seek(return_offset)
-
                         self.joints.append(joint)
-
-                # fix: bad "..ot" -> should be "Root"
-                # caused by old skl convert app where it overide asset name offset on first 2 bytes of Root
-                if self.joints[0] == '':
-                    joint.name = 'Root'
 
                 # read influences
                 if influences_offset > 0 and influence_count > 0:
@@ -945,13 +962,12 @@ class SKL:
                 joint.local_translation, joint.local_scale, joint.local_rotation, MSpace.kWorld
             ))
 
-        # link parent
         for joint in self.joints:
-            if joint.parent != -1:
-                parent_node = MFnDagNode(self.joints[joint.parent].dagpath)
-                child_node = joint.dagpath.node()
-                if not parent_node.isParentOf(child_node):
-                    parent_node.addChild(child_node)
+            if joint.parent > -1:
+                parent_node = MFnIkJoint(self.joints[joint.parent].dagpath)
+                child_node = MFnIkJoint(joint.dagpath)
+                if not parent_node.isParentOf(child_node.object()):
+                    parent_node.addChild(child_node.object())
 
     def dump(self, riot=None):
         # dump ik joint
@@ -989,6 +1005,7 @@ class SKL:
             # for adding extra joint at the end of list
             flags = list([True] * joint_count)
 
+            # find riot joint in scene
             for riot_joint in riot.joints:
                 riot_joint_name = riot_joint.name.lower()
                 found = False
@@ -1015,7 +1032,7 @@ class SKL:
                     f'[SKL.dump(riot.skl)]: Successfully matched {new_joint_count} joints with riot.skl.')
 
             # add extra/addtional joints to the end of list
-            # layer weight for those joint will auto be 1
+            # animation layer weight value for those joint will auto be 1.0
             for i in range(0, joint_count):
                 if flags[i]:
                     new_joints.append(self.joints[i])
@@ -1026,6 +1043,7 @@ class SKL:
             # assign new list
             self.joints = new_joints
 
+        # link parent
         joint_count = len(self.joints)
         for joint in self.joints:
             ik_joint = MFnIkJoint(joint.dagpath)
@@ -2699,14 +2717,6 @@ class SO:
         transform = MFnTransform(mesh.parent(0))
         self.central = transform.getTranslation(MSpace.kTransform)
 
-        # shader
-        instance = 0
-        if mesh_dagpath.isInstanced():
-            instance = mesh_dagpath.instanceNumber()
-        shaders = MObjectArray()
-        shader_indices = MIntArray()
-        mesh.getConnectedShaders(instance, shaders, shader_indices)
-
         # check hole
         hole_info = MIntArray()
         hole_vertex = MIntArray()
@@ -2738,14 +2748,14 @@ class SO:
         if in_mesh_connections.length() > 0:
             if in_mesh_connections[0].node().apiType() == MFn.kSkinClusterFilter:
                 skin_cluster = MFnSkinCluster(in_mesh_connections[0].node())
-                influences_dag_path = MDagPathArray()
+                influences_dagpath = MDagPathArray()
                 influence_count = skin_cluster.influenceObjects(
-                    influences_dag_path)
+                    influences_dagpath)
                 if influence_count > 1:
                     raise FunnyError(
                         f'[SO.dump()]: There is more than 1 joint bound with mesh.')
 
-                ik_joint = MFnTransform(influences_dag_path[0])
+                ik_joint = MFnTransform(influences_dagpath[0])
                 translation = ik_joint.getTranslation(MSpace.kTransform)
                 self.pivot = self.central - translation
 
@@ -2779,15 +2789,26 @@ class SO:
                 index += 1
 
         # material name
+        instance = 0
+        if mesh_dagpath.isInstanced():
+            instance = mesh_dagpath.instanceNumber()
+        shaders = MObjectArray()
+        shader_indices = MIntArray()
+        mesh.getConnectedShaders(instance, shaders, shader_indices)
         if shaders.length() > 1:
             raise FunnyError(
                 '[SO.dump()]: There are more than 1 material assigned to this mesh.')
-        surface_shaders = MFnDependencyNode(
-            shaders[0]).findPlug('surfaceShader')
-        plug_array = MPlugArray()
-        surface_shaders.connectedTo(plug_array, True, False)
-        surface_shader = MFnDependencyNode(plug_array[0].node())
-        self.material = surface_shader.name()
+
+        if shaders.length() > 0:
+            surface_shaders = MFnDependencyNode(
+                shaders[0]).findPlug('surfaceShader')
+            plug_array = MPlugArray()
+            surface_shaders.connectedTo(plug_array, True, False)
+            surface_shader = MFnDependencyNode(plug_array[0].node())
+            self.material = surface_shader.name()
+        else:
+            # its only allow 1 material anyway
+            self.material = 'lambert'
 
     def write_sco(self, path):
         with open(path, 'w') as f:
@@ -2860,6 +2881,7 @@ class SO:
             # flags:
             # 1 - vertex color
             # 2 - local origin locator and pivot
+            # why 2? idk ¯\_(ツ)_/¯
             bs.write_uint32(2)
 
             # bounding box
@@ -3276,9 +3298,9 @@ class MAPGEO:
                     normal_indices
                 )
 
-                # dag_path and name
-                mesh_dag_path = MDagPath()
-                mesh.getPath(mesh_dag_path)
+                # dagpath and name
+                mesh_dagpath = MDagPath()
+                mesh.getPath(mesh_dagpath)
                 mesh.setName(model.name)
                 transform_node = MFnTransform(mesh.parent(0))
                 transform_node.setName(model.name)
@@ -3288,7 +3310,7 @@ class MAPGEO:
                     MSpace.kWorld
                 ))
 
-                model.mesh_dag_path = MDagPath(mesh_dag_path)
+                model.mesh_dagpath = MDagPath(mesh_dagpath)
                 meshes.append(mesh)
 
             # find render partition
@@ -3376,7 +3398,7 @@ class MAPGEO:
                         group_poly_indices.append(index)
                     component.addElements(group_poly_indices)
 
-                    set.addMember(model.mesh_dag_path, face_component)
+                    set.addMember(model.mesh_dagpath, face_component)
 
                     MGlobal.executeCommand(
                         f'shadingNode -asUtility blendColors -name "{model.name}__{submesh_name}_BC"')
@@ -3568,9 +3590,9 @@ class MAPGEO:
                     normal_indices
                 )
 
-                # dag_path and name
-                mesh_dag_path = MDagPath()
-                mesh.getPath(mesh_dag_path)
+                # dagpath and name
+                mesh_dagpath = MDagPath()
+                mesh.getPath(mesh_dagpath)
                 mesh.setName(model.name)
                 transform_node = MFnTransform(mesh.parent(0))
                 transform_node.setName(model.name)
@@ -3586,7 +3608,7 @@ class MAPGEO:
                     if model.layer[i] == '1':
                         layer_models[i].append(f'|{model.name}')
 
-                model.mesh_dag_path = MDagPath(mesh_dag_path)
+                model.mesh_dagpath = MDagPath(mesh_dagpath)
                 meshes.append(mesh)
 
             # set model to layers
@@ -3671,7 +3693,7 @@ class MAPGEO:
                         group_poly_indices.append(index)
                     component.addElements(group_poly_indices)
 
-                    set.addMember(model.mesh_dag_path, face_component)
+                    set.addMember(model.mesh_dagpath, face_component)
 
             # parsing the py and assign material attributes
             # little bit complicated
@@ -3800,9 +3822,9 @@ class MAPGEO:
                     normal_indices
                 )
 
-                # dag_path and name
-                mesh_dag_path = MDagPath()
-                mesh.getPath(mesh_dag_path)
+                # dagpath and name
+                mesh_dagpath = MDagPath()
+                mesh.getPath(mesh_dagpath)
                 mesh.setName(model.name)
                 transform_node = MFnTransform(mesh.parent(0))
                 transform_node.setName(model.name)
@@ -3813,7 +3835,7 @@ class MAPGEO:
                     MSpace.kWorld
                 ))
 
-                model.mesh_dag_path = MDagPath(mesh_dag_path)
+                model.mesh_dagpath = MDagPath(mesh_dagpath)
                 meshes.append(mesh)
 
             # find render partition
@@ -3891,7 +3913,7 @@ class MAPGEO:
                         group_poly_indices.append(index)
                     component.addElements(group_poly_indices)
 
-                    set.addMember(model.mesh_dag_path, face_component)
+                    set.addMember(model.mesh_dagpath, face_component)
 
             # parsing the py and assign material attributes
             # little bit complicated

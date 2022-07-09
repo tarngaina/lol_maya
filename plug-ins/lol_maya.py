@@ -3,6 +3,7 @@ from maya.OpenMayaAnim import *
 from maya.OpenMayaMPx import *
 from math import sqrt
 from struct import pack, unpack
+from random import choice
 
 
 # maya file translator set up
@@ -848,19 +849,22 @@ class SKL:
                             joint.name = bs.read_zero_terminated_string()
 
                             # brute force unhash 2 letters
-                            found = False
+                            founds = []
                             table = '_abcdefighjklmnopqrstuvwxyz'
                             names = [
                                 a+b+joint.name for a in table for b in table]
                             for name in names:
                                 if Hash.elf(name) == joint_hash:
-                                    joint.name = name.capitalize()
-                                    found = True
-                                    break
+                                    founds.append(name.capitalize())
 
-                            if not found:
+                            if len(founds) == 1:
+                                joint.name = founds[0]
+                            else:
+                                msg = ' Sugest name: ' + \
+                                    ', '.join(founds) if len(
+                                        founds) > 1 else ''
                                 MGlobal.displayWarning(
-                                    f'[SKL.load()]: {joint.name} is bad joint name, please rename it.')
+                                    f'[SKL.load()]: {joint.name} is bad joint name, please rename it.{msg}')
 
                         bs.seek(return_offset)
                         self.joints.append(joint)

@@ -24,8 +24,8 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - To export: select the mesh -> use export selection.
         - `33 22 11 00`: V1
         - Add check for limit vertices: 65536 
+        - Add check for history changed on skin cluster node.1.5.7
         - When run into the error: vertices have 4+ influences, those vertices will be selected in scene.
-        - When run into the error: vertices have no uv assigned, those vertices will be selected in scene.
         - When run into the error: vertices have no material assigned, those vertices will be selected in scene.
 3. SKL:
     - Read: 

@@ -506,7 +506,7 @@ def uninitializePlugin(obj):
 
 # helper functions and structures
 class FunnyError(Exception):
-    ignore_button = 'Ignore (auto fix error - not recommended)'
+    ignore_button = 'Ignore'
 
     def __init__(self, message, consider=None):
         self.consider = consider
@@ -518,12 +518,14 @@ class FunnyError(Exception):
             temp = message.split(']: ')
             title = temp[0][1:] + ':'
             message = temp[1]
+        message = repr(message)[1:-1]
         button = choice(
             ['UwU', '<(\")', 'ok boomer', 'funny man', 'jesus', 'bruh',
              'stop', 'get some help', 'haha', 'lmao', 'ay yo', 'SUS', 'sOcIEtY.'])
         dialog = f'confirmDialog -title "{title}" -message "{message}" -button "{button}" -icon "critical"  -defaultButton "{button}"'
         if self.consider:
             dialog += f' -button "{FunnyError.ignore_button}"'
+
         return MGlobal.executeCommandStringResult(dialog)
 
 
@@ -1069,7 +1071,7 @@ class SKL:
         joint_count = len(self.joints)
         if joint_count > 256:
             raise FunnyError(
-                f'[SKL.dump()]: Too many joints: {joint_count}, max allowed: 256.')
+                f'[SKL.dump()]: Too many joints found: {joint_count}, max allowed: 256 joints.')
 
         # remove namespace
         for joint in self.joints:
@@ -1431,7 +1433,7 @@ class SKN:
         iterator.next()
         if not iterator.isDone():
             raise FunnyError(
-                f'[SKN.dump()]: More than 1 mesh selected., combine all meshes if you have mutiple meshes.')
+                f'[SKN.dump()]: More than 1 mesh selected, combine all meshes if you have mutiple meshes.')
         mesh = MFnMesh(mesh_dagpath)
 
         # get shaders
@@ -1464,7 +1466,7 @@ class SKN:
             shader_index = poly_shaders[index]
             if shader_index == -1:
                 raise FunnyError(
-                    f'[SKN.dump({mesh.name()})]: Mesh contains a face with no material, make sure you assigned material.')
+                    f'[SKN.dump({mesh.name()})]: Mesh contains a face with no material assigned, make sure you assigned material to all faces.')
 
             vertices = MIntArray()
             iterator.getVertices(vertices)
@@ -1472,7 +1474,7 @@ class SKN:
             for i in range(0, len69):
                 if shader_count > 1 and vertex_shaders[vertices[i]] not in [-1, shader_index]:
                     raise FunnyError(
-                        f'[SKN.dump({mesh.name()})]: Mesh contains a vertex with multiple shaders, re-assign a single material to this mesh.')
+                        f'[SKN.dump({mesh.name()})]: Mesh contains a vertex with multiple materials assigned.')
                 vertex_shaders[vertices[i]] = shader_index
 
             iterator.next()
@@ -1481,10 +1483,20 @@ class SKN:
         in_mesh = mesh.findPlug('inMesh')
         in_mesh_connections = MPlugArray()
         in_mesh.connectedTo(in_mesh_connections, True, False)
-        if in_mesh_connections.length() == 0:
+        if in_mesh_connections.length() > 0:
+            if in_mesh_connections[0].node().apiType() != MFn.kSkinClusterFilter:
+                raise FunnyError((
+                    f'[SKN.dump({mesh.name()})]: History changed on the skin cluster.\n'
+                    'Try one of following methods to fix it:\n'
+                    '1. Delete non-Deformer history.\n'
+                    '2. Export as FBX -> New scene -> Import FBX in -> Export as SKN\n'
+                    '3. Save scene -> Unbind skin -> Delete all history -> Rebind skin -> Copy weight back.'
+                ))
+        else:
             raise FunnyError(
-                f'[SKN.dump({mesh.name()})]: Failed to find skin cluster, make sure you binded the skin.')
+                f'[SKN.dump({mesh.name()})]: No skin cluster found, make sure you bound the skin.')
         skin_cluster = MFnSkinCluster(in_mesh_connections[0].node())
+
         # mask influence
         influences_dagpath = MDagPathArray()
         influence_count = skin_cluster.influenceObjects(influences_dagpath)
@@ -1492,7 +1504,6 @@ class SKN:
         joint_count = len(skl.joints)
         for i in range(0, influence_count):
             dagpath = influences_dagpath[i]
-
             for j in range(0, joint_count):
                 if dagpath == skl.joints[j].dagpath:
                     mask_influence[i] = j
@@ -1560,9 +1571,11 @@ class SKN:
         if bad_vertices.length() > 0:
             e = FunnyError(
                 (
-                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices that have weight on 4+ influences. '
-                    'Those vertices will be selected in scene. '
-                    'Try: repaint weight, or prune small weights.'
+                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices that have weight on 4+ influences, those vertices will be selected in scene.\n'
+                    'Try one of following methods to fix it:\n'
+                    '1. Repaint weight on those vertices\n'
+                    '2. Prune small weights.\n'
+                    '3. Ignore = auto fit all weights to 4 influences. (not recommended)'
                 ),
                 consider=True
             )
@@ -1591,7 +1604,6 @@ class SKN:
             shader_indices.append(MIntArray())
 
         # dump vertices
-        bad_vertices = MIntArray()  # for no UV vertex
         bad_vertices2 = MIntArray()  # for no material vertex
         iterator = MItMeshVertex(mesh_dagpath)
         iterator.reset()
@@ -1645,17 +1657,8 @@ class SKN:
                     uv_index = uv_indices[j]
                     if not uv_index in seen:
                         if uv_index == -1:
-                            # this is sure a weird problem
-                            # so basically there are no UV assigned on this vertex
-                            # only use 0, 0 value for them, idk
-                            component = MFnSingleIndexedComponent(
-                                iterator.currentItem())
-                            temp_bad_vertices = MIntArray()
-                            component.getElements(temp_bad_vertices)
-                            for vertex in temp_bad_vertices:
-                                if vertex not in bad_vertices:
-                                    bad_vertices.append(vertex)
-                            uv = MVector(0.0, 0.0)
+                            raise FunnyError(
+                                f'[SKN.dump({mesh.name()})]: Mesh contains an index with no UV assigned.')
                         else:
                             u_util = MScriptUtil()  # lay trua tren cao, turn down for this
                             u_ptr = u_util.asFloatPtr()
@@ -1685,31 +1688,13 @@ class SKN:
                     f'[SKN.dump({mesh.name()})]: Mesh contains a vertex with no UVs.')
             iterator.next()
 
-        # show vertex with no UV assigned
-        if bad_vertices.length() > 0:
-            e = FunnyError(
-                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices with no UV assigned. Try assign uv to them.',
-                consider=True
-            )
-            if e.cmd != FunnyError.ignore_button:
-                # select vertices with no UV
-                component = MFnSingleIndexedComponent()
-                temp_component = component.create(MFn.kMeshVertComponent)
-                component.addElements(bad_vertices)
-
-                temp_selections = MSelectionList()
-                temp_selections.add(
-                    mesh_dagpath, temp_component)
-                MGlobal.selectCommand(temp_selections)
-                raise e
-            else:
-                MGlobal.displayWarning(
-                    f'[SKN.dump({mesh.name()})]: All vertices with no UV will be assigned new value: (0.0, 0.0)')
-
         # show vertex with no material assigned
         if bad_vertices2.length() > 0:
             e = FunnyError(
-                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices2.length()} vertices with no material assigned. Those vertices will be selected in scene. Try assign material to them.',
+                (
+                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices2.length()} vertices with no material assigned, those vertices will be selected in scene.\n'
+                    'Try assign material to them or ignore (not recommended).'
+                ),
                 consider=True
             )
             if e.cmd != FunnyError.ignore_button:
@@ -1823,7 +1808,7 @@ class SKN:
         vertices_count = max(self.indices)+1
         if vertices_count > 65536:
             raise FunnyError(
-                f'[SKN.dump({mesh.name()})]: Too many vertices: {vertices_count}, max allowed: 65536.')
+                f'[SKN.dump({mesh.name()})]: Too many vertices found: {vertices_count}, max allowed: 65536 vertices.')
 
         # remove namespace
         for submesh in self.submeshes:

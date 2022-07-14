@@ -171,10 +171,16 @@ class ANMTranslator(MPxFileTranslator):
         path = file.expandedFullName()
         if not path.endswith('.anm'):
             path += '.anm'
+
+        # auto delete channel data before load
+        delchannel = False
+        if 'delchannel=0' not in options:
+            delchannel = True
+
         anm = ANM()
         anm.read(path)
         anm.flip()
-        anm.load()
+        anm.load(delchannel)
         return True
 
     def writer(self, file, options, access):
@@ -310,7 +316,7 @@ class MAPGEOTranslator(MPxFileTranslator):
         return True
 
     def haveWriteMethod(self):
-        return True
+        return False
 
     def canBeOpened(self):
         return False
@@ -346,13 +352,13 @@ class MAPGEOTranslator(MPxFileTranslator):
         return True
 
     def writer(self, file, options, access):
-        return True
+        return False
 
 
 # plugin register
 def initializePlugin(obj):
     # totally not copied code
-    plugin = MFnPlugin(obj, 'tarngaina', '1.0')
+    plugin = MFnPlugin(obj, 'tarngaina', '2.0')
     try:
         plugin.registerFileTranslator(
             SKNTranslator.name,
@@ -397,8 +403,8 @@ def initializePlugin(obj):
             ANMTranslator.name,
             None,
             ANMTranslator.creator,
-            None,
-            None,
+            'ANMTranslatorOpts',
+            'delchannel=1',
             True
         )
     except Exception as e:
@@ -506,11 +512,8 @@ def uninitializePlugin(obj):
 
 # helper functions and structures
 class FunnyError(Exception):
-    ignore_button = 'Ignore'
-
-    def __init__(self, message, consider=None):
-        self.consider = consider
-        self.cmd = self.show(message)
+    def __init__(self, message):
+        self.show(message)
 
     def show(self, message):
         title = 'Error:'
@@ -522,11 +525,8 @@ class FunnyError(Exception):
         button = choice(
             ['UwU', '<(\")', 'ok boomer', 'funny man', 'jesus', 'bruh',
              'stop', 'get some help', 'haha', 'lmao', 'ay yo', 'SUS', 'sOcIEtY.'])
-        dialog = f'confirmDialog -title "{title}" -message "{message}" -button "{button}" -icon "critical"  -defaultButton "{button}"'
-        if self.consider:
-            dialog += f' -button "{FunnyError.ignore_button}"'
-
-        return MGlobal.executeCommandStringResult(dialog)
+        MGlobal.executeCommandStringResult(
+            f'confirmDialog -title "{title}" -message "{message}" -button "{button}" -icon "critical"  -defaultButton "{button}"')
 
 
 # for read/write file in a binary way
@@ -691,9 +691,8 @@ class CTransform:
             res += min
             return MVector(res)
 
+
 # for set skl joint transform (transformation matrix)
-
-
 class MTransform():
     def decompose(transform, space):
         # get translation, scale and rotation (quaternion) out of transformation matrix
@@ -1490,7 +1489,7 @@ class SKN:
                     'Try one of following methods to fix it:\n'
                     '1. Delete non-Deformer history.\n'
                     '2. Export as FBX -> New scene -> Import FBX in -> Export as SKN\n'
-                    '3. Save scene -> Unbind skin -> Delete all history -> Rebind skin -> Copy weight back.'
+                    '3. Save scene + weight -> Unbind skin -> Delete all history -> Rebind skin -> Copy weight back.'
                 ))
         else:
             raise FunnyError(
@@ -1569,30 +1568,23 @@ class SKN:
                     weights[i * weight_influence_count + j] /= weight_sum
 
         if bad_vertices.length() > 0:
-            e = FunnyError(
-                (
-                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices that have weight on 4+ influences, those vertices will be selected in scene.\n'
-                    'Try one of following methods to fix it:\n'
-                    '1. Repaint weight on those vertices\n'
-                    '2. Prune small weights.\n'
-                    '3. Ignore = auto fit all weights to 4 influences. (not recommended)'
-                ),
-                consider=True
-            )
-            if e.cmd != FunnyError.ignore_button:
-                # select 4+ influences vertices
-                component = MFnSingleIndexedComponent()
-                temp_component = component.create(
-                    MFn.kMeshVertComponent)
-                component.addElements(bad_vertices)
+            # select 4+ influences vertices
+            component = MFnSingleIndexedComponent()
+            temp_component = component.create(
+                MFn.kMeshVertComponent)
+            component.addElements(bad_vertices)
 
-                temp_selections = MSelectionList()
-                temp_selections.add(mesh_dagpath, temp_component)
-                MGlobal.selectCommand(temp_selections)
-                raise e
-            else:
-                MGlobal.displayWarning(
-                    f'[SKN.dump({mesh.name()})]: All vertices weights will be re-calculated to fit 4 influences.')
+            temp_selections = MSelectionList()
+            temp_selections.add(mesh_dagpath, temp_component)
+            MGlobal.selectCommand(temp_selections)
+
+            raise FunnyError((
+                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices that have weight on 4+ influences, those vertices will be selected in scene.\n'
+                'Try one of following methods to fix it:\n'
+                '1. Repaint weight on those vertices\n'
+                '2. Prune small weights.\n'
+                '3. Try button auto fix 4 influences on plugin shelf. (not recommended)'
+            ))
 
         # init some important thing
         shader_vertex_indices = []
@@ -1690,27 +1682,20 @@ class SKN:
 
         # show vertex with no material assigned
         if bad_vertices2.length() > 0:
-            e = FunnyError(
-                (
-                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices2.length()} vertices with no material assigned, those vertices will be selected in scene.\n'
-                    'Try assign material to them or ignore (not recommended).'
-                ),
-                consider=True
-            )
-            if e.cmd != FunnyError.ignore_button:
-                # select vertices with no material
-                component = MFnSingleIndexedComponent()
-                temp_component = component.create(MFn.kMeshVertComponent)
-                component.addElements(bad_vertices2)
+            # select vertices with no material
+            component = MFnSingleIndexedComponent()
+            temp_component = component.create(MFn.kMeshVertComponent)
+            component.addElements(bad_vertices2)
 
-                temp_selections = MSelectionList()
-                temp_selections.add(
-                    mesh_dagpath, temp_component)
-                MGlobal.selectCommand(temp_selections)
-                raise e
-            else:
-                MGlobal.displayWarning(
-                    f'[SKN.dump({mesh.name()})]: All vertices with no material assigned will be ignored.')
+            temp_selections = MSelectionList()
+            temp_selections.add(
+                mesh_dagpath, temp_component)
+            MGlobal.selectCommand(temp_selections)
+
+            raise FunnyError((
+                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices2.length()} vertices with no material assigned, those vertices will be selected in scene.\n'
+                'Try assign material to them.'
+            ))
 
         # idk what this block does, must be not important
         current_index = 0
@@ -2178,7 +2163,7 @@ class ANM:
                 raise FunnyError(
                     f'[ANM.read()]: Wrong signature file: {magic}')
 
-    def load(self):
+    def load(self, delchannel=True):
         # track of data joints that found in scene
         scene_tracks = []
 
@@ -2212,7 +2197,8 @@ class ANM:
                 '[ANM.load()]: No data joints found in scene, please import SKL if joints are not in scene.')
 
         # delete all channel data
-        MGlobal.executeCommand('delete -all -c')
+        if delchannel:
+            MGlobal.executeCommand('delete -all -c')
 
         # ensure scene fps
         # this only ensure the "import scene", not the "opening/existing scene" in maya, to make this work:
@@ -2229,8 +2215,7 @@ class ANM:
 
         # bind current pose to frame 0 - very helpful if its bind pose
         MGlobal.executeCommand(f'currentTime 0')
-        joint_names = ' '.join(
-            [track.joint_name for track in scene_tracks])
+        joint_names = ' '.join([track.joint_name for track in scene_tracks])
         MGlobal.executeCommand(
             f'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0 -at translateX -at translateY -at translateZ -at scaleX -at scaleY -at scaleZ -at rotateX -at rotateY -at rotateZ {joint_names}')
 
@@ -2460,6 +2445,7 @@ class ANM:
             bs.write_uint32(fsize)
 
 
+# static object - sco/scb
 class SO:
     def __init__(self):
         self.name = None
@@ -2728,7 +2714,7 @@ class SO:
         mesh.getPoints(vertices, MSpace.kWorld)
         for i in range(0, vertex_count):
             position = MVector(vertices[i].x, vertices[i].y, vertices[i].z)
-            self.vertices.append(MVector(position - self.central))
+            self.vertices.append(position)
 
         # find pivot through skin cluster
         in_mesh = mesh.findPlug('inMesh')
@@ -2827,7 +2813,7 @@ class SO:
                 f.write(f'\t{self.material:>20}\t')
                 f.write(f'{self.uvs[index].x:.12f} {self.uvs[index].y:.12f} ')
                 f.write(
-                    f'{self.uvs[index+1].x:.12f} {self.uvs[index+2].y:.12f} ')
+                    f'{self.uvs[index+1].x:.12f} {self.uvs[index+1].y:.12f} ')
                 f.write(
                     f'{self.uvs[index+2].x:.12f} {self.uvs[index+2].y:.12f}\n')
 
@@ -2906,7 +2892,7 @@ class SO:
                 bs.write_float(self.uvs[index+2].y)
 
 
-# test map geo
+# mapgeo
 class MAPGEOVertexElement:
     def __init__(self):
         """
@@ -3967,9 +3953,6 @@ class MAPGEO:
         """
         load_diffuse()
 
-# sorry its a py instead
-# probaly need a sub class
-
 
 class MAPGEOMaterial():
     def __init__(self):
@@ -3979,6 +3962,7 @@ class MAPGEOMaterial():
         self.incandescence = None
 
 
+# sorry its a py instead
 class MAPGEOBin():
     def __init__(self):
         self.path = None  # this is the dynamic parent path of assets
@@ -4047,14 +4031,3 @@ class MAPGEOBin():
                             colors[1]), float(colors[2]))
                         material.ambient = material.color
                 self.materials[material.name] = material
-
-
-def db():
-    mgbin = MAPGEOBin()
-    mgbin.read('D:/base_srx.materials.py')
-    # for path in mgbin.textures:
-    #    print(path, mgbin.textures[path])
-    mg = MAPGEO()
-    mg.read('D:/base_srx.mapgeo')
-    mg.flip()
-    mg.load(mgbin=mgbin)

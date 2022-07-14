@@ -1,0 +1,455 @@
+global proc shelf_LoLMaya () {
+    global string $gBuffStr;
+    global string $gBuffStr0;
+    global string $gBuffStr1;
+
+
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Moves selected uv to top left corner and makes it half the size." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "UV Top Left" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/sq1.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/sq1.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "polyEditUV -pu 0.5 -pv 0.5 -su 0.5 -sv 0.5;\npolyEditUV -u -0.25 -v 0.25 ;\nprint \"Done\"" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Moves selected uv to top right corner and makes it half the size." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "UV Top Right" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/sq2.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/sq2.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "polyEditUV -pu 0.5 -pv 0.5 -su 0.5 -sv 0.5;\npolyEditUV -u 0.25 -v 0.25 ;\nprint \"Done\"" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Moves selected uv to bottom left corner and makes it half the size." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "UV Bottom Left" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/sq3.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/sq3.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "polyEditUV -pu 0.5 -pv 0.5 -su 0.5 -sv 0.5;\npolyEditUV -u -0.25 -v -0.25 ;\nprint \"Done\"" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Moves selected uv to bottom right corner and makes it half the size." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "UV Bottom Right" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/sq4.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/sq4.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "polyEditUV -pu 0.5 -pv 0.5 -su 0.5 -sv 0.5;\npolyEditUV -u 0.25 -v -0.25 ;\nprint \"Done\"" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    separator
+        -enable 1
+        -width 34
+        -height 35
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -style "shelf" 
+        -horizontal 0
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Set current pose as bind pose." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Set bindPose" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/setbp.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/setbp.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya import mel\n\nbps = cmds.dagPose(q=True, bp=True)\nif bps:\n    joints = cmds.dagPose(bps[0], q=True, m=True)\n    for j in joints:\n        cmds.dagPose(j, rs=True, name=bps[0])\n            \nmel.eval('print \"Done\"')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Mirror selected joint A with selected joint B." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Mirror joint" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/mirror.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/mirror.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "string $selCtrl[] = `ls -sl`;\n//Get the rotation values\n\nfloat $srcRX = `getAttr ($selCtrl[0] + \".rx\")`;\nfloat $srcRY = `getAttr ($selCtrl[0] + \".ry\")`;\nfloat $srcRZ = `getAttr ($selCtrl[0] + \".rz\")`;\n\n\n//paste into select values\n$srcRX = $srcRX*-1;\nsetAttr ($selCtrl[1] + \".rx\") $srcRX;\n\nif ( $srcRX == -180){\n\tsetAttr ($selCtrl[1] + \".rx\") 0;\n} else if ( $srcRX == 0){\n\tsetAttr ($selCtrl[1] + \".rx\") -180;\n}\n\n$srcRY = $srcRY*-1;\nsetAttr ($selCtrl[1] + \".ry\") $srcRY;\n\n\nsetAttr ($selCtrl[1] + \".rz\") $srcRZ;\n\nprint \"Done\"" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    separator
+        -enable 1
+        -width 12
+        -height 35
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -style "shelf" 
+        -horizontal 0
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Add a temporary namespace to selected objects." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Add namespace" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/qna.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/qna.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya import mel\n\nobjects = cmds.ls(sl = True)\nfor obj in objects:\n    old = obj\n    if 'Fake_namespace_' not in old:\n        new = 'Fake_namespace_' + old\n        cmds.rename(old, new)\n\nmel.eval('print \"Done\"')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Remove temporary namespace on selected objects." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Remove namespace" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/qnd.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/qnd.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya import mel\n\nobjects = cmds.ls(sl = True)\nfor obj in objects:\n    old = obj\n    if 'Fake_namespace_' in old:\n        new = old.replace('Fake_namespace_', '')\n        cmds.rename(old, new)\n    elif ':' in old:\n        new = old.split(':')[1]\n        cmds.rename(old, new)\n\nmel.eval('print \"Done\"')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    separator
+        -enable 1
+        -width 12
+        -height 35
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -style "shelf" 
+        -horizontal 0
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Delete all history." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Delete all history" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/dh.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/dh.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "DeleteAllHistory;\nprint \"Done\";" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Delete unused node in Hypershade." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Hypershade Delete unused node" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/hsdelete.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/hsdelete.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "MLdeleteUnused;\nprint \"Done\";" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Unbind, delete history, rebind on a selected skin cluster." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Rebind" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/rebind.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/rebind.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\n# get mesh in selections\nselections = MSelectionList()\nMGlobal.getActiveSelectionList(selections)\niterator = MItSelectionList(selections, MFn.kMesh)\nif iterator.isDone():\n    raise FunnyError(f'[SKN.dump()]: Please select a mesh.')\nmesh_dagpath = MDagPath()\niterator.getDagPath(mesh_dagpath)  # get first mesh\niterator.next()\nif not iterator.isDone():\n    raise FunnyError(\n        f'[SKN.dump()]: More than 1 mesh selected., combine all meshes if you have mutiple meshes.')\nmesh = MFnMesh(mesh_dagpath)\nmesh_name = mesh.name()\nvertices_num = mesh.numVertices()\n\n# find skin cluster\niterator = MItDependencyGraph(\n    mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\nif iterator.isDone():\n    raise Exception('Failed to find skin cluster.')\nskin_cluster = MFnSkinCluster(iterator.currentItem())\n\n# get weights\ncomponent = MFnSingleIndexedComponent()\nvertex_component = component.create(MFn.kMeshVertComponent)\nvertex_indices = MIntArray()\nMScriptUtil.createIntArrayFromList(\n    list(range(0, vertices_num)), vertex_indices)\ncomponent.addElements(vertex_indices)\nweights = MDoubleArray()\nutil = MScriptUtil()\nptr = util.asUintPtr()\nskin_cluster.getWeights(mesh_dagpath, vertex_component, weights, ptr)\n\n# get influence\ninfluences_dagpath = MDagPathArray()\nskin_cluster.influenceObjects(influences_dagpath)\ninfluence_count = influences_dagpath.length()\n\n# unbind\nMGlobal.executeCommand(f'skinCluster -e  -ub {mesh_name}')\nMGlobal.executeCommand('DeleteAllHistory')\n\n# rebind\nselections = MSelectionList()\nselections.add(mesh_dagpath)\nfor i in range(0, influence_count):\n    selections.add(influences_dagpath[i])\nMGlobal.selectCommand(selections)\nMGlobal.executeCommand(f'skinCluster -mi 4 -tsb -n {mesh_name}_skinCluster')\n\n# get created skincluster\niterator = MItDependencyGraph(\n    mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\nif iterator.isDone():\n    raise Exception('Failed to find created skin cluster.')\nskin_cluster = MFnSkinCluster(iterator.currentItem())\n\n# get influences mask (influences indices)\nnew_influences_dagpath = MDagPathArray()\nskin_cluster.influenceObjects(new_influences_dagpath)\nmask_influence = MIntArray(influence_count)\nfor i in range(0, influence_count):\n    for j in range(0, influence_count):\n        if new_influences_dagpath[i] == influences_dagpath[j]:\n            mask_influence[i] = j\n            break\n\n# set weights\nMGlobal.executeCommand(f'setAttr {mesh_name}_skinCluster.normalizeWeights 0')\nskin_cluster.setWeights(mesh_dagpath, vertex_component,\n                        mask_influence, weights, False)\nMGlobal.executeCommand(f'setAttr {mesh_name}_skinCluster.normalizeWeights 1')\nMGlobal.executeCommand(\n    f'skinPercent -normalize true {mesh_name}_skinCluster {mesh_name}')\n\nMGlobal.displayInfo('Done')\n" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Prune weights to fit max 4 influences on vertices on selected skin cluster." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "4 Influence fix" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/four.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/four.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\n# get mesh in selections\nselections = MSelectionList()\nMGlobal.getActiveSelectionList(selections)\niterator = MItSelectionList(selections, MFn.kMesh)\nif iterator.isDone():\n    raise Exception(f'Please select a mesh.')\nmesh_dagpath = MDagPath()\niterator.getDagPath(mesh_dagpath)  # get first mesh\niterator.next()\nif not iterator.isDone():\n    raise Exception(\n        f'More than 1 mesh selected., combine all meshes if you have mutiple meshes.')\nmesh = MFnMesh(mesh_dagpath)\nmesh_name = mesh.name()\nvertices_num = mesh.numVertices()\n\n# find skin cluster node upstream - bypass history node\niterator = MItDependencyGraph(\n    mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\nif iterator.isDone():\n    raise Exception('Failed to find created skin cluster.')\nskin_cluster = MFnSkinCluster(iterator.currentItem())\nskin_cluster_name = skin_cluster.name()\n\n# get weights\ncomponent = MFnSingleIndexedComponent()\nvertex_component = component.create(MFn.kMeshVertComponent)\nvertex_indices = MIntArray()\nMScriptUtil.createIntArrayFromList(\n    list(range(0, vertices_num)), vertex_indices)\ncomponent.addElements(vertex_indices)\nweights = MDoubleArray()\nutil = MScriptUtil()\nptr = util.asUintPtr()\nskin_cluster.getWeights(mesh_dagpath, vertex_component, weights, ptr)\nweight_influence_count = util.getUint(ptr)\n\n# fix 4 influence weights\nfor i in range(0, vertices_num):\n    found_weights = []\n    inf_count = 0\n\n    for j in range(0, weight_influence_count):\n        weight = weights[i * weight_influence_count + j]\n        if weight > 0:\n            inf_count += 1\n            found_weights.append((weight, j))\n\n    if inf_count > 4:\n        # get sorted weights + influence\n        found_weights = sorted(\n            found_weights, key=lambda f: f[0], reverse=True)\n\n        # 4 highest weights\n        high_weights = found_weights[:4]\n        # the rest small weights\n        low_weights = found_weights[4:]\n\n        # sum all low weights and remove them\n        low_sum = 0.0\n        for weight, influence in low_weights:\n            low_sum += weight\n            weights[i * weight_influence_count + influence] = 0.0\n\n        # distributed low weights to high weights + re calculate weight sum for normalize\n        low_sum /= 4\n        weight_sum = 0.0\n        for weight, influence in high_weights:\n            weights[i * weight_influence_count + influence] += low_sum\n\n# set weights back\nMGlobal.executeCommand(f'setAttr {skin_cluster_name}.normalizeWeights 0')\nmask_influence = MIntArray()\nMScriptUtil.createIntArrayFromList(\n    list(range(0, weight_influence_count)), mask_influence)\nskin_cluster.setWeights(mesh_dagpath, vertex_component,\n                        mask_influence, weights, False)\nMGlobal.executeCommand(f'setAttr {skin_cluster_name}.normalizeWeights 1')\nMGlobal.executeCommand(\n    f'skinPercent -normalize true {skin_cluster_name} {mesh_name}')\n\nMGlobal.displayInfo('Done')\n" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+
+} 

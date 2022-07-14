@@ -3,7 +3,7 @@ global proc int SKNTranslatorOpts (string $parent, string $action, string $initi
 	if ($action == "post") {
 	    setParent $parent;
 	    formLayout form;
-        checkBox -label "Import as skin cluster (load SKL in same directory)" skl;
+        checkBox -label "Import skeleton: load SKL in same directory and bind with SKN as skin cluster." skl;
         formLayout -e -attachPosition skl left 0 0 -attachPosition skl right 0 0 -attachPosition skl top 0 0 form;
                     
 		string	$temp[];

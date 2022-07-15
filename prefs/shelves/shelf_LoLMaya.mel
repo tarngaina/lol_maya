@@ -14,6 +14,352 @@ global proc shelf_LoLMaya () {
         -manage 1
         -visible 1
         -preventOverride 0
+        -annotation "Add the file to the current scene" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Import..." 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/imp.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/imp.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "Import" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Export entire scene (including contents of all references) into one file" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Export All..." 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/exp.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/exp.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "Export" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Export selected objects (and related info) to a new file" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Export Selection..." 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/expsl.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/expsl.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "ExportSelection" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    separator
+        -enable 1
+        -width 12
+        -height 35
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -style "shelf" 
+        -horizontal 0
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Delete unused node in Hypershade." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Hypershade Delete unused node" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/hsdelete.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/hsdelete.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "MLdeleteUnused;\nprint \"Done\";" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Delete all history." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Delete all history" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/dh.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/dh.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "DeleteAllHistory;\nprint \"Done\";" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Delete all non-deformer history." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Non-Deformer History" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "NonDef" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 1 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/dh.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/dh.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "BakeAllNonDefHistory" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    separator
+        -enable 1
+        -width 12
+        -height 35
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -style "shelf" 
+        -horizontal 0
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Add a temporary namespace to selected objects." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Add namespace" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/qna.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/qna.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya import mel\n\nobjects = cmds.ls(sl = True)\nfor obj in objects:\n    old = obj\n    if 'Fake_namespace_' not in old:\n        new = 'Fake_namespace_' + old\n        cmds.rename(old, new)\n\nmel.eval('print \"Done\"')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Remove temporary namespace on selected objects." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Remove namespace" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/qnd.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/qnd.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya import mel\n\nobjects = cmds.ls(sl = True)\nfor obj in objects:\n    old = obj\n    if 'Fake_namespace_' in old:\n        new = old.replace('Fake_namespace_', '')\n        cmds.rename(old, new)\n    elif ':' in old:\n        new = old.split(':')[1]\n        cmds.rename(old, new)\n\nmel.eval('print \"Done\"')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    separator
+        -enable 1
+        -width 12
+        -height 35
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -style "shelf" 
+        -horizontal 0
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Open UV Editor." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "UV editor" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/uv.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/uv.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "TextureViewWindow" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
         -annotation "Moves selected uv to top left corner and makes it half the size." 
         -enableBackground 0
         -backgroundColor 0 0 0 
@@ -197,7 +543,109 @@ global proc shelf_LoLMaya () {
         -manage 1
         -visible 1
         -preventOverride 0
-        -annotation "Mirror selected joint A with selected joint B." 
+        -annotation "Go to bind pose." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Go to bindPose" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/gtbp.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/gtbp.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "GoToBindPose;\nprint \"Done\"" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Freeze selected joints rotation." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Freeze selected joints rotation" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/frotsel.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/frotsel.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\nselections = MSelectionList()\nMGlobal.getActiveSelectionList(selections)\niterator = MItSelectionList(selections, MFn.kJoint)\nwhile not iterator.isDone():\n    dagpath = MDagPath()\n    iterator.getDagPath(dagpath)\n    ik_joint = MFnIkJoint(dagpath)\n    rotation = MQuaternion()\n    orient = MQuaternion()\n    ik_joint.getOrientation(orient)\n    ik_joint.getRotation(rotation, MSpace.kTransform)\n    orient = rotation * orient\n    ik_joint.setOrientation(orient)\n    ik_joint.setRotation(orient.identity)\n    iterator.next()\n\nMGlobal.displayInfo('Froze selected joints.')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Freeze all joint rotations." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Freeze all joints rotation" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 1 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/frot.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/frot.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\niterator = MItDag(MItDag.kDepthFirst, MFn.kJoint)\nwhile not iterator.isDone():\n    dagpath = MDagPath()\n    iterator.getPath(dagpath)\n    ik_joint = MFnIkJoint(dagpath)\n    rotation = MQuaternion()\n    orient = MQuaternion()\n    ik_joint.getOrientation(orient)\n    ik_joint.getRotation(rotation, MSpace.kTransform)\n    orient = rotation * orient\n    ik_joint.setOrientation(orient)\n    ik_joint.setRotation(orient.identity)\n    iterator.next()\n\nMGlobal.displayInfo('Froze all joints.')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Mirror selected L_ joint rotation to same name R_ joint, or opposite way. (Work better if joints has been frozen)" 
         -enableBackground 0
         -backgroundColor 0 0 0 
         -highlightColor 0.321569 0.521569 0.65098 
@@ -209,61 +657,15 @@ global proc shelf_LoLMaya () {
         -flipY 0
         -useAlpha 1
         -font "plainLabelFont" 
+        -imageOverlayLabel "L<->R" 
         -overlayLabelColor 0.8 0.8 0.8 
-        -overlayLabelBackColor 0 0 0 0.5 
+        -overlayLabelBackColor 0 0 0 1 
         -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/mirror.png" 
         -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/mirror.png" 
         -style "iconOnly" 
         -marginWidth 0
         -marginHeight 1
-        -command "string $selCtrl[] = `ls -sl`;\n//Get the rotation values\n\nfloat $srcRX = `getAttr ($selCtrl[0] + \".rx\")`;\nfloat $srcRY = `getAttr ($selCtrl[0] + \".ry\")`;\nfloat $srcRZ = `getAttr ($selCtrl[0] + \".rz\")`;\n\n\n//paste into select values\n$srcRX = $srcRX*-1;\nsetAttr ($selCtrl[1] + \".rx\") $srcRX;\n\nif ( $srcRX == -180){\n\tsetAttr ($selCtrl[1] + \".rx\") 0;\n} else if ( $srcRX == 0){\n\tsetAttr ($selCtrl[1] + \".rx\") -180;\n}\n\n$srcRY = $srcRY*-1;\nsetAttr ($selCtrl[1] + \".ry\") $srcRY;\n\n\nsetAttr ($selCtrl[1] + \".rz\") $srcRZ;\n\nprint \"Done\"" 
-        -sourceType "mel" 
-        -commandRepeatable 1
-        -flat 1
-    ;
-    separator
-        -enable 1
-        -width 12
-        -height 35
-        -manage 1
-        -visible 1
-        -preventOverride 0
-        -enableBackground 0
-        -backgroundColor 0 0 0 
-        -highlightColor 0.321569 0.521569 0.65098 
-        -style "shelf" 
-        -horizontal 0
-    ;
-    shelfButton
-        -enableCommandRepeat 1
-        -flexibleWidthType 3
-        -flexibleWidthValue 32
-        -enable 1
-        -width 35
-        -height 34
-        -manage 1
-        -visible 1
-        -preventOverride 0
-        -annotation "Add a temporary namespace to selected objects." 
-        -enableBackground 0
-        -backgroundColor 0 0 0 
-        -highlightColor 0.321569 0.521569 0.65098 
-        -align "center" 
-        -label "Add namespace" 
-        -labelOffset 0
-        -rotation 0
-        -flipX 0
-        -flipY 0
-        -useAlpha 1
-        -font "plainLabelFont" 
-        -overlayLabelColor 0.8 0.8 0.8 
-        -overlayLabelBackColor 0 0 0 0.5 
-        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/qna.png" 
-        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/qna.png" 
-        -style "iconOnly" 
-        -marginWidth 0
-        -marginHeight 1
-        -command "from maya import cmds\nfrom maya import mel\n\nobjects = cmds.ls(sl = True)\nfor obj in objects:\n    old = obj\n    if 'Fake_namespace_' not in old:\n        new = 'Fake_namespace_' + old\n        cmds.rename(old, new)\n\nmel.eval('print \"Done\"')" 
+        -command "\nfrom maya import cmds\nfrom maya import mel\n\nobjects = cmds.ls(sl = True)\nif not objects:\n    raise Exception('No joint selected.')\nprefixs = (('l_', 'r_'), ('L_', 'R_'), ('r_', 'l_'), ('R_', 'L_'))\nfor object in objects:\n    l_joint = None\n    r_joint = None\n    \n    for prefix in prefixs:\n        if object.startswith(prefix[0]):\n            l_joint = object\n            r_joint = prefix[1] + object[2:]\n            break\n            \n    lrx = cmds.getAttr(f'{l_joint}.rotateX')\n    lry = cmds.getAttr(f'{l_joint}.rotateY')\n    lrz = cmds.getAttr(f'{l_joint}.rotateZ')\n    cmds.setAttr(f'{r_joint}.rotateX', lrx)\n    cmds.setAttr(f'{r_joint}.rotateY', lry)\n    cmds.setAttr(f'{r_joint}.rotateZ', lrz)\n\nmel.eval('print \"Done\"')" 
         -sourceType "python" 
         -commandRepeatable 1
         -flat 1
@@ -278,26 +680,27 @@ global proc shelf_LoLMaya () {
         -manage 1
         -visible 1
         -preventOverride 0
-        -annotation "Remove temporary namespace on selected objects." 
+        -annotation "Mirror selected joint A rotation to selected joint B. (Work better if joints has been frozen)" 
         -enableBackground 0
         -backgroundColor 0 0 0 
         -highlightColor 0.321569 0.521569 0.65098 
         -align "center" 
-        -label "Remove namespace" 
+        -label "Mirror joint select" 
         -labelOffset 0
         -rotation 0
         -flipX 0
         -flipY 0
         -useAlpha 1
         -font "plainLabelFont" 
+        -imageOverlayLabel "A<->B" 
         -overlayLabelColor 0.8 0.8 0.8 
-        -overlayLabelBackColor 0 0 0 0.5 
-        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/qnd.png" 
-        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/qnd.png" 
+        -overlayLabelBackColor 0 0 0 1 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/mirror.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/mirror.png" 
         -style "iconOnly" 
         -marginWidth 0
         -marginHeight 1
-        -command "from maya import cmds\nfrom maya import mel\n\nobjects = cmds.ls(sl = True)\nfor obj in objects:\n    old = obj\n    if 'Fake_namespace_' in old:\n        new = old.replace('Fake_namespace_', '')\n        cmds.rename(old, new)\n    elif ':' in old:\n        new = old.split(':')[1]\n        cmds.rename(old, new)\n\nmel.eval('print \"Done\"')" 
+        -command "\nfrom maya import cmds\nfrom maya import mel\n\nobjects = cmds.ls(sl = True)\nif not objects:\n    raise Exception('No joints selected.')\nif len(objects) > 2:\n    raise Exception('More than 2 joints selected.')\n\nl_joint = objects[0]\nr_joint = objects[1]\n            \nlrx = cmds.getAttr(f'{l_joint}.rotateX')\nlry = cmds.getAttr(f'{l_joint}.rotateY')\nlrz = cmds.getAttr(f'{l_joint}.rotateZ')\ncmds.setAttr(f'{r_joint}.rotateX', lrx)\ncmds.setAttr(f'{r_joint}.rotateY', lry)\ncmds.setAttr(f'{r_joint}.rotateZ', lrz)\n\nmel.eval('print \"Done\"')" 
         -sourceType "python" 
         -commandRepeatable 1
         -flat 1
@@ -325,12 +728,12 @@ global proc shelf_LoLMaya () {
         -manage 1
         -visible 1
         -preventOverride 0
-        -annotation "Delete all history." 
+        -annotation "Open Tool settings + enter paint weight mode." 
         -enableBackground 0
         -backgroundColor 0 0 0 
         -highlightColor 0.321569 0.521569 0.65098 
         -align "center" 
-        -label "Delete all history" 
+        -label "Paint skin weights" 
         -labelOffset 0
         -rotation 0
         -flipX 0
@@ -339,46 +742,12 @@ global proc shelf_LoLMaya () {
         -font "plainLabelFont" 
         -overlayLabelColor 0.8 0.8 0.8 
         -overlayLabelBackColor 0 0 0 0.5 
-        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/dh.png" 
-        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/dh.png" 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/psw.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/psw.png" 
         -style "iconOnly" 
         -marginWidth 0
         -marginHeight 1
-        -command "DeleteAllHistory;\nprint \"Done\";" 
-        -sourceType "mel" 
-        -commandRepeatable 1
-        -flat 1
-    ;
-    shelfButton
-        -enableCommandRepeat 1
-        -flexibleWidthType 3
-        -flexibleWidthValue 32
-        -enable 1
-        -width 35
-        -height 34
-        -manage 1
-        -visible 1
-        -preventOverride 0
-        -annotation "Delete unused node in Hypershade." 
-        -enableBackground 0
-        -backgroundColor 0 0 0 
-        -highlightColor 0.321569 0.521569 0.65098 
-        -align "center" 
-        -label "Hypershade Delete unused node" 
-        -labelOffset 0
-        -rotation 0
-        -flipX 0
-        -flipY 0
-        -useAlpha 1
-        -font "plainLabelFont" 
-        -overlayLabelColor 0.8 0.8 0.8 
-        -overlayLabelBackColor 0 0 0 0.5 
-        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/hsdelete.png" 
-        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/hsdelete.png" 
-        -style "iconOnly" 
-        -marginWidth 0
-        -marginHeight 1
-        -command "MLdeleteUnused;\nprint \"Done\";" 
+        -command "ToolSettingsWindow;\nArtPaintSkinWeightsTool;" 
         -sourceType "mel" 
         -commandRepeatable 1
         -flat 1
@@ -406,13 +775,13 @@ global proc shelf_LoLMaya () {
         -useAlpha 1
         -font "plainLabelFont" 
         -overlayLabelColor 0.8 0.8 0.8 
-        -overlayLabelBackColor 0 0 0 0.5 
+        -overlayLabelBackColor 0 0 0 0 
         -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/rebind.png" 
         -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/rebind.png" 
         -style "iconOnly" 
         -marginWidth 0
         -marginHeight 1
-        -command "from maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\n# get mesh in selections\nselections = MSelectionList()\nMGlobal.getActiveSelectionList(selections)\niterator = MItSelectionList(selections, MFn.kMesh)\nif iterator.isDone():\n    raise FunnyError(f'[SKN.dump()]: Please select a mesh.')\nmesh_dagpath = MDagPath()\niterator.getDagPath(mesh_dagpath)  # get first mesh\niterator.next()\nif not iterator.isDone():\n    raise FunnyError(\n        f'[SKN.dump()]: More than 1 mesh selected., combine all meshes if you have mutiple meshes.')\nmesh = MFnMesh(mesh_dagpath)\nmesh_name = mesh.name()\nvertices_num = mesh.numVertices()\n\n# find skin cluster\niterator = MItDependencyGraph(\n    mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\nif iterator.isDone():\n    raise Exception('Failed to find skin cluster.')\nskin_cluster = MFnSkinCluster(iterator.currentItem())\n\n# get weights\ncomponent = MFnSingleIndexedComponent()\nvertex_component = component.create(MFn.kMeshVertComponent)\nvertex_indices = MIntArray()\nMScriptUtil.createIntArrayFromList(\n    list(range(0, vertices_num)), vertex_indices)\ncomponent.addElements(vertex_indices)\nweights = MDoubleArray()\nutil = MScriptUtil()\nptr = util.asUintPtr()\nskin_cluster.getWeights(mesh_dagpath, vertex_component, weights, ptr)\n\n# get influence\ninfluences_dagpath = MDagPathArray()\nskin_cluster.influenceObjects(influences_dagpath)\ninfluence_count = influences_dagpath.length()\n\n# unbind\nMGlobal.executeCommand(f'skinCluster -e  -ub {mesh_name}')\nMGlobal.executeCommand('DeleteAllHistory')\n\n# rebind\nselections = MSelectionList()\nselections.add(mesh_dagpath)\nfor i in range(0, influence_count):\n    selections.add(influences_dagpath[i])\nMGlobal.selectCommand(selections)\nMGlobal.executeCommand(f'skinCluster -mi 4 -tsb -n {mesh_name}_skinCluster')\n\n# get created skincluster\niterator = MItDependencyGraph(\n    mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\nif iterator.isDone():\n    raise Exception('Failed to find created skin cluster.')\nskin_cluster = MFnSkinCluster(iterator.currentItem())\n\n# get influences mask (influences indices)\nnew_influences_dagpath = MDagPathArray()\nskin_cluster.influenceObjects(new_influences_dagpath)\nmask_influence = MIntArray(influence_count)\nfor i in range(0, influence_count):\n    for j in range(0, influence_count):\n        if new_influences_dagpath[i] == influences_dagpath[j]:\n            mask_influence[i] = j\n            break\n\n# set weights\nMGlobal.executeCommand(f'setAttr {mesh_name}_skinCluster.normalizeWeights 0')\nskin_cluster.setWeights(mesh_dagpath, vertex_component,\n                        mask_influence, weights, False)\nMGlobal.executeCommand(f'setAttr {mesh_name}_skinCluster.normalizeWeights 1')\nMGlobal.executeCommand(\n    f'skinPercent -normalize true {mesh_name}_skinCluster {mesh_name}')\n\nMGlobal.displayInfo('Done')\n" 
+        -command "from maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\n# get mesh in selections\nselections = MSelectionList()\nMGlobal.getActiveSelectionList(selections)\niterator = MItSelectionList(selections, MFn.kMesh)\nif iterator.isDone():\n    raise FunnyError(f'[SKN.dump()]: Please select a mesh.')\nmesh_dagpath = MDagPath()\niterator.getDagPath(mesh_dagpath)  # get first mesh\niterator.next()\nif not iterator.isDone():\n    raise FunnyError(\n        f'[SKN.dump()]: More than 1 mesh selected., combine all meshes if you have mutiple meshes.')\nmesh = MFnMesh(mesh_dagpath)\nmesh_name = mesh.name()\nvertices_num = mesh.numVertices()\n\n# find skin cluster\niterator = MItDependencyGraph(\n    mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\nif iterator.isDone():\n    raise Exception('Failed to find skin cluster.')\nskin_cluster = MFnSkinCluster(iterator.currentItem())\n\n# get weights\ncomponent = MFnSingleIndexedComponent()\nvertex_component = component.create(MFn.kMeshVertComponent)\nvertex_indices = MIntArray()\nMScriptUtil.createIntArrayFromList(\n    list(range(0, vertices_num)), vertex_indices)\ncomponent.addElements(vertex_indices)\nweights = MDoubleArray()\nutil = MScriptUtil()\nptr = util.asUintPtr()\nskin_cluster.getWeights(mesh_dagpath, vertex_component, weights, ptr)\n\n# get influence\ninfluences_dagpath = MDagPathArray()\nskin_cluster.influenceObjects(influences_dagpath)\ninfluence_count = influences_dagpath.length()\n\n# unbind\nMGlobal.executeCommand(f'skinCluster -e  -ubk {mesh_name}')\nMGlobal.executeCommand('DeleteAllHistory')\n\n# rebind\nselections = MSelectionList()\nselections.add(mesh_dagpath)\nfor i in range(0, influence_count):\n    selections.add(influences_dagpath[i])\nMGlobal.selectCommand(selections)\nMGlobal.executeCommand(f'skinCluster -mi 4 -tsb -n {mesh_name}_skinCluster')\n\n# get created skincluster\niterator = MItDependencyGraph(\n    mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\nif iterator.isDone():\n    raise Exception('Failed to find created skin cluster.')\nskin_cluster = MFnSkinCluster(iterator.currentItem())\n\n# get influences mask (influences indices)\nnew_influences_dagpath = MDagPathArray()\nskin_cluster.influenceObjects(new_influences_dagpath)\nmask_influence = MIntArray(influence_count)\nfor i in range(0, influence_count):\n    for j in range(0, influence_count):\n        if new_influences_dagpath[i] == influences_dagpath[j]:\n            mask_influence[i] = j\n            break\n\n# set weights\nMGlobal.executeCommand(f'setAttr {mesh_name}_skinCluster.normalizeWeights 0')\nskin_cluster.setWeights(mesh_dagpath, vertex_component,\n                        mask_influence, weights, False)\nMGlobal.executeCommand(f'setAttr {mesh_name}_skinCluster.normalizeWeights 1')\nMGlobal.executeCommand(\n    f'skinPercent -normalize true {mesh_name}_skinCluster {mesh_name}')\n\nMGlobal.displayInfo('Done')\n" 
         -sourceType "python" 
         -commandRepeatable 1
         -flat 1
@@ -439,8 +808,8 @@ global proc shelf_LoLMaya () {
         -flipY 0
         -useAlpha 1
         -font "plainLabelFont" 
-        -overlayLabelColor 0.8 0.8 0.8 
-        -overlayLabelBackColor 0 0 0 0.5 
+        -overlayLabelColor 0 0 0 
+        -overlayLabelBackColor 0 0 0 0 
         -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/four.png" 
         -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/four.png" 
         -style "iconOnly" 

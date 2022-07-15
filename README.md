@@ -4,7 +4,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
 ![](https://i.imgur.com/cRpMpYt.gif)
 
 
-### Infos:
+### File translators:
 1. Misc:
     - Add fix for read/write file with suffix in name.
     - All namespaces will be removed in export data. 
@@ -24,7 +24,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - To export: select the mesh -> use export selection.
         - `33 22 11 00`: V1
         - Add check for limit vertices: 65536 
-        - Add check for history changed on skin cluster node.1.5.7
+        - Add check for history changed on skin cluster node.
         - When run into the error: vertices have 4+ influences, those vertices will be selected in scene.
         - When run into the error: vertices have no material assigned, those vertices will be selected in scene.
 3. SKL:
@@ -49,6 +49,10 @@ An attempt to update RiotFileTranslator to Maya 2023.
     - Read: 
         - `r3d2canm`
         - `r3d2anmd`: V3, V4, V5
+        - To delete channel data before load ANM, change ANM import options to:
+        
+            ![](https://i.imgur.com/BWnCj2T.png)
+
         - To ensure importing FPS from ANM file, change ANM import options to:
             
             ![](https://i.imgur.com/2hJvlGt.png)
@@ -58,7 +62,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
             - Uncompressed, scaling support.
 5. Static object:
     - Static object in Maya scene: 
-        - A single triangulated mesh that has UV assigned on all faces.
+        - A single triangulated mesh that has UV assigned on all faces. 
         - Central point: the translation of mesh's transform oject.
         - Pivot point - SCO only, optional: an additional pivot joint bound with mesh.
             
@@ -73,12 +77,26 @@ An attempt to update RiotFileTranslator to Maya 2023.
             - No need to convert with Wooxy.
 
 
+### Shelf buttons
+![](https://i.imgur.com/G3udngk.png)
+1. Hover mouse on shelf buttons to read tooltip.
+2. Explain some buttons:
+    - Namespace buttons: Quickly add/remove a temporary namespace on selected objects.
+    - Martin UV helper: move selected UVs to specific corner.
+    - Update bind pose button: set current pose as bind pose for skin cluster, require: select single joint of the skin cluster.
+    - Freeze selected/all joints rotation.
+    - Mirror joint buttons:
+        - L<->R: mirror rotation of a selected joint startswith `L_` or `R_` to the opposite joint.
+        - A<->B: mirror rotation of first selected joint to second selected joint.
+    - Rebind button: Unbind, delete all history, rebind with same weight on a selected skin cluster, useful on fixing reversed normal, moved UVs,... after bind.
+    - 4 influences fix: prune and force max 4 influences on selected skin cluster.
+
 
 ### Installation:
 1. [Click here and download latest release.](https://github.com/tarngaina/lol_maya/releases)
 
 
-2. Extract both `plug-ins` folder & `scripts` folder to `Documents` \ `maya` \ `2023`.
+2. Extract all `plug-ins`, `prefs` and `scripts` folder to `Documents` \ `maya` \ `2023`.
 
     ![](https://i.imgur.com/OuXcoD7.png)
 

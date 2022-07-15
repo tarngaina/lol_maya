@@ -1489,7 +1489,8 @@ class SKN:
                     'Try one of following methods to fix it:\n'
                     '1. Delete non-Deformer history.\n'
                     '2. Export as FBX -> New scene -> Import FBX in -> Export as SKN\n'
-                    '3. Save scene + weight -> Unbind skin -> Delete all history -> Rebind skin -> Copy weight back.'
+                    '3. Save scene + weight -> Unbind skin -> Delete all history -> Rebind skin -> Copy weight back.\n'
+                    '4. Try rebind button on shelf.'
                 ))
         else:
             raise FunnyError(
@@ -1583,7 +1584,7 @@ class SKN:
                 'Try one of following methods to fix it:\n'
                 '1. Repaint weight on those vertices\n'
                 '2. Prune small weights.\n'
-                '3. Try button auto fix 4 influences on plugin shelf. (not recommended)'
+                '3. Try button auto fix 4 influences on shelf.'
             ))
 
         # init some important thing

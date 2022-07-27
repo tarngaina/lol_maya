@@ -299,7 +299,7 @@ global proc shelf_LoLMaya () {
         -style "iconOnly" 
         -marginWidth 0
         -marginHeight 1
-        -command "from maya import cmds\nfrom maya import mel\n\nselected = cmds.ls(sl = True)\nnodes = []\nfor item in selected:\n    nodes.append(item)\n    nodes += cmds.listRelatives(obj, ad=True)\nfor node in nodes:\n    old = node\n    if 'Fake_namespace_' not in old:\n        new = 'Fake_namespace_' + old\n        cmds.rename(old, new)\n\nmel.eval('print \"Added fake namespace.\"')" 
+        -command "from maya import cmds\nfrom maya import mel\n\nselected = cmds.ls(sl = True)\nnodes = []\nfor item in selected:\n    nodes.append(item)\n    nodes += cmds.listRelatives(item, ad=True)\nfor node in nodes:\n    old = node\n    if 'Fake_namespace_' not in old:\n        new = 'Fake_namespace_' + old\n        cmds.rename(old, new)\n\nmel.eval('print \"Added fake namespace.\"')" 
         -sourceType "python" 
         -commandRepeatable 1
         -flat 1

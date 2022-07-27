@@ -358,7 +358,7 @@ class MAPGEOTranslator(MPxFileTranslator):
 # plugin register
 def initializePlugin(obj):
     # totally not copied code
-    plugin = MFnPlugin(obj, 'tarngaina', '2.0')
+    plugin = MFnPlugin(obj, 'tarngaina', '2.1')
     try:
         plugin.registerFileTranslator(
             SKNTranslator.name,

@@ -1486,11 +1486,11 @@ class SKN:
             if in_mesh_connections[0].node().apiType() != MFn.kSkinClusterFilter:
                 raise FunnyError((
                     f'[SKN.dump({mesh.name()})]: History changed on the skin cluster.\n'
-                    'Try one of following methods to fix it:\n'
+                    'Save scene first, then try one of following methods to fix it:\n'
                     '1. Delete non-Deformer history.\n'
                     '2. Export as FBX -> New scene -> Import FBX in -> Export as SKN\n'
-                    '3. Save scene + weight -> Unbind skin -> Delete all history -> Rebind skin -> Copy weight back.\n'
-                    '4. Try rebind button on shelf.'
+                    '3. Unbind skin -> Delete all history -> Rebind skin -> Copy weight back.\n'
+                    '4. [not recommended] Try rebind button on shelf.'
                 ))
         else:
             raise FunnyError(
@@ -1528,40 +1528,15 @@ class SKN:
             # count influences
             inf_count = 0
             weight_sum = 0.0
-            found_weights = []
             for j in range(0, weight_influence_count):
                 weight = weights[i * weight_influence_count + j]
                 if weight > 0:
                     inf_count += 1
                     weight_sum += weight
-                    found_weights.append((weight, j))
 
             # 4+ influences fix
             if inf_count > 4:
                 bad_vertices.append(i)
-
-                # get sorted weights + influence
-                found_weights = sorted(
-                    found_weights, key=lambda f: f[0], reverse=True)
-
-                # 4 highest weights
-                high_weights = found_weights[:4]
-                # the rest small weights
-                low_weights = found_weights[4:]
-
-                # sum all low weights and remove them
-                low_sum = 0.0
-                for weight, influence in low_weights:
-                    low_sum += weight
-                    weights[i * weight_influence_count + influence] = 0.0
-
-                # distributed low weights to high weights + re calculate weight sum for normalize
-                low_sum /= 4
-                weight_sum = 0.0
-                for weight, influence in high_weights:
-                    weights[i * weight_influence_count + influence] += low_sum
-                    weight_sum += weights[i *
-                                          weight_influence_count + influence]
 
             # normalize weights
             if weight_sum > 0:
@@ -1581,10 +1556,10 @@ class SKN:
 
             raise FunnyError((
                 f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices that have weight on 4+ influences, those vertices will be selected in scene.\n'
-                'Try one of following methods to fix it:\n'
+                'Save scene first, then try one of following methods to fix it:\n'
                 '1. Repaint weight on those vertices\n'
                 '2. Prune small weights.\n'
-                '3. Try button auto fix 4 influences on shelf.'
+                '3. [not recommended] Try auto fix 4 influences button on shelf.'
             ))
 
         # init some important thing

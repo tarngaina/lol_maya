@@ -78,13 +78,13 @@ An attempt to update RiotFileTranslator to Maya 2023.
 
 
 ### Shelf buttons
-![](https://i.imgur.com/G3udngk.png)
+![](https://i.imgur.com/ZYyknZ9.png)
 1. Hover mouse on shelf buttons to read tooltip.
 2. Explain some buttons:
     - Namespace buttons: Quickly add/remove a temporary namespace on selected objects.
     - Martin UV helper: move selected UVs to specific corner.
     - Update bind pose button: set current pose as bind pose for skin cluster, require: select single joint of the skin cluster.
-    - Freeze selected/all joints rotation.
+    - Freeze joints buttons: Freeze/bake selected/all joints rotation.
     - Mirror joint buttons:
         - L<->R: mirror rotation of a selected joint startswith `L_` or `R_` to the opposite joint.
         - A<->B: mirror rotation of first selected joint to second selected joint.

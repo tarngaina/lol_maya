@@ -7,10 +7,8 @@ An attempt to update RiotFileTranslator to Maya 2023.
 ### File translators:
 1. Misc:
     - Add fix for read/write file with suffix in name.
-    - All namespaces will be removed in export data. 
-    - Use exported file as new scene to improve performance.
 2. SKN: 
-    - SKN+SKL data in Maya scene: A single mesh that has material and uv assigned on all faces, bound with joints as a skin cluster and have weighted on all vertices.
+    - SKN data in Maya scene: A single mesh that has material and uv assigned on all faces, bound with joints as a skin cluster and have weighted on all vertices.
     - Read: 
         - `33 22 11 00`: V0, V1, V2, V4
         - To read both SKN+SKL as skin cluster, change SKN import options to:
@@ -21,30 +19,40 @@ An attempt to update RiotFileTranslator to Maya 2023.
             - Material that has duplicated name with another joint will be renamed to lowercase. 
             - Example: If there is a joint `Fish` in SKL data, material `Fish` in SKN data will be rename to `fish` in scene.
     - Write: 
-        - To export: select the mesh -> use export selection.
+        - To export: select the bound mesh -> use export selection.
         - `33 22 11 00`: V1
-        - Add check for limit vertices: 65536 
-        - Add check for history changed on skin cluster node.
-        - When run into the error: vertices have 4+ influences, those vertices will be selected in scene.
-        - When run into the error: vertices have no material assigned, those vertices will be selected in scene.
+        - Limit vertices: 65536 
+        - Show/select on error: 
+            - Vertex: 4+ influences vertex, material shared vertex, non UVs assigned vertex (check on first UV set).
+            - Face: invalid triangulation face, non material assigned face, non UVs assigned face.
+        - Add check for bad history: skinCluster is not connected directly to meshShape.
+        - `riot.skn`:
+            - Fix incorrect transparency face and much more shader things,...
+            - Extract the original SKN in wad file, rename it to `riot.skn` and put it in export location.
+            - While exporting, plugin will attempt to sort your materials to match `riot.skn` materials order. (not affect scene)
+            - Custom/extra materials will be added at the end of new materials list.
+            - If there is no `riot.skn` found in export location, plugin will export normal way - unsorted.
 3. SKL:
+    - SKL data in Maya scene: all joints (bound/not bound) in current scene.
     - Read: 
         - `r3d2sklt`: V1, V2
         - `C3 4F FD 22`: V0
     - Write:
         - To export: will export with SKN.
         - `C3 4F FD 22`: V0 
-        - New SKL data, no need to update/convert.
-        - Add check for limit joints: 256
-        - Add fix for SKL bad joints order that caused bad animation layers/animation blending, example: Samira reload, Jhin reload,...
+        - Limit joints: 256
+        - `riot.skl`:
+            - Fix bad animation layers/animation blending,... example: Samira reload while walk/run,...
             - Extract the original SKL in wad file, rename it to `riot.skl` and put it in export location.
-            - While exporting, plugin will attempt to sort your joints order to match `riot.skl` joints order. (not affect the scene)
-            - You must have all `riot.skl` joints on your skin cluster.
-            - You can add extra joints to your skin, but not allow to remove joints.
-            - If there is no `riot.skl` found in the export location, the plugin will export normal way - unsorted.
+            - While exporting, plugin will attempt to sort your joints to match `riot.skl` joints order. (not affect scene)
+            - Missing joint from `riot.skl` will be automatically in export data. 
+            - Custom/extra joints will be added at the end of new joints list.
+            - If there is no `riot.skl` found in export location, plugin will export normal way - unsorted.
+        - New SKL data, no need to update/convert.
 4. ANM:
     - ANM data in Maya scene: 
-        - Translate + Rotate + Scale keyframes of all joints, from time 1 to end time on Time Slider.
+        - Translate + Rotate + Scale keyframes of all joints in scene from time 1 to end time on Time Slider.
+        - Important: Time Slider must have time 0.
         - FPS support: 30/60.
     - Read: 
         - `r3d2canm`
@@ -59,10 +67,11 @@ An attempt to update RiotFileTranslator to Maya 2023.
     - Write:
         - To export: use export all.
         - `r3d2anmd`: V4 
-            - Uncompressed, scaling support.
+        - Uncompressed, scaling support.
+        - No need to convert with lol2dae or edit 1E hex.
 5. Static object:
     - Static object in Maya scene: 
-        - A single triangulated mesh that has UV assigned on all faces. 
+        - A single mesh that has UV assigned on all faces. 
         - Central point: the translation of mesh's transform oject.
         - Pivot point - SCO only, optional: an additional pivot joint bound with mesh.
             
@@ -74,7 +83,9 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - To export: select the mesh -> use export selection.
         - SCO
         - SCB: `r3d2Mesh`: V3 
-            - No need to convert with Wooxy.
+        - Show/select on error: 
+            - Face: invalid triangulation face, non UVs assigned face.
+        - No need to convert with Wooxy.
 
 
 ### Shelf buttons
@@ -88,7 +99,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
     - Mirror joint buttons:
         - L<->R: mirror rotation of a selected joint startswith `L_` or `R_` to the opposite joint.
         - A<->B: mirror rotation of first selected joint to second selected joint.
-    - Rebind button: Unbind, delete all history, rebind with same weight on a selected skin cluster, useful on fixing reversed normal, moved UVs,... after bind.
+    - Rebind button: Unbind, delete all history, rebind, copy weight back base on vertex id, on selected skin cluster.
     - 4 influences fix: prune and force max 4 influences on selected skin cluster.
 
 

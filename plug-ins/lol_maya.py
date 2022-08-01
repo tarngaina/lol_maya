@@ -122,20 +122,27 @@ class SkinTranslator(MPxFileTranslator):
             path += '.skn'
 
         # read riot.skl
-        riot = None
+        riot_skl = None
         mfo = MFileObject()
         mfo.setRawFullName('/'.join(path.split('/')[:-1]+['riot.skl']))
         if mfo.exists():
-            riot = SKL()
-            riot.read(mfo.rawFullName())
+            riot_skl = SKL()
+            riot_skl.read(mfo.rawFullName())
+        # read riot.skn
+        riot_skn = None
+        mfo = MFileObject()
+        mfo.setRawFullName('/'.join(path.split('/')[:-1]+['riot.skn']))
+        if mfo.exists():
+            riot_skn = SKN()
+            riot_skn.read(mfo.rawFullName())
 
         skl = SKL()
-        skl.dump(riot)
+        skl.dump(riot_skl)
         skl.flip()
         skl.write(path.split('.skn')[0] + '.skl')
 
         skn = SKN()
-        skn.dump(skl)
+        skn.dump(skl, riot_skn)
         skn.flip()
         skn.write(path)
         return True
@@ -1022,9 +1029,21 @@ class SKL:
                         break
 
                 # if not found riot join in current scene -> not enough joints to match riot joints -> bad
+                # fill empty joint
                 if not found:
                     MGlobal.displayWarning(
                         f'[SKL.dump(riot.skl)]: Missing riot joint: {riot_joint.name}')
+                    joint = SKLJoint()
+                    joint.dagpath = None
+                    joint.name = riot_joint.name
+                    joint.parent = -1
+                    joint.local_translation = MVector(0.0, 0.0, 0.0)
+                    joint.local_rotation = MQuaternion(0.0, 0.0, 0.0, 0.0)
+                    joint.local_scale = MVector(0.0, 0.0, 0.0)
+                    joint.iglobal_translation = MVector(0.0, 0.0, 0.0)
+                    joint.iglobal_rotation = MQuaternion(0.0, 0.0, 0.0, 0.0)
+                    joint.iglobal_scale = MVector(0.0, 0.0, 0.0)
+                    new_joints.append(joint)
 
             # joint in scene = riot joint: good
             # joint in scene < riot joint: bad, might not work
@@ -1051,6 +1070,8 @@ class SKL:
         # link parent
         joint_count = len(self.joints)
         for joint in self.joints:
+            if not joint.dagpath:
+                continue
             ik_joint = MFnIkJoint(joint.dagpath)
             if ik_joint.parentCount() == 1 and ik_joint.parent(0).apiType() == MFn.kJoint:
                 # get parent dagpath of this joint node
@@ -1167,7 +1188,7 @@ class SKNVertex:
 
         # for dumping
         self.uv_index = None
-        self.data_index = None
+        self.new_index = None
 
 
 class SKNSubmesh:
@@ -1420,347 +1441,368 @@ class SKN:
         # shud be final line
         mesh.updateSurface()
 
-    def dump(self, skl):
-        # get mesh in selections
+    def dump(self, skl, riot=None):
+        # find mesh in selections
         selections = MSelectionList()
         MGlobal.getActiveSelectionList(selections)
         iterator = MItSelectionList(selections, MFn.kMesh)
         if iterator.isDone():
             raise FunnyError(f'[SKN.dump()]: Please select a mesh.')
+        # get mesh's DAG path
         mesh_dagpath = MDagPath()
-        iterator.getDagPath(mesh_dagpath)  # get first mesh
+        iterator.getDagPath(mesh_dagpath)
         iterator.next()
         if not iterator.isDone():
             raise FunnyError(
                 f'[SKN.dump()]: More than 1 mesh selected, combine all meshes if you have mutiple meshes.')
+        # get MFnMesh
         mesh = MFnMesh(mesh_dagpath)
 
-        # get shaders
-        shaders = MObjectArray()
-        poly_shaders = MIntArray()
-        instance_num = mesh_dagpath.instanceNumber() if mesh_dagpath.isInstanced() else 0
-        mesh.getConnectedShaders(instance_num, shaders, poly_shaders)
-        shader_count = shaders.length()
-        vertices_num = mesh.numVertices()
-
-        # check some holes
-        hole_info = MIntArray()
-        hole_vertex = MIntArray()
-        mesh.getHoles(hole_info, hole_vertex)
-        if hole_info.length() != 0:
-            raise FunnyError(
-                f'[SKN.dump({mesh.name()})]: Mesh contains holes: {hole_info.length()}')
-
-        # check non-triangulated polygon
-        # check face has multiple shaders
-        vertex_shaders = MIntArray(vertices_num, -1)
-        iterator = MItMeshPolygon(mesh_dagpath)
-        iterator.reset()
-        while not iterator.isDone():
-            if not iterator.hasValidTriangulation():
-                raise FunnyError(
-                    f'[SKN.dump({mesh.name()})]: Mesh contains a invalid triangulation polygon.')
-
-            index = iterator.index()
-            shader_index = poly_shaders[index]
-            if shader_index == -1:
-                raise FunnyError(
-                    f'[SKN.dump({mesh.name()})]: Mesh contains a face with no material assigned, make sure you assigned material to all faces.')
-
-            vertices = MIntArray()
-            iterator.getVertices(vertices)
-            len69 = vertices.length()
-            for i in range(0, len69):
-                if shader_count > 1 and vertex_shaders[vertices[i]] not in [-1, shader_index]:
-                    raise FunnyError(
-                        f'[SKN.dump({mesh.name()})]: Mesh contains a vertex with multiple materials assigned.')
-                vertex_shaders[vertices[i]] = shader_index
-
-            iterator.next()
-
-        # find skin cluster
+        # find skinCluster node
+        # DAG graph should be like this:
+        # skinCluster.outputGeometry[0] <-> meshShape.inMesh
+        # if not then its bad history
         in_mesh = mesh.findPlug('inMesh')
-        in_mesh_connections = MPlugArray()
-        in_mesh.connectedTo(in_mesh_connections, True, False)
-        if in_mesh_connections.length() > 0:
-            if in_mesh_connections[0].node().apiType() != MFn.kSkinClusterFilter:
+        connections = MPlugArray()
+        in_mesh.connectedTo(connections, True, False)
+        skin_cluster = None
+        if connections.length() > 0:
+            out_geo = connections[0]
+            if out_geo.node().apiType() != MFn.kSkinClusterFilter:
                 raise FunnyError((
                     f'[SKN.dump({mesh.name()})]: History changed on the skin cluster.\n'
-                    'Save scene first, then try one of following methods to fix it:\n'
+                    'Save/backup scene first, try one of following methods to fix:\n'
                     '1. Delete non-Deformer history.\n'
-                    '2. Export as FBX -> New scene -> Import FBX in -> Export as SKN\n'
+                    '2. Export as FBX -> New scene -> Import FBX -> Export as SKN\n'
                     '3. Unbind skin -> Delete all history -> Rebind skin -> Copy weight back.\n'
                     '4. [not recommended] Try rebind button on shelf.'
                 ))
-        else:
+            skin_cluster = MFnSkinCluster(out_geo.node())
+        if not skin_cluster:
             raise FunnyError(
                 f'[SKN.dump({mesh.name()})]: No skin cluster found, make sure you bound the skin.')
-        skin_cluster = MFnSkinCluster(in_mesh_connections[0].node())
 
-        # mask influence
-        influences_dagpath = MDagPathArray()
-        influence_count = skin_cluster.influenceObjects(influences_dagpath)
-        mask_influence = MIntArray(influence_count)
-        joint_count = len(skl.joints)
-        for i in range(0, influence_count):
-            dagpath = influences_dagpath[i]
-            for j in range(0, joint_count):
-                if dagpath == skl.joints[j].dagpath:
-                    mask_influence[i] = j
-                    break
-
-        # get weights
+        # get weights of all vertices
+        # empty vertex component = all vertices
+        bad_vertices = MIntArray()  # 4+ influences
+        mesh_vertex_count = mesh.numVertices()
         component = MFnSingleIndexedComponent()
         vertex_component = component.create(MFn.kMeshVertComponent)
-        vertex_indices = MIntArray()
-        MScriptUtil.createIntArrayFromList(
-            list(range(0, vertices_num)), vertex_indices)
-        component.addElements(vertex_indices)
         weights = MDoubleArray()
         util = MScriptUtil()
         ptr = util.asUintPtr()
         skin_cluster.getWeights(mesh_dagpath, vertex_component, weights, ptr)
         weight_influence_count = util.getUint(ptr)
-
-        #  weight stuffs
-        bad_vertices = MIntArray()
-        for i in range(0, vertices_num):
-            # count influences
+        # normalize weights and check 4+ influences
+        # weights = [mesh vertex count * weight influence count]
+        for vertex in range(0, mesh_vertex_count):
             inf_count = 0
             weight_sum = 0.0
-            for j in range(0, weight_influence_count):
-                weight = weights[i * weight_influence_count + j]
+            for influence in range(0, weight_influence_count):
+                weight = weights[vertex * weight_influence_count + influence]
                 if weight > 0:
                     inf_count += 1
                     weight_sum += weight
-
-            # 4+ influences fix
-            if inf_count > 4:
-                bad_vertices.append(i)
-
             # normalize weights
             if weight_sum > 0:
-                for j in range(0, weight_influence_count):
-                    weights[i * weight_influence_count + j] /= weight_sum
-
+                for influence in range(0, weight_influence_count):
+                    weights[vertex * weight_influence_count +
+                            influence] /= weight_sum
+            # 4+ influences check
+            if inf_count > 4:
+                if vertex not in bad_vertices:
+                    bad_vertices.append(vertex)
         if bad_vertices.length() > 0:
-            # select 4+ influences vertices
             component = MFnSingleIndexedComponent()
-            temp_component = component.create(
+            vertex_component = component.create(
                 MFn.kMeshVertComponent)
             component.addElements(bad_vertices)
-
-            temp_selections = MSelectionList()
-            temp_selections.add(mesh_dagpath, temp_component)
-            MGlobal.selectCommand(temp_selections)
-
+            selections = MSelectionList()
+            selections.add(mesh_dagpath, vertex_component)
+            MGlobal.selectCommand(selections)
             raise FunnyError((
                 f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices that have weight on 4+ influences, those vertices will be selected in scene.\n'
-                'Save scene first, then try one of following methods to fix it:\n'
-                '1. Repaint weight on those vertices\n'
+                'Save/backup scene first, try one of following methods to fix:\n'
+                '1. Repaint weight on those vertices.\n'
                 '2. Prune small weights.\n'
                 '3. [not recommended] Try auto fix 4 influences button on shelf.'
             ))
 
-        # init some important thing
-        shader_vertex_indices = []
+        # check holes
+        hole_info = MIntArray()
+        hole_vertices = MIntArray()
+        mesh.getHoles(hole_info, hole_vertices)
+        if hole_info.length() != 0:
+            raise FunnyError(
+                f'[SKN.dump({mesh.name()})]: Mesh contains holes: {hole_info.length()}')
+
+        # get shader/materials
+        shaders = MObjectArray()
+        face_shader = MIntArray()
+        instance = mesh_dagpath.instanceNumber() if mesh_dagpath.isInstanced() else 0
+        mesh.getConnectedShaders(instance, shaders, face_shader)
+        shader_count = shaders.length()
+        # check too many material or no material assigned
+        if shader_count > 32:
+            raise FunnyError(
+                f'[SKN.dump()]: Too many materials assigned: {shader_count}, max allowed: 32 materials.')
+        if shader_count < 1:
+            raise FunnyError(
+                f'[SKN.dump()]: No material assigned to this mesh, please assign one.')
+        # init shaders data to work on multiple shader
         shader_vertices = []
         shader_indices = []
         for i in range(0, shader_count):
-            shader_vertex_indices.append(MIntArray())
             shader_vertices.append([])
-            shader_indices.append(MIntArray())
+            shader_indices.append([])
 
-        # dump vertices
-        bad_vertices2 = MIntArray()  # for no material vertex
+        # iterator on faces - 1st
+        # to get vertex_shader first base on face_shader
+        # extra checking stuffs
+        bad_faces = MIntArray()  # invalid triangulation polygon
+        bad_faces2 = MIntArray()  # no material assigned
+        bad_faces3 = MIntArray()  # no uv assigned
+        bad_vertices = MIntArray()  # shared vertices
+        vertex_shader = MIntArray(mesh_vertex_count, -1)
+        iterator = MItMeshPolygon(mesh_dagpath)
+        iterator.reset()
+        while not iterator.isDone():
+            # get shader of this face
+            face_index = iterator.index()
+            shader_index = face_shader[face_index]
+
+            # check valid triangulation
+            if not iterator.hasValidTriangulation():
+                if face_index not in bad_faces:
+                    bad_faces.append(face_index)
+            # check face with no material assigned
+            if shader_index == -1:
+                if face_index not in bad_faces2:
+                    bad_faces2.append(face_index)
+            # check if face has no UVs
+            if not iterator.hasUVs():
+                if face_index not in bad_faces3:
+                    bad_faces3.append(face_index)
+            # get face vertices
+            vertices = MIntArray()
+            iterator.getVertices(vertices)
+            face_vertex_count = vertices.length()
+            # check if each vertex is shared by mutiple materials
+            for i in range(0, face_vertex_count):
+                vertex = vertices[i]
+                if vertex_shader[vertex] not in [-1, shader_index]:
+                    if vertex not in bad_vertices:
+                        bad_vertices.append(vertex)
+                    continue
+                vertex_shader[vertex] = shader_index
+            iterator.next()
+        if bad_faces.length() > 0:
+            component = MFnSingleIndexedComponent()
+            face_component = component.create(
+                MFn.kMeshPolygonComponent)
+            component.addElements(bad_faces)
+            selections = MSelectionList()
+            selections.add(mesh_dagpath, face_component)
+            MGlobal.selectCommand(selections)
+            raise FunnyError(
+                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces.length()} invalid triangulation faces, those faces will be selected in scene.')
+        if bad_faces2.length() > 0:
+            component = MFnSingleIndexedComponent()
+            face_component = component.create(
+                MFn.kMeshPolygonComponent)
+            component.addElements(bad_faces2)
+            selections = MSelectionList()
+            selections.add(mesh_dagpath, face_component)
+            MGlobal.selectCommand(selections)
+            raise FunnyError(
+                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces2.length()} faces have no material assigned, those faces will be selected in scene.')
+        if bad_faces3.length() > 0:
+            component = MFnSingleIndexedComponent()
+            face_component = component.create(
+                MFn.kMeshPolygonComponent)
+            component.addElements(bad_faces3)
+            selections = MSelectionList()
+            selections.add(mesh_dagpath, face_component)
+            MGlobal.selectCommand(selections)
+            raise FunnyError(
+                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces3.length()} faces have no UVs assigned, or, those faces UVs are not in first UV set, those faces will be selected in scene.')
+        if bad_vertices.length() > 0:
+            component = MFnSingleIndexedComponent()
+            vertex_component = component.create(
+                MFn.kMeshVertComponent)
+            component.addElements(bad_vertices)
+            selections = MSelectionList()
+            selections.add(mesh_dagpath, vertex_component)
+            MGlobal.selectCommand(selections)
+            raise FunnyError((
+                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices are shared by mutiple materials, those vertices will be selected in scene.\n'
+                'Save/backup scene first, try one of following methods to fix:\n'
+                '1. Seperate all connected faces that shared those vertices.\n'
+                '2. Check and reassign correct material.'
+            ))
+
+        # map influence indices by skl joints
+        influence_dagpaths = MDagPathArray()
+        influence_count = skin_cluster.influenceObjects(influence_dagpaths)
+        map_influence_indices = MIntArray(influence_count)
+        joint_count = len(skl.joints)
+        for i in range(0, influence_count):
+            dagpath = influence_dagpaths[i]
+            for j in range(0, joint_count):
+                if dagpath == skl.joints[j].dagpath:
+                    map_influence_indices[i] = j
+                    break
+        # get all uvs outside loop to dump uv
+        u_values = MFloatArray()
+        v_values = MFloatArray()
+        mesh.getUVs(u_values, v_values)
+        # iterator on vertices
+        # to dump all new vertices base on unique uv
+        bad_vertices = MIntArray()  # vertex has no UVs
         iterator = MItMeshVertex(mesh_dagpath)
         iterator.reset()
         while not iterator.isDone():
-            index = iterator.index()
-            shader = vertex_shaders[index]
-            if shader == -1:
-                if index not in bad_vertices2:
-                    bad_vertices2.append(index)
+            # get shader of this vertex
+            vertex_index = iterator.index()
+            shader_index = vertex_shader[vertex_index]
+            if shader_index == -1:
+                # a strange vertex with no shader ?
+                # let say this vertex is alone and not in any face
+                # just ignore it?
                 iterator.next()
                 continue
 
-            # position
-            position = iterator.position(MSpace.kWorld)
-
-            # influences and weights
+            # influence and weight
             influences = [bytes([0]), bytes(
                 [0]), bytes([0]), bytes([0])]
-            temp_weights = [0.0, 0.0, 0.0, 0.0]
-            f = 0
-            j = 0
-            while j < weight_influence_count and f < 4:
-                weight = weights[index * weight_influence_count + j]
+            vertex_weights = [0.0, 0.0, 0.0, 0.0]
+            inf_index = 0
+            for influence in range(0, weight_influence_count):
+                weight = weights[vertex_index *
+                                 weight_influence_count + influence]
                 if weight > 0:
-                    influences[f] = bytes([mask_influence[j]])
-                    temp_weights[f] = float(weight)
-                    f += 1
-                j += 1
-
-            # normal - also normalized
+                    influences[inf_index] = bytes(
+                        [map_influence_indices[influence]])
+                    vertex_weights[inf_index] = weight
+                    inf_index += 1
+            # position
+            position = iterator.position(MSpace.kWorld)
+            # average of normals of all faces connect to this vertex
             normals = MVectorArray()
             iterator.getNormals(normals)
+            normal_count = normals.length()
             normal = MVector(0.0, 0.0, 0.0)
-            len123 = normals.length()
-            for i in range(0, len123):
-                normal.x += normals[i].x
-                normal.y += normals[i].y
-                normal.z += normals[i].z
-            normal.x /= len123
-            normal.y /= len123
-            normal.z /= len123
-
+            for i in range(0, normal_count):
+                normal += normals[i]
+            normal /= normal_count
             # unique uv
             uv_indices = MIntArray()
             iterator.getUVIndices(uv_indices)
-            len555 = uv_indices.length()
-
-            if len555 > 0:
+            uv_count = uv_indices.length()
+            if uv_count > 0:
                 seen = []
-                for j in range(len555):
-                    uv_index = uv_indices[j]
-                    if not uv_index in seen:
-                        if uv_index == -1:
-                            raise FunnyError(
-                                f'[SKN.dump({mesh.name()})]: Mesh contains an index with no UV assigned.')
-                        else:
-                            u_util = MScriptUtil()  # lay trua tren cao, turn down for this
-                            u_ptr = u_util.asFloatPtr()
-                            v_util = MScriptUtil()
-                            v_ptr = v_util.asFloatPtr()
-                            mesh.getUV(uv_index, u_ptr, v_ptr)
-                            uv = MVector(
-                                u_util.getFloat(u_ptr),
-                                1.0 - v_util.getFloat(v_ptr)
-                            )
-
-                        # create SKNVertex - recreate pointer for safe
+                for i in range(0, uv_count):
+                    uv_index = uv_indices[i]
+                    if uv_index == -1:
+                        continue
+                        # raise FunnyError(
+                        #    f'[SKN.dump({mesh.name()})]: No uv_index found on a vertex, this error should not happen. Possibly caused by bad mesh history and delete/bake history might fix this problem.')
+                    if uv_index not in seen:
+                        seen.append(uv_index)
+                        uv = MVector(
+                            u_values[uv_index],
+                            1.0 - v_values[uv_index]
+                        )
+                        # dump vertices
                         vertex = SKNVertex()
                         vertex.position = MVector(position)
-                        vertex.influences = influences
-                        vertex.weights = temp_weights
                         vertex.normal = MVector(normal)
-                        vertex.uv = MVector(uv)
+                        vertex.influences = influences
+                        vertex.weights = vertex_weights
+                        vertex.uv = uv
                         vertex.uv_index = uv_index
-
-                        shader_vertices[shader].append(vertex)
-                        shader_vertex_indices[shader].append(index)
-
-                        seen.append(uv_index)
+                        vertex.new_index = len(shader_vertices[shader_index])
+                        shader_vertices[shader_index].append(vertex)
             else:
-                raise FunnyError(
-                    f'[SKN.dump({mesh.name()})]: Mesh contains a vertex with no UVs.')
+                if vertex_index not in bad_vertices:
+                    bad_vertices.append(vertex_index)
             iterator.next()
+        if bad_vertices.length() > 0:
+            raise FunnyError(
+                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices have no UVs assigned, those vertices will be selected in scene.')
 
-        # show vertex with no material assigned
-        if bad_vertices2.length() > 0:
-            # select vertices with no material
-            component = MFnSingleIndexedComponent()
-            temp_component = component.create(MFn.kMeshVertComponent)
-            component.addElements(bad_vertices2)
-
-            temp_selections = MSelectionList()
-            temp_selections.add(
-                mesh_dagpath, temp_component)
-            MGlobal.selectCommand(temp_selections)
-
-            raise FunnyError((
-                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices2.length()} vertices with no material assigned, those vertices will be selected in scene.\n'
-                'Try assign material to them.'
-            ))
-
-        # idk what this block does, must be not important
-        current_index = 0
-        data_indices = MIntArray(vertices_num, -1)
-        for i in range(0, shader_count):
-            len101 = shader_vertex_indices[i].length()
-            for j in range(0, len101):
-                index = shader_vertex_indices[i][j]
-                if data_indices[index] == -1:
-                    data_indices[index] = current_index
-                    shader_vertices[i][j].data_index = current_index
-                else:
-                    shader_vertices[i][j].data_index = data_indices[index]
-                current_index += 1
-            # total vertices
-            self.vertices += shader_vertices[i]
-
-        # i only get that we got shader_indices after this block
+        # map new vertices base on uv_index
+        map_vertices = {}
+        for shader_index in range(0, shader_count):
+            map_vertices[shader_index] = {}
+            for vertex in shader_vertices[shader_index]:
+                map_vertices[shader_index][vertex.uv_index] = vertex.new_index
+        # iterator on faces - 2nd
+        # to dump indices:
+        # - triangulated indices
+        # - new indices base on new unique uv vertices
         iterator = MItMeshPolygon(mesh_dagpath)
         iterator.reset()
-        len333 = len(self.vertices)
         while not iterator.isDone():
-            index = iterator.index()
-            shader_index = poly_shaders[index]
+            # get shader of this face
+            face_index = iterator.index()
+            shader_index = face_shader[face_index]
 
-            indices = MIntArray()
+            # get triangulated face indices
             points = MPointArray()
+            indices = MIntArray()
             iterator.getTriangles(points, indices)
-            lenDOGE = indices.length()
-            if iterator.hasUVs():
-                new_indices = MIntArray(lenDOGE, -1)
-                vertices = MIntArray()
-                iterator.getVertices(vertices)
-                len666 = vertices.length()
-                for i in range(0, len666):
-                    util = MScriptUtil()  # god pls
-                    ptr = util.asIntPtr()
-                    iterator.getUVIndex(i, ptr)
-                    uv_index = util.getInt(ptr)
-
-                    data_index = data_indices[vertices[i]]
-                    if data_index == -1 or data_index >= len333:
-                        raise FunnyError(
-                            f'[SKN.dump({mesh.name()})]: Data index out of range.')
-
-                    for j in range(data_index, len333):
-                        if self.vertices[j].data_index != data_index:
-                            raise FunnyError(
-                                f'[SKN.dump({mesh.name()})]: Could not find corresponding face vertex.')
-                        elif self.vertices[j].uv_index == uv_index:
-                            for k in range(0, lenDOGE):
-                                if indices[k] == vertices[i]:
-                                    new_indices[k] = j
-                            break
-
-                lenMEOW = new_indices.length()
-                for i in range(0, lenMEOW):
-                    shader_indices[shader_index].append(new_indices[i])
-            else:
-                for i in range(0, lenDOGE):
-                    shader_indices[shader_index].append(
-                        data_indices[indices[i]])
-
+            face_index_count = indices.length()
+            # get face vertices
+            map_indices = {}
+            vertices = MIntArray()
+            iterator.getVertices(vertices)
+            face_vertex_count = vertices.length()
+            # map face indices by uv_index
+            for i in range(0, face_vertex_count):
+                util = MScriptUtil()
+                ptr = util.asIntPtr()
+                iterator.getUVIndex(i, ptr)
+                uv_index = util.getInt(ptr)
+                map_indices[vertices[i]] = uv_index
+            # map new indices by new vertices through uv_index
+            # and add new indices
+            for i in range(0, face_index_count):
+                new_indices = map_vertices[shader_index][map_indices[indices[i]]]
+                shader_indices[shader_index].append(new_indices)
             iterator.next()
 
-        # dump submeshes
+        # combine material's indices
+        for i in range(0, shader_count):
+            if i > 0:
+                max_vertex = max(shader_indices[i-1])
+                shader_index_count = len(shader_indices[i])
+                for j in range(0, shader_index_count):
+                    shader_indices[i][j] += max_vertex+1
+
+        # create SKN data base on shader_indices and shader_vertices
         index_start = 0
         vertex_start = 0
         for i in range(0, shader_count):
-            surface_shaders = MFnDependencyNode(
+            index_count = len(shader_indices[i])
+            vertex_count = len(shader_vertices[i])
+
+            # get shader node -> get shader name
+            connections = MFnDependencyNode(
                 shaders[i]).findPlug('surfaceShader')
             plug_array = MPlugArray()
-            surface_shaders.connectedTo(plug_array, True, False)
-            surface_shader = MFnDependencyNode(plug_array[0].node())
-
-            index_count = shader_indices[i].length()
-            vertex_count = shader_vertex_indices[i].length()
-
-            # total indices
-            for j in range(0, index_count):
-                self.indices.append(shader_indices[i][j])
-
+            connections.connectedTo(plug_array, True, False)
+            material = MFnDependencyNode(plug_array[0].node())
+            # dump SKN data: submeshes, indices and vertices
             submesh = SKNSubmesh()
-            submesh.name = surface_shader.name()
-            submesh.vertex_start = vertex_start
-            submesh.vertex_count = vertex_count
+            submesh.name = material.name()
             submesh.index_start = index_start
+            submesh.vertex_start = vertex_start
             submesh.index_count = index_count
+            submesh.vertex_count = vertex_count
             self.submeshes.append(submesh)
+            self.indices += shader_indices[i]
+            self.vertices += shader_vertices[i]
 
             index_start += index_count
             vertex_start += vertex_count
@@ -1776,7 +1818,42 @@ class SKN:
             if ':' in submesh.name:
                 submesh.name = submesh.name.split(':')[-1]
 
-        # ay yo finally
+        # sort submesh to match riot.skl submeshes order
+        if riot:
+            MGlobal.displayInfo(
+                '[SKL.dump(riot.skl)]: Found riot.skn, sorting materials...')
+
+            new_submeshes = []
+            submesh_count = len(self.submeshes)
+            # for adding extra material at the end of list
+            flags = list([True] * submesh_count)
+
+            # find riot submesh in scene
+            for riot_submesh in riot.submeshes:
+                riot_submesh_name = riot_submesh.name.lower()
+                found = False
+                for i in range(0, submesh_count):
+                    if flags[i] and self.submeshes[i].name.lower() == riot_submesh_name:
+                        new_submeshes.append(self.submeshes[i])
+                        flags[i] = False
+                        found = True
+                        break
+
+                # print submesh that not found
+                if not found:
+                    MGlobal.displayWarning(
+                        f'[SKL.dump(riot.skl)]: Missing riot material: {riot_submesh.name}')
+
+            # add extra/addtional materials to the end of list
+            for i in range(0, submesh_count):
+                if flags[i]:
+                    new_submeshes.append(self.submeshes[i])
+                    flags[i] = False
+                    MGlobal.displayInfo(
+                        f'[SKL.dump(riot.skl)]: New material: {self.submeshes[i].name}')
+
+            # assign new list
+            self.submeshes = new_submeshes
 
     def write(self, path):
         with open(path, 'wb') as f:
@@ -2648,23 +2725,27 @@ class SO:
         mesh.updateSurface()
 
     def dump(self):
-        # get mesh
+        # find mesh in selections
         selections = MSelectionList()
         MGlobal.getActiveSelectionList(selections)
         iterator = MItSelectionList(selections, MFn.kMesh)
         if iterator.isDone():
             raise FunnyError(
                 f'[SO.dump()]: Please select a mesh.')
+        # get mesh's DAG path
         mesh_dagpath = MDagPath()
         iterator.getDagPath(mesh_dagpath)
         iterator.next()
         if not iterator.isDone():
             raise FunnyError(
                 f'[SO.dump()]: More than 1 mesh selected.')
+        # get MFnMesh
         mesh = MFnMesh(mesh_dagpath)
 
-        # name
+        # get name
         self.name = mesh.name()
+
+        # central point: translation of mesh
         transform = MFnTransform(mesh.parent(0))
         self.central = transform.getTranslation(MSpace.kTransform)
 
@@ -2675,16 +2756,24 @@ class SO:
         if hole_info.length() > 0:
             raise FunnyError(f'[SO.dump()]: Mesh contains holes.')
 
-        # check valid triangulation
-        iterator = MItMeshPolygon(mesh_dagpath)
-        iterator.reset()
-        while not iterator.isDone():
-            if not iterator.hasValidTriangulation():
-                raise FunnyError(
-                    f'[SO.dump()]: Mesh contains a invalid triangulation polygon.')
-            iterator.next()
+        # SCO only: find pivot joint through skin cluster
+        in_mesh = mesh.findPlug('inMesh')
+        connections = MPlugArray()
+        in_mesh.connectedTo(connections, True, False)
+        if connections.length() > 0:
+            if connections[0].node().apiType() == MFn.kSkinClusterFilter:
+                skin_cluster = MFnSkinCluster(connections[0].node())
+                influences_dagpath = MDagPathArray()
+                influence_count = skin_cluster.influenceObjects(
+                    influences_dagpath)
+                if influence_count > 1:
+                    raise FunnyError(
+                        f'[SO.dump()]: There is more than 1 joint bound with this mesh.')
+                ik_joint = MFnTransform(influences_dagpath[0])
+                translation = ik_joint.getTranslation(MSpace.kTransform)
+                self.pivot = self.central - translation
 
-        # vertices
+        # dumb vertices
         vertex_count = mesh.numVertices()
         vertices = MFloatPointArray()
         mesh.getPoints(vertices, MSpace.kWorld)
@@ -2692,71 +2781,93 @@ class SO:
             position = MVector(vertices[i].x, vertices[i].y, vertices[i].z)
             self.vertices.append(position)
 
-        # find pivot through skin cluster
-        in_mesh = mesh.findPlug('inMesh')
-        in_mesh_connections = MPlugArray()
-        in_mesh.connectedTo(in_mesh_connections, True, False)
-        if in_mesh_connections.length() > 0:
-            if in_mesh_connections[0].node().apiType() == MFn.kSkinClusterFilter:
-                skin_cluster = MFnSkinCluster(in_mesh_connections[0].node())
-                influences_dagpath = MDagPathArray()
-                influence_count = skin_cluster.influenceObjects(
-                    influences_dagpath)
-                if influence_count > 1:
-                    raise FunnyError(
-                        f'[SO.dump()]: There is more than 1 joint bound with mesh.')
-
-                ik_joint = MFnTransform(influences_dagpath[0])
-                translation = ik_joint.getTranslation(MSpace.kTransform)
-                self.pivot = self.central - translation
-
-        # uvs
+        # dump uvs outside loop
         u_values = MFloatArray()
         v_values = MFloatArray()
         mesh.getUVs(u_values, v_values)
-        uv_count = MIntArray()
-        uv_indices = MIntArray()
-        mesh.getAssignedUVs(uv_count, uv_indices)
+        # iterator on faces
+        # to dump face indices and UVs
+        # extra checking
+        bad_faces = MIntArray()  # invalid triangulation face
+        bad_faces2 = MIntArray()  # no UV face
+        iterator = MItMeshPolygon(mesh_dagpath)
+        iterator.reset()
+        while not iterator.isDone():
+            face_index = iterator.index()
 
-        # faces
-        face_count = MIntArray()
-        face_vertices = MIntArray()
-        mesh.getTriangles(face_count, face_vertices)
+            # check valid triangulation
+            if not iterator.hasValidTriangulation():
+                if face_index not in bad_faces:
+                    bad_faces.append(face_index)
+            # check if face has no UVs
+            if not iterator.hasUVs():
+                if face_index not in bad_faces2:
+                    bad_faces2.append(face_index)
 
-        # check triangulated: 1 tri per face = gud
-        for triangle_count in face_count:
-            if triangle_count > 1:
-                raise FunnyError(
-                    f'[SO.dump()]: Mesh contains a non-triangulated face, please Mesh -> Triangulate.')
+            # get triangulated face indices
+            points = MPointArray()
+            indices = MIntArray()
+            iterator.getTriangles(points, indices)
+            face_index_count = indices.length()
+            # get face vertices
+            map_indices = {}
+            vertices = MIntArray()
+            iterator.getVertices(vertices)
+            face_vertex_count = vertices.length()
+            # map face indices by uv_index
+            for i in range(0, face_vertex_count):
+                util = MScriptUtil()
+                ptr = util.asIntPtr()
+                iterator.getUVIndex(i, ptr)
+                uv_index = util.getInt(ptr)
+                map_indices[vertices[i]] = uv_index
+            # dump indices and uvs
+            for i in range(0, face_index_count):
+                index = indices[i]
+                self.indices.append(index)
+                uv_index = map_indices[index]
+                self.uvs.append(MVector(
+                    u_values[uv_index],
+                    1.0 - v_values[uv_index]
+                ))
+            iterator.next()
+        if bad_faces.length() > 0:
+            component = MFnSingleIndexedComponent()
+            face_component = component.create(
+                MFn.kMeshPolygonComponent)
+            component.addElements(bad_faces)
+            selections = MSelectionList()
+            selections.add(mesh_dagpath, face_component)
+            MGlobal.selectCommand(selections)
+            raise FunnyError(
+                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces.length()} invalid triangulation faces, those faces will be selected in scene.')
+        if bad_faces2.length() > 0:
+            component = MFnSingleIndexedComponent()
+            face_component = component.create(
+                MFn.kMeshPolygonComponent)
+            component.addElements(bad_faces2)
+            selections = MSelectionList()
+            selections.add(mesh_dagpath, face_component)
+            MGlobal.selectCommand(selections)
+            raise FunnyError(
+                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces2.length()} faces have no UVs assigned, or, those faces UVs are not in first UV set, those faces will be selected in scene.')
 
-        len666 = mesh.numPolygons()
-        index = 0
-        for i in range(0, len666):
-            for j in range(0, face_count[i] * 3):
-                self.indices.append(face_vertices[index])
-                u = u_values[uv_indices[index]]
-                v = v_values[uv_indices[index]]
-                self.uvs.append(MVector(u, 1.0-v))
-                index += 1
-
-        # material name
-        instance = 0
-        if mesh_dagpath.isInstanced():
-            instance = mesh_dagpath.instanceNumber()
+        # get shader
+        instance = mesh_dagpath.instanceNumber() if mesh_dagpath.isInstanced() else 0
         shaders = MObjectArray()
-        shader_indices = MIntArray()
-        mesh.getConnectedShaders(instance, shaders, shader_indices)
+        face_shader = MIntArray()
+        mesh.getConnectedShaders(instance, shaders, face_shader)
         if shaders.length() > 1:
             raise FunnyError(
                 '[SO.dump()]: There are more than 1 material assigned to this mesh.')
-
+        # material name
         if shaders.length() > 0:
-            surface_shaders = MFnDependencyNode(
+            connections = MFnDependencyNode(
                 shaders[0]).findPlug('surfaceShader')
             plug_array = MPlugArray()
-            surface_shaders.connectedTo(plug_array, True, False)
-            surface_shader = MFnDependencyNode(plug_array[0].node())
-            self.material = surface_shader.name()
+            connections.connectedTo(plug_array, True, False)
+            material = MFnDependencyNode(plug_array[0].node())
+            self.material = material.name()
         else:
             # its only allow 1 material anyway
             self.material = 'lambert'

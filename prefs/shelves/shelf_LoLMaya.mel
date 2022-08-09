@@ -108,7 +108,7 @@ global proc shelf_LoLMaya () {
     ;
     separator
         -enable 1
-        -width 12
+        -width 34
         -height 35
         -manage 1
         -visible 1
@@ -259,7 +259,7 @@ global proc shelf_LoLMaya () {
     ;
     separator
         -enable 1
-        -width 12
+        -width 34
         -height 35
         -manage 1
         -visible 1
@@ -338,9 +338,79 @@ global proc shelf_LoLMaya () {
         -commandRepeatable 1
         -flat 1
     ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Group the selected object(s)." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Group" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "Grp" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/group.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/group.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "doGroup 0 1 1" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Ungroup the selected object(s)." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Ungroup" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "UnGrp" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/group.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/group.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "ungroup" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
     separator
         -enable 1
-        -width 12
+        -width 34
         -height 35
         -manage 1
         -visible 1
@@ -384,6 +454,53 @@ global proc shelf_LoLMaya () {
         -sourceType "mel" 
         -commandRepeatable 1
         -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Separate selected mesh by materials." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Seperate mesh by materials" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/sepmat.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/sepmat.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya import mel\n\ndef getSGsFromShape(shape):\n  myShapeNode=cmds.listRelatives(shape, shapes=1, children=1)\n  shadingEngines = []\n  if cmds.objExists(shape):\n    dest=cmds.listConnections(myShapeNode[0], \n        source=False, \n        plugs=False, \n        destination=True, \n        type=\"shadingEngine\")\n    if len(dest):\n        select=cmds.ls(sl=1)\n        cmds.select(dest, r=1, ne=1)\n        shadingEngines=cmds.ls(sl=1)\n        cmds.select(select, r=1)\n    return shadingEngines\n\ndef sepMat(object):\n    shadingGroups=getSGsFromShape(object)\n    ParentName=(\"group_\"+object)\n    cmds.group(empty=1, n=ParentName)\n    i=0\n    while 1:\n        if not ( i<len(shadingGroups) ):\n            break\n        \n        material=cmds.ls(cmds.listConnections(shadingGroups[i]), materials=True)[0]\n        clone=('mesh_' + material)\n        cmds.duplicate(object, n=clone)\n        cmds.parent(clone, ParentName)\n        cmds.select(clone)\n        cmds.ConvertSelectionToFaces()\n        tempset=str(cmds.sets())\n        tempgrps=cmds.listConnections(material, type='shadingEngine')\n        cmds.select(cmds.sets(tempgrps[0], int=tempset))\n        cmds.InvertSelection()\n        cmds.delete()\n        cmds.delete(tempset)\n        print(f'Separated: {material}')\n        \n        i=i + 1\n\t\n    cmds.delete(object)\n\ncmd = cmds.confirmDialog(\n  title = 'Separted mesh by materials',\n  message = 'This function does not support separated skinCluster, make sure you dont use this after bound skin. Continue?',\n  button = ['Yes','No'],\n  defaultButton = 'Yes',\n  cancelButton = 'No'\n)\nif cmd == 'Yes':\n  selection=cmds.ls(sl=1)\n  sepMat(selection[0])\n  mel.eval('print \"Separated mesh by materials.\"')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    separator
+        -enable 1
+        -width 34
+        -height 35
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -style "shelf" 
+        -horizontal 0
     ;
     shelfButton
         -enableCommandRepeat 1
@@ -776,7 +893,7 @@ global proc shelf_LoLMaya () {
     ;
     separator
         -enable 1
-        -width 12
+        -width 34
         -height 35
         -manage 1
         -visible 1
@@ -850,7 +967,7 @@ global proc shelf_LoLMaya () {
         -style "iconOnly" 
         -marginWidth 0
         -marginHeight 1
-        -command "from maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\ncmd = MGlobal.executeCommandStringResult(\n  'confirmDialog -title \"Force max 4 influences\" -message \"Please backup/save scene first because this function might not work as expect. Continue?\" -button \"Yes\" -button \"No\" -defaultButton \"Yes\" -cancelButton \"No\"'\n)\nif cmd == 'Yes':\n    # get mesh in selections\n    selections = MSelectionList()\n    MGlobal.getActiveSelectionList(selections)\n    iterator = MItSelectionList(selections, MFn.kMesh)\n    if iterator.isDone():\n        raise Exception(f'Please select a mesh.')\n    mesh_dagpath = MDagPath()\n    iterator.getDagPath(mesh_dagpath)  # get first mesh\n    iterator.next()\n    if not iterator.isDone():\n        raise Exception(\n            f'More than 1 mesh selected., combine all meshes if you have mutiple meshes.')\n    mesh = MFnMesh(mesh_dagpath)\n    mesh_name = mesh.name()\n    vertices_num = mesh.numVertices()\n\n    # find skin cluster node upstream - bypass history node\n    iterator = MItDependencyGraph(\n        mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\n    if iterator.isDone():\n        raise Exception('Failed to find created skin cluster.')\n    skin_cluster = MFnSkinCluster(iterator.currentItem())\n    skin_cluster_name = skin_cluster.name()\n\n    # get weights\n    component = MFnSingleIndexedComponent()\n    vertex_component = component.create(MFn.kMeshVertComponent)\n    vertex_indices = MIntArray()\n    MScriptUtil.createIntArrayFromList(\n        list(range(0, vertices_num)), vertex_indices)\n    component.addElements(vertex_indices)\n    weights = MDoubleArray()\n    util = MScriptUtil()\n    ptr = util.asUintPtr()\n    skin_cluster.getWeights(mesh_dagpath, vertex_component, weights, ptr)\n    weight_influence_count = util.getUint(ptr)\n\n    # fix 4 influence weights\n    for i in range(0, vertices_num):\n        found_weights = []\n        inf_count = 0\n\n        for j in range(0, weight_influence_count):\n            weight = weights[i * weight_influence_count + j]\n            if weight > 0:\n                inf_count += 1\n                found_weights.append((weight, j))\n\n        if inf_count > 4:\n            # get sorted weights + influence\n            found_weights = sorted(\n                found_weights, key=lambda f: f[0], reverse=True)\n\n            # 4 highest weights\n            high_weights = found_weights[:4]\n            # the rest small weights\n            low_weights = found_weights[4:]\n\n            # sum all low weights and remove them\n            low_sum = 0.0\n            for weight, influence in low_weights:\n                low_sum += weight\n                weights[i * weight_influence_count + influence] = 0.0\n\n            # distributed low weights to high weights + re calculate weight sum for normalize\n            low_sum /= 4\n            weight_sum = 0.0\n            for weight, influence in high_weights:\n                weights[i * weight_influence_count + influence] += low_sum\n\n    # set weights back\n    MGlobal.executeCommand(f'setAttr {skin_cluster_name}.normalizeWeights 0')\n    mask_influence = MIntArray()\n    MScriptUtil.createIntArrayFromList(\n        list(range(0, weight_influence_count)), mask_influence)\n    skin_cluster.setWeights(mesh_dagpath, vertex_component,\n                            mask_influence, weights, False)\n    MGlobal.executeCommand(f'setAttr {skin_cluster_name}.normalizeWeights 1')\n    MGlobal.executeCommand(\n        f'skinPercent -normalize true {skin_cluster_name} {mesh_name}')\n\n    MGlobal.displayInfo('Forced max 4 influences.')\n" 
+        -command "from maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\ncmd = MGlobal.executeCommandStringResult(\n  'confirmDialog -title \"Force max 4 influences\" -message \"Please backup/save scene first because this function might not work as expect. Continue?\" -button \"Yes\" -button \"No\" -defaultButton \"Yes\" -cancelButton \"No\"'\n)\nif cmd == 'Yes':\n    # get mesh in selections\n    selections = MSelectionList()\n    MGlobal.getActiveSelectionList(selections)\n    iterator = MItSelectionList(selections, MFn.kMesh)\n    if iterator.isDone():\n        raise Exception(f'Please select a mesh.')\n    mesh_dagpath = MDagPath()\n    iterator.getDagPath(mesh_dagpath)  # get first mesh\n    iterator.next()\n    if not iterator.isDone():\n        raise Exception(\n            f'More than 1 mesh selected., combine all meshes if you have mutiple meshes.')\n    mesh = MFnMesh(mesh_dagpath)\n    mesh_name = mesh.name()\n    vertices_num = mesh.numVertices()\n\n    # find skin cluster node upstream - bypass history node\n    iterator = MItDependencyGraph(\n        mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\n    if iterator.isDone():\n        raise Exception('Failed to find created skin cluster.')\n    skin_cluster = MFnSkinCluster(iterator.currentItem())\n    skin_cluster_name = skin_cluster.name()\n\n    # get weights\n    component = MFnSingleIndexedComponent()\n    vertex_component = component.create(MFn.kMeshVertComponent)\n    weights = MDoubleArray()\n    util = MScriptUtil()\n    ptr = util.asUintPtr()\n    skin_cluster.getWeights(mesh_dagpath, vertex_component, weights, ptr)\n    weight_influence_count = util.getUint(ptr)\n\n    # fix 4 influence weights\n    for i in range(0, vertices_num):\n        found_weights = []\n        inf_count = 0\n\n        for j in range(0, weight_influence_count):\n            weight = weights[i * weight_influence_count + j]\n            if weight > 0:\n                inf_count += 1\n                found_weights.append((weight, j))\n\n        if inf_count > 4:\n            # get sorted weights + influence\n            found_weights = sorted(\n                found_weights, key=lambda f: f[0], reverse=True)\n\n            # 4 highest weights\n            high_weights = found_weights[:4]\n            # the rest small weights\n            low_weights = found_weights[4:]\n\n            # sum all low weights and remove them\n            low_sum = 0.0\n            for weight, influence in low_weights:\n                low_sum += weight\n                weights[i * weight_influence_count + influence] = 0.0\n\n            # distributed low weights to high weights + re calculate weight sum for normalize\n            low_sum /= 4\n            weight_sum = 0.0\n            for weight, influence in high_weights:\n                weights[i * weight_influence_count + influence] += low_sum\n\n    # set weights back\n    MGlobal.executeCommand(f'setAttr {skin_cluster_name}.normalizeWeights 0')\n    mask_influence = MIntArray()\n    MScriptUtil.createIntArrayFromList(\n        list(range(0, weight_influence_count)), mask_influence)\n    skin_cluster.setWeights(mesh_dagpath, vertex_component,\n                            mask_influence, weights, False)\n    MGlobal.executeCommand(f'setAttr {skin_cluster_name}.normalizeWeights 1')\n    MGlobal.executeCommand(\n        f'skinPercent -normalize true {skin_cluster_name} {mesh_name}')\n\n    MGlobal.displayInfo('Forced max 4 influences.')\n" 
         -sourceType "python" 
         -commandRepeatable 1
         -flat 1
@@ -884,7 +1001,42 @@ global proc shelf_LoLMaya () {
         -style "iconOnly" 
         -marginWidth 0
         -marginHeight 1
-        -command "from maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\ncmd = MGlobal.executeCommandStringResult(\n  'confirmDialog -title \"Rebind skinned mesh with same vertex id\" -message \"Please backup/save scene first because this function might not work as expect. Continue?\" -button \"Yes\" -button \"No\" -defaultButton \"Yes\" -cancelButton \"No\"'\n)\nif cmd == 'Yes':\n    # get mesh in selections\n    selections = MSelectionList()\n    MGlobal.getActiveSelectionList(selections)\n    iterator = MItSelectionList(selections, MFn.kMesh)\n    if iterator.isDone():\n        raise Exception(f'[SKN.dump()]: Please select a mesh.')\n    mesh_dagpath = MDagPath()\n    iterator.getDagPath(mesh_dagpath)  # get first mesh\n    iterator.next()\n    if not iterator.isDone():\n        raise Exception(\n            f'[SKN.dump()]: More than 1 mesh selected., combine all meshes if you have mutiple meshes.')\n    mesh = MFnMesh(mesh_dagpath)\n    mesh_name = mesh.name()\n    vertices_num = mesh.numVertices()\n\n    # find skin cluster\n    iterator = MItDependencyGraph(\n        mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\n    if iterator.isDone():\n        raise Exception('Failed to find skin cluster.')\n    skin_cluster = MFnSkinCluster(iterator.currentItem())\n\n    # get weights\n    component = MFnSingleIndexedComponent()\n    vertex_component = component.create(MFn.kMeshVertComponent)\n    vertex_indices = MIntArray()\n    MScriptUtil.createIntArrayFromList(\n        list(range(0, vertices_num)), vertex_indices)\n    component.addElements(vertex_indices)\n    weights = MDoubleArray()\n    util = MScriptUtil()\n    ptr = util.asUintPtr()\n    skin_cluster.getWeights(mesh_dagpath, vertex_component, weights, ptr)\n\n    # get influence\n    influences_dagpath = MDagPathArray()\n    skin_cluster.influenceObjects(influences_dagpath)\n    influence_count = influences_dagpath.length()\n\n    # unbind\n    MGlobal.executeCommand(f'skinCluster -e  -ubk {mesh_name}')\n    MGlobal.executeCommand('DeleteAllHistory')\n\n    # rebind\n    selections = MSelectionList()\n    selections.add(mesh_dagpath)\n    for i in range(0, influence_count):\n        selections.add(influences_dagpath[i])\n    MGlobal.selectCommand(selections)\n    MGlobal.executeCommand(f'skinCluster -mi 4 -tsb -n {mesh_name}_skinCluster')\n\n    # get created skincluster\n    iterator = MItDependencyGraph(\n        mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\n    if iterator.isDone():\n        raise Exception('Failed to find created skin cluster.')\n    skin_cluster = MFnSkinCluster(iterator.currentItem())\n\n    # get influences mask (influences indices)\n    new_influences_dagpath = MDagPathArray()\n    skin_cluster.influenceObjects(new_influences_dagpath)\n    mask_influence = MIntArray(influence_count)\n    for i in range(0, influence_count):\n        for j in range(0, influence_count):\n            if new_influences_dagpath[i] == influences_dagpath[j]:\n                mask_influence[i] = j\n                break\n\n    # set weights\n    MGlobal.executeCommand(f'setAttr {mesh_name}_skinCluster.normalizeWeights 0')\n    skin_cluster.setWeights(mesh_dagpath, vertex_component,\n                            mask_influence, weights, False)\n    MGlobal.executeCommand(f'setAttr {mesh_name}_skinCluster.normalizeWeights 1')\n    MGlobal.executeCommand(\n        f'skinPercent -normalize true {mesh_name}_skinCluster {mesh_name}')\n\n    MGlobal.displayInfo('Rebound.')\n" 
+        -command "from maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\ncmd = MGlobal.executeCommandStringResult(\n  'confirmDialog -title \"Rebind skinned mesh with same vertex id\" -message \"Please backup/save scene first because this function might not work as expect. Continue?\" -button \"Yes\" -button \"No\" -defaultButton \"Yes\" -cancelButton \"No\"'\n)\nif cmd == 'Yes':\n    # get mesh in selections\n    selections = MSelectionList()\n    MGlobal.getActiveSelectionList(selections)\n    iterator = MItSelectionList(selections, MFn.kMesh)\n    if iterator.isDone():\n        raise Exception(f'Please select a mesh.')\n    mesh_dagpath = MDagPath()\n    iterator.getDagPath(mesh_dagpath)  # get first mesh\n    iterator.next()\n    if not iterator.isDone():\n        raise Exception(\n            f'More than 1 mesh selected., combine all meshes if you have mutiple meshes.')\n    mesh = MFnMesh(mesh_dagpath)\n    mesh_name = mesh.name()\n\n    # find skin cluster\n    iterator = MItDependencyGraph(\n        mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\n    if iterator.isDone():\n        raise Exception('Failed to find skin cluster.')\n    skin_cluster = MFnSkinCluster(iterator.currentItem())\n\n    # get weights\n    component = MFnSingleIndexedComponent()\n    vertex_component = component.create(MFn.kMeshVertComponent)\n    weights = MDoubleArray()\n    util = MScriptUtil()\n    ptr = util.asUintPtr()\n    skin_cluster.getWeights(mesh_dagpath, vertex_component, weights, ptr)\n\n    # get influence\n    influences_dagpath = MDagPathArray()\n    skin_cluster.influenceObjects(influences_dagpath)\n    influence_count = influences_dagpath.length()\n\n    # unbind\n    MGlobal.executeCommand(f'skinCluster -e  -ubk {mesh_name}')\n    MGlobal.executeCommand('DeleteAllHistory')\n\n    # rebind\n    selections = MSelectionList()\n    selections.add(mesh_dagpath)\n    for i in range(0, influence_count):\n        selections.add(influences_dagpath[i])\n    MGlobal.selectCommand(selections)\n    MGlobal.executeCommand(f'skinCluster -mi 4 -tsb -n {mesh_name}_skinCluster')\n\n    # get created skincluster\n    iterator = MItDependencyGraph(\n        mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\n    if iterator.isDone():\n        raise Exception('Failed to find created skin cluster.')\n    skin_cluster = MFnSkinCluster(iterator.currentItem())\n\n    # get influences mask (influences indices)\n    new_influences_dagpath = MDagPathArray()\n    skin_cluster.influenceObjects(new_influences_dagpath)\n    mask_influence = MIntArray(influence_count)\n    for i in range(0, influence_count):\n        for j in range(0, influence_count):\n            if new_influences_dagpath[i] == influences_dagpath[j]:\n                mask_influence[i] = j\n                break\n\n    # set weights\n    MGlobal.executeCommand(f'setAttr {mesh_name}_skinCluster.normalizeWeights 0')\n    skin_cluster.setWeights(mesh_dagpath, vertex_component,\n                            mask_influence, weights, False)\n    MGlobal.executeCommand(f'setAttr {mesh_name}_skinCluster.normalizeWeights 1')\n    MGlobal.executeCommand(\n        f'skinPercent -normalize true {mesh_name}_skinCluster {mesh_name}')\n\n    MGlobal.displayInfo('Rebound.')\n" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Copy weights from source group meshes to dest group meshes. (base on same mesh name)" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Copy group weights" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "Grp" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/cgw.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/cgw.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya import mel\n\nselected =cmds.ls(sl = True)\n\nsrcs = cmds.listRelatives(selected[0])\ndsts = cmds.listRelatives(selected[1])\n\nfor src in srcs:\n    full_src = f'{selected[0]}|{src}'\n    sc1 = cmds.ls(cmds.listHistory(full_src, pdo = True), type = 'skinCluster')[0]\n    if sc1 == None:\n        continue\n    for dst in dsts:\n        if dst == src:\n            full_dst = f'{selected[1]}|{dst}'\n            sc2 = cmds.ls(cmds.listHistory(full_dst, pdo = True), type = 'skinCluster')[0]\n            if sc2 == None:\n                break\n            cmds.copySkinWeights(ss = sc1, ds = sc2, nm = True, ia = 'closestJoint', sa = 'closestPoint')\n            print(f'Copied weights: {sc1} -> {sc2}')\n            break\nmel.eval('print \"Copied group weights\"')" 
         -sourceType "python" 
         -commandRepeatable 1
         -flat 1

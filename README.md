@@ -68,7 +68,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
 4. ANM:
     - ANM data in Maya scene: 
         - Translate + Rotate + Scale keyframes of all joints in scene from time 1 to end time on Time Slider.
-        - **Important**: Time Slider playback must have time 0 even through animation start time is 1.
+        - **Important**: Time Slider playback must have time 0 even though animation start time is 1.
         - FPS support: 30/60.
     - Read: 
         - `r3d2canm`
@@ -117,8 +117,8 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - L<->R: mirror rotation of a selected joint startswith `L_` or `R_` to the opposite joint.
         - A<->B: mirror rotation of first selected joint to second selected joint.
     - 4 influences fix: prune and force max 4 influences on selected skin cluster.
-    - Rebind button: Quick ly unbind, delete all history, rebind, copy selected skincluster's weights back. (base on vertexID)
-    - Copy group weights: copy weights from first selected group to second selected group. (base on mesh name)
+    - Rebind button: Quickly unbind, delete all history, rebind selected skin cluster then copy weights back base on vertex ID.
+    - Copy group weights: copy weights from first selected group to second selected group base on mesh name inside the group.
 
 ### External Links:
 

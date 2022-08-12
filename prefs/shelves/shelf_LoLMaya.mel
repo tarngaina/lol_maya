@@ -333,7 +333,7 @@ global proc shelf_LoLMaya () {
         -style "iconOnly" 
         -marginWidth 0
         -marginHeight 1
-        -command "from maya import cmds\nfrom maya import mel\n\nselected = cmds.ls(sl = True)\nnodes = []\nfor item in selected:\n    nodes.append(item)\n    des = cmds.listRelatives(item, ad=True)\n    if des:\n        nodes += des\nfor node in nodes:\n    old = node\n    if 'Fake_namespace_' in old:\n        new = old.replace('Fake_namespace_', '')\n        cmds.rename(old, new)\n    elif ':' in old:\n        new = old.split(':')[1]\n        try:\n            cmds.rename(old, new)\n        except:\n            pass\n\nmel.eval('print \"Removed fake namespace.\"')" 
+        -command "from maya import cmds\nfrom maya import mel\n\nselected = cmds.ls(sl = True)\nnodes = []\nfor item in selected:\n    nodes.append(item)\n    des = cmds.listRelatives(item, ad=True)\n    if des:\n        nodes += des\nfor node in nodes:\n    old = node\n    if 'Fake_namespace_' in old:\n        new = old.replace('Fake_namespace_', '')\n        try:\n            cmds.rename(old, new)\n        except:\n            pass\n    elif ':' in old:\n        new = old.split(':')[1]\n        try:\n            cmds.rename(old, new)\n        except:\n            pass\n\nmel.eval('print \"Removed fake namespace.\"')" 
         -sourceType "python" 
         -commandRepeatable 1
         -flat 1

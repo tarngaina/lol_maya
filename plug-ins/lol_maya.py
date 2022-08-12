@@ -592,8 +592,12 @@ class FunnyError(Exception):
             message = temp[1]
         message = repr(message)[1:-1]
         button = choice(
-            ['UwU', '<(\")', 'ok boomer', 'funny man', 'jesus', 'bruh',
-             'stop', 'get some help', 'haha', 'lmao', 'ay yo', 'SUS', 'sOcIEtY.'])
+            [
+                'UwU', '<(\")', 'ok boomer', 'funny man', 'jesus', 'bruh', 'bro', 'please', 'man',
+                'stop', 'get some help', 'haha', 'lmao', 'ay yo', 'SUS', 'sOcIEtY.', 'yeah', 'whatever',
+                'gurl', 'fck', 'im ded', '(~`u`)~', 't(^u^t)', '(>w<)'
+            ]
+        )
         MGlobal.executeCommandStringResult(
             f'confirmDialog -title "{title}" -message "{message}" -button "{button}" -icon "critical"  -defaultButton "{button}"')
 
@@ -1780,7 +1784,7 @@ class SKN:
                 selections.add(mesh_dagpath, face_component)
                 MGlobal.selectCommand(selections)
                 raise FunnyError(
-                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces.length()} invalid triangulation faces, those faces will be selected in scene.')
+                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces.length()} invalid triangulation faces, those faces will be selected in scene.\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.')
             if bad_faces2.length() > 0:
                 component = MFnSingleIndexedComponent()
                 face_component = component.create(
@@ -1790,7 +1794,7 @@ class SKN:
                 selections.add(mesh_dagpath, face_component)
                 MGlobal.selectCommand(selections)
                 raise FunnyError(
-                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces2.length()} faces have no material assigned, those faces will be selected in scene.')
+                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces2.length()} faces have no material assigned, those faces will be selected in scene.\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.')
             if bad_faces3.length() > 0:
                 component = MFnSingleIndexedComponent()
                 face_component = component.create(
@@ -1800,7 +1804,7 @@ class SKN:
                 selections.add(mesh_dagpath, face_component)
                 MGlobal.selectCommand(selections)
                 raise FunnyError(
-                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces3.length()} faces have no UVs assigned, or, those faces UVs are not in first UV set, those faces will be selected in scene.')
+                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces3.length()} faces have no UVs assigned, or, those faces UVs are not in first UV set, those faces will be selected in scene.\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.')
             if bad_vertices.length() > 0:
                 component = MFnSingleIndexedComponent()
                 vertex_component = component.create(
@@ -1814,6 +1818,7 @@ class SKN:
                     'Save/backup scene first, try one of following methods to fix:\n'
                     '1. Seperate all connected faces that shared those vertices.\n'
                     '2. Check and reassign correct material.'
+                    '\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.'
                 ))
 
             # get weights of all vertices
@@ -1938,10 +1943,11 @@ class SKN:
                     '1. Repaint weight on those vertices.\n'
                     '2. Prune small weights.\n'
                     '3. [not recommended] Try auto fix 4 influences button on shelf.'
+                    '\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.'
                 ))
             if bad_vertices2.length() > 0:
                 raise FunnyError(
-                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices2.length()} vertices have no UVs assigned, those vertices will be selected in scene.')
+                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices2.length()} vertices have no UVs assigned, those vertices will be selected in scene.\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.')
 
             # map new vertices base on uv_index
             map_vertices = {}
@@ -2090,7 +2096,7 @@ class SKN:
                         f'[SKN.dump({mesh.name()})]: More than 1 material assigned to this mesh.')
                 if shader_count < 1:
                     raise FunnyError(
-                        f'[SKN.dump({mesh.name()})]: No material assigned to this mesh, please assign one.')
+                        f'[SKN.dump({mesh.name()})]: No material assigned to this mesh.')
                 mesh_shaders.append(shaders)
 
                 # iterator on faces - 1st
@@ -2142,7 +2148,7 @@ class SKN:
                     selections.add(mesh_dagpath, face_component)
                     MGlobal.selectCommand(selections)
                     raise FunnyError(
-                        f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces.length()} invalid triangulation faces, those faces will be selected in scene.')
+                        f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces.length()} invalid triangulation faces, those faces will be selected in scene.\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.')
                 if bad_faces2.length() > 0:
                     component = MFnSingleIndexedComponent()
                     face_component = component.create(
@@ -2152,7 +2158,7 @@ class SKN:
                     selections.add(mesh_dagpath, face_component)
                     MGlobal.selectCommand(selections)
                     raise FunnyError(
-                        f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces2.length()} faces have no material assigned, those faces will be selected in scene.')
+                        f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces2.length()} faces have no material assigned, those faces will be selected in scene.\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.')
                 if bad_faces3.length() > 0:
                     component = MFnSingleIndexedComponent()
                     face_component = component.create(
@@ -2162,7 +2168,7 @@ class SKN:
                     selections.add(mesh_dagpath, face_component)
                     MGlobal.selectCommand(selections)
                     raise FunnyError(
-                        f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces3.length()} faces have no UVs assigned, or, those faces UVs are not in first UV set, those faces will be selected in scene.')
+                        f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces3.length()} faces have no UVs assigned, or, those faces UVs are not in first UV set, those faces will be selected in scene.\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.')
                 if bad_vertices.length() > 0:
                     component = MFnSingleIndexedComponent()
                     vertex_component = component.create(
@@ -2176,6 +2182,7 @@ class SKN:
                         'Save/backup scene first, try one of following methods to fix:\n'
                         '1. Seperate all connected faces that shared those vertices.\n'
                         '2. Check and reassign correct material.'
+                        '\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.'
                     ))
 
                 # get weights of all vertices
@@ -2302,10 +2309,11 @@ class SKN:
                         '1. Repaint weight on those vertices.\n'
                         '2. Prune small weights.\n'
                         '3. [not recommended] Try auto fix 4 influences button on shelf.'
+                        '\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.'
                     ))
                 if bad_vertices2.length() > 0:
                     raise FunnyError(
-                        f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices2.length()} vertices have no UVs assigned, those vertices will be selected in scene.')
+                        f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices2.length()} vertices have no UVs assigned, those vertices will be selected in scene.\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.')
 
                 # map new vertices base on uv_index
                 map_vertices = {}
@@ -2389,29 +2397,39 @@ class SKN:
         iterator = MItSelectionList(selections, MFn.kTransform)
         if iterator.isDone():
             raise FunnyError(
-                f'[SKN.dump()]: Please select a mesh/group of meshes.')
-        # get selection DAG path
-        selected_dagpath = MDagPath()
-        iterator.getDagPath(selected_dagpath)
-        iterator.next()
-        if not iterator.isDone():
-            raise FunnyError(
-                f'[SKN.dump()]: Too many selected objects..')
+                f'[SKN.dump()]: Please select a mesh or group of meshes.')
+
+        # get first transform dagpath in selections
+        iterator_dagpath = MDagPath()
+        selected_dagpath = None
+        while not iterator.isDone():
+            iterator.getDagPath(iterator_dagpath)
+            if iterator_dagpath.apiType() == MFn.kTransform:
+                if not selected_dagpath:
+                    selected_dagpath = MDagPath(iterator_dagpath)
+                else:
+                    raise FunnyError(
+                        '[SKN.dump()]: Too many selected objects. Please select only a mesh or group of meshes.')
+            iterator.next()
 
         # get MFnTransform of selected object
         selected_transform = MFnTransform(selected_dagpath)
         selected_child_count = selected_transform.childCount()
         if selected_child_count == 0:
             raise FunnyError(
-                '[SKN.dump()]: Selected object is not Mesh / Group of meshes.')
+                f'[SKN.dump({selected_transform.name()})]: Selected object is not a mesh or group of meshes?')
         first_child = selected_transform.child(0)
         if first_child.apiType() == MFn.kMesh:
             dump_combined(MFnMesh(first_child))
         else:
             meshes = []
             for i in range(0, selected_child_count):
-                transform_child = MFnTransform(selected_transform.child(i))
-                meshes.append(MFnMesh(transform_child.child(0)))
+                transform_child = MFnTransform(
+                    selected_transform.child(i))
+                if transform_child.childCount() > 0:
+                    first_grand_child = transform_child.child(0)
+                    if first_grand_child.apiType() == MFn.kMesh:
+                        meshes.append(MFnMesh(first_grand_child))
             dump_separated(meshes)
 
         # sort submesh to match riot.skn submeshes order
@@ -3020,9 +3038,9 @@ class ANM:
         for time in range(1, self.duration+1):
             for track in self.tracks:
                 pose = track.poses[time]
-                translation_key = f'{pose.translation.x:.4f} {pose.translation.y:.4f} {pose.translation.z:.4f}'
-                scale_key = f'{pose.scale.x:.4f} {pose.scale.y:.4f} {pose.scale.z:.4f}'
-                rotation_key = f'{pose.rotation.x:.4f} {pose.rotation.y:.4f} {pose.rotation.z:.4f} {pose.rotation.w:.4f}'
+                translation_key = f'{pose.translation.x:.6f} {pose.translation.y:.6f} {pose.translation.z:.6f}'
+                scale_key = f'{pose.scale.x:.6f} {pose.scale.y:.6f} {pose.scale.z:.6f}'
+                rotation_key = f'{pose.rotation.x:.6f} {pose.rotation.y:.6f} {pose.rotation.z:.6f} {pose.rotation.w:.6f}'
                 if translation_key not in uni_vecs:
                     uni_vecs[translation_key] = vec_index
                     pose.translation_index = vec_index
@@ -3371,7 +3389,7 @@ class SO:
         hole_vertex = MIntArray()
         mesh.getHoles(hole_info, hole_vertex)
         if hole_info.length() > 0:
-            raise FunnyError(f'[SO.dump()]: Mesh contains holes.')
+            raise FunnyError(f'[SO.dump({mesh.name()})]: Mesh contains holes.')
 
         # SCO only: find pivot joint through skin cluster
         in_mesh = mesh.findPlug('inMesh')
@@ -3385,7 +3403,7 @@ class SO:
                     influences_dagpath)
                 if influence_count > 1:
                     raise FunnyError(
-                        f'[SO.dump()]: There is more than 1 joint bound with this mesh.')
+                        f'[SO.dump({mesh.name()})]: There is more than 1 joint bound with this mesh.')
                 ik_joint = MFnTransform(influences_dagpath[0])
                 translation = ik_joint.getTranslation(MSpace.kTransform)
                 self.pivot = self.central - translation
@@ -3457,7 +3475,7 @@ class SO:
             selections.add(mesh_dagpath, face_component)
             MGlobal.selectCommand(selections)
             raise FunnyError(
-                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces.length()} invalid triangulation faces, those faces will be selected in scene.')
+                f'[SO.dump({mesh.name()})]: Mesh contains {bad_faces.length()} invalid triangulation faces, those faces will be selected in scene.\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.')
         if bad_faces2.length() > 0:
             component = MFnSingleIndexedComponent()
             face_component = component.create(
@@ -3467,7 +3485,7 @@ class SO:
             selections.add(mesh_dagpath, face_component)
             MGlobal.selectCommand(selections)
             raise FunnyError(
-                f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces2.length()} faces have no UVs assigned, or, those faces UVs are not in first UV set, those faces will be selected in scene.')
+                f'[SO.dump({mesh.name()})]: Mesh contains {bad_faces2.length()} faces have no UVs assigned, or, those faces UVs are not in first UV set, those faces will be selected in scene.\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.')
 
         # get shader
         instance = mesh_dagpath.instanceNumber() if mesh_dagpath.isInstanced() else 0
@@ -3476,7 +3494,7 @@ class SO:
         mesh.getConnectedShaders(instance, shaders, face_shader)
         if shaders.length() > 1:
             raise FunnyError(
-                '[SO.dump()]: There are more than 1 material assigned to this mesh.')
+                f'[SO.dump({mesh.name()})]: There are more than 1 material assigned to this mesh.')
         # material name
         if shaders.length() > 0:
             connections = MFnDependencyNode(
@@ -3491,11 +3509,11 @@ class SO:
 
         # export base on riot file
         if riot:
-            MGlobal.displayInfo(
-                '[SKL.dump(riot.so)]: Found riot.so (scb/sco), updated value.')
             self.central = riot.central
             self.pivot = riot.pivot
             self.scb_flag = riot.scb_flag
+            MGlobal.displayInfo(
+                '[SKL.dump(riot.so)]: Found riot.so (scb/sco), updated value.')
 
     def write_sco(self, path):
         with open(path, 'w') as f:

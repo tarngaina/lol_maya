@@ -3,6 +3,22 @@ An attempt to update RiotFileTranslator to Maya 2023.
 
 ![](https://i.imgur.com/cRpMpYt.gif)
 
+### Installation:
+1. [Click here and download latest release.](https://github.com/tarngaina/lol_maya/releases)
+
+
+2. Extract all `plug-ins`, `prefs` and `scripts` folder to `Documents` \ `maya` \ `2023`.
+
+    ![](https://i.imgur.com/OuXcoD7.png)
+
+3. In Maya toolbar, select `Windows` > `Settings/Preferences` > `Plug-in Manager`.
+
+    ![](https://i.imgur.com/fawHenl.png)
+
+4. Tick `Load` / `Auto Load` on the plug-in `lol_maya.py`.
+
+    ![](https://i.imgur.com/D0Za7BU.png)
+
 
 ### File translators:
 1. Misc:
@@ -83,7 +99,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - To export: select the mesh -> use export selection.
         - SCO
         - SCB: `r3d2Mesh`: V3 
-        - Show/select on error: 
+        - Show/select component on error: 
             - Face: invalid triangulation face, non UVs assigned face.
         - No need to convert with Wooxy.
 
@@ -103,24 +119,6 @@ An attempt to update RiotFileTranslator to Maya 2023.
     - 4 influences fix: prune and force max 4 influences on selected skin cluster.
     - Rebind button: Quick ly unbind, delete all history, rebind, copy selected skincluster's weights back. (base on vertexID)
     - Copy group weights: copy weights from first selected group to second selected group. (base on mesh name)
-
-### Installation:
-1. [Click here and download latest release.](https://github.com/tarngaina/lol_maya/releases)
-
-
-2. Extract all `plug-ins`, `prefs` and `scripts` folder to `Documents` \ `maya` \ `2023`.
-
-    ![](https://i.imgur.com/OuXcoD7.png)
-
-3. In Maya toolbar, select `Windows` > `Settings/Preferences` > `Plug-in Manager`.
-
-    ![](https://i.imgur.com/fawHenl.png)
-
-4. Tick `Load` / `Auto Load` on the plug-in `lol_maya.py`.
-
-    ![](https://i.imgur.com/D0Za7BU.png)
-
-
 
 ### External Links:
 

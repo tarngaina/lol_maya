@@ -1,0 +1,650 @@
+global proc shelf_LoLMaya_MAPGEO () {
+    global string $gBuffStr;
+    global string $gBuffStr0;
+    global string $gBuffStr1;
+
+
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Create 8 layers and assign selected object to all layers." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Create 8 layers" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "ALL" 
+        -overlayLabelColor 0 1 0.2039 
+        -overlayLabelBackColor 0 0 0 1 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\nfor i in range(1, 9):\n    if not cmds.objExists(f'set{i}'):\n        cmds.sets(name=f'set{i}')\n    else:\n        cmds.sets(addElement=f'set{i}')\n\nMGlobal.displayInfo('Created 8 sets.')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Remove selected objects from all layers." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Remove from all layers" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "X" 
+        -overlayLabelColor 1 0 0 
+        -overlayLabelBackColor 0 0 0 1 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\nfor i in range(1, 9):\n    if cmds.objExists(f'set{i}'):\n        cmds.sets(remove=f'set{i}')\n\nMGlobal.displayInfo('Removed selected from all sets.')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    separator
+        -enable 1
+        -width 12
+        -height 35
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -style "shelf" 
+        -horizontal 0
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Assign/remove selected objects to layer 1." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Layer1" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "1" 
+        -overlayLabelColor 1 1 1 
+        -overlayLabelBackColor 0 0 0 0.8 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\ni = 1\nif not cmds.objExists(f'set{i}'):\n    cmds.sets(name=f'set{i}')\nelse:\n    if cmds.sets(im=f'set{i}'):\n        cmds.sets(remove=f'set{i}')\n        MGlobal.displayInfo('Removed selected from set{i}.')\n    else:\n        cmds.sets(addElement=f'set{i}')\n        MGlobal.displayInfo('Assigned selected to set{i}.')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Assign/remove selected objects to layer 2." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Layer2" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "2" 
+        -overlayLabelColor 1 0.145 0 
+        -overlayLabelBackColor 0 0 0 0.8 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\ni = 2\nif not cmds.objExists(f'set{i}'):\n    cmds.sets(name=f'set{i}')\nelse:\n    if cmds.sets(im=f'set{i}'):\n        cmds.sets(remove=f'set{i}')\n        MGlobal.displayInfo('Removed selected from set{i}.')\n    else:\n        cmds.sets(addElement=f'set{i}')\n        MGlobal.displayInfo('Assigned selected to set{i}.')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Assign/remove selected objects to layer 3." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Layer3" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "3" 
+        -overlayLabelColor 1 0.6313 0 
+        -overlayLabelBackColor 0 0 0 0.8 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\ni = 3\nif not cmds.objExists(f'set{i}'):\n    cmds.sets(name=f'set{i}')\nelse:\n    if cmds.sets(im=f'set{i}'):\n        cmds.sets(remove=f'set{i}')\n        MGlobal.displayInfo('Removed selected from set{i}.')\n    else:\n        cmds.sets(addElement=f'set{i}')\n        MGlobal.displayInfo('Assigned selected to set{i}.')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Assign/remove selected objects to layer 4." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Layer4" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "4" 
+        -overlayLabelColor 0.0509 0 1 
+        -overlayLabelBackColor 0 0 0 0.8 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\ni = 4\nif not cmds.objExists(f'set{i}'):\n    cmds.sets(name=f'set{i}')\nelse:\n    if cmds.sets(im=f'set{i}'):\n        cmds.sets(remove=f'set{i}')\n        MGlobal.displayInfo('Removed selected from set{i}.')\n    else:\n        cmds.sets(addElement=f'set{i}')\n        MGlobal.displayInfo('Assigned selected to set{i}.')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Assign/remove selected objects to layer 5." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Layer5" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "5" 
+        -overlayLabelColor 0.6078 1 0.8941 
+        -overlayLabelBackColor 0 0 0 0.8 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\ni = 5\nif not cmds.objExists(f'set{i}'):\n    cmds.sets(name=f'set{i}')\nelse:\n    if cmds.sets(im=f'set{i}'):\n        cmds.sets(remove=f'set{i}')\n        MGlobal.displayInfo('Removed selected from set{i}.')\n    else:\n        cmds.sets(addElement=f'set{i}')\n        MGlobal.displayInfo('Assigned selected to set{i}.')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Assign/remove selected objects to layer 6." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Layer6" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "6" 
+        -overlayLabelColor 0 0.7647 1 
+        -overlayLabelBackColor 0 0 0 0.8 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\ni = 6\nif not cmds.objExists(f'set{i}'):\n    cmds.sets(name=f'set{i}')\nelse:\n    if cmds.sets(im=f'set{i}'):\n        cmds.sets(remove=f'set{i}')\n        MGlobal.displayInfo('Removed selected from set{i}.')\n    else:\n        cmds.sets(addElement=f'set{i}')\n        MGlobal.displayInfo('Assigned selected to set{i}.')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Assign/remove selected objects to layer 7." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Layer7" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "7" 
+        -overlayLabelColor 0.3686 1 0 
+        -overlayLabelBackColor 0 0 0 0.8 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\ni = 7\nif not cmds.objExists(f'set{i}'):\n    cmds.sets(name=f'set{i}')\nelse:\n    if cmds.sets(im=f'set{i}'):\n        cmds.sets(remove=f'set{i}')\n        MGlobal.displayInfo('Removed selected from set{i}.')\n    else:\n        cmds.sets(addElement=f'set{i}')\n        MGlobal.displayInfo('Assigned selected to set{i}.')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Assign/remove selected objects to layer 8." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Layer8" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "8" 
+        -overlayLabelColor 0.441006 0.441006 0.441006 
+        -overlayLabelBackColor 0 0 0 0.8 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/layer.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\ni = 8\nif not cmds.objExists(f'set{i}'):\n    cmds.sets(name=f'set{i}')\nelse:\n    if cmds.sets(im=f'set{i}'):\n        cmds.sets(remove=f'set{i}')\n        MGlobal.displayInfo('Removed selected from set{i}.')\n    else:\n        cmds.sets(addElement=f'set{i}')\n        MGlobal.displayInfo('Assigned selected to set{i}.')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    separator
+        -enable 1
+        -width 12
+        -height 35
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -style "shelf" 
+        -horizontal 0
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Display and edit connections in shading networks" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Hypershade" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/hs.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/hs.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "HypershadeWindow" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Rename all materials path." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Rename all materials path" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/mr.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/mr.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\nif cmds.window('MATRenameWin', ex=True):\n    cmds.deleteUI('MATRenameWin')\n\nwindow = cmds.window(\n    \"MATRenameWin\", \n    title = \"Change path name of all materials\", \n    sizeable = False\n)\n\nlayout = cmds.rowLayout (p = window, nc = 2)\ntextfield = cmds.textField(p = layout, w = 500, h = 30)\nold_str = cmds.optionVar(q='lolmaya_matrename')\nif old_str:\n    cmds.textField(textfield, e=True, it = old_str)\ndef apply(*args):\n    path = cmds.textField(textfield, q = True, tx=True)\n    if path:\n        cmds.optionVar(sv=('lolmaya_matrename', path))\n        path = path.replace('\\\\', '/')\n        path = path.replace('/', '__')\n        if not path.endswith('__'):\n            path += '__'\n        mats = cmds.ls(mat=True)\n        for mat in mats:\n            old = mat\n            new = path + old.split('__')[-1]\n            try:\n                Mglobal.displayInfo(old + ' -> ' + new)\n                cmds.rename(old, new)\n            except:\n                pass\n        MGlobal.displayInfo('Renamed all materials path.')\n\ncmds.textField(textfield, edit = True, ec = apply)\ncmds.button('Apply', p = layout, w = 100, h = 30, c = apply)\n\ncmds.showWindow(window)" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Fix shared vertices of all meshes in scene." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Fix shared vertices" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/ef.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/ef.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "\nfrom maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\niterator = MItDag(MItDag.kDepthFirst, MFn.kMesh)\nwhile not iterator.isDone():\n    mesh_dagpath = MDagPath()\n    iterator.getPath(mesh_dagpath)\n    mesh = MFnMesh(mesh_dagpath)\n\n    # get shader/materials\n    shaders = MObjectArray()\n    face_shader = MIntArray()\n    instance = mesh_dagpath.instanceNumber() if mesh_dagpath.isInstanced() else 0\n    mesh.getConnectedShaders(instance, shaders, face_shader)\n    shader_count = shaders.length()\n    if shader_count < 1:\n        iterator.next()\n        continue\n\n    # extract all shared vertices first\n    face_count = face_shader.length()\n    map_faces = []\n    for i in range(0, shader_count):\n        map_faces.append(MIntArray())\n    for i in range(0, face_count):\n        map_faces[face_shader[i]].append(i)\n\n    for i in range(0, shader_count-1):\n        component = MFnSingleIndexedComponent()\n        face_component = component.create(\n            MFn.kMeshPolygonComponent)\n        component.addElements(map_faces[i])\n        selections = MSelectionList()\n        selections.add(mesh_dagpath, face_component)\n        MGlobal.selectCommand(selections)\n        MGlobal.executeCommand(\n            'polyChipOff -ch 1 -kft 1 -dup 0 -off 0')\n    iterator.next()\nMGlobal.executeCommand('select -cl')\nMGlobal.executeCommand('DeleteAllHistory')\nMGlobal.displayInfo('Fixed all shared vertices.')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Set all black emission weight to 0." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Zero Black Emission" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/bem.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/bem.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\nmats = cmds.ls(mat=True)\nfor mat in mats:\n    if cmds.attributeQuery('emission', node = mat, ex = True) and cmds.attributeQuery('emissionColor', node = mat, ex = True):\n        files = cmds.listConnections(f'{mat}.emissionColor', type = 'file')\n        if files:\n            continue\n        weight = cmds.getAttr(f'{mat}.emission')\n        color = cmds.getAttr(f'{mat}.emissionColor')[0]\n        if weight > 0 and color == (0.0, 0.0, 0.0):\n            cmds.setAttr(f'{mat}.emission', 0.0)\nMGlobal.displayInfo('Changed all black emission weight to 0.')\n" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    separator
+        -enable 1
+        -width 12
+        -height 35
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -style "shelf" 
+        -horizontal 0
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Read mapgeo.materials.py and import all textures at same location." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Import material" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "IMP" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 1 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/texture.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/texture.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "\nfrom maya import cmds\nfrom maya.OpenMaya import *\nfrom maya.utils import executeDeferred\nimport json\n\nclass RoundingFloat(float):\n    __repr__ = staticmethod(lambda x: format(x, '.4f'))\njson.encoder.float = RoundingFloat\n\nclass MAPGEOMaterial():\n    def __init__(self):\n        self.name = None\n        self.base = None\n        self.coat = None\n        self.coat_normal = None\n        self.transmission = None\n        self.emission = None\n        self.emission_texture = None\n\n\nclass MAPGEOPy():\n    def __init__(self):\n        self.dirname = None \n        self.materials = {}\n\n    def read(self, path):\n        self.dirname = '/'.join(path.split('/')[:-1])\n        with open(path, 'r') as f:\n            self.path = '/'.join(path.split('/')[:-1])\n            lines = f.readlines()\n\n            # get material block\n            i = 0\n            len12345 = len(lines)\n            mat_lines = []\n            while i < len12345:\n                if 'StaticMaterialDef' in lines[i]:\n                    a = i\n                    for j in range(a, len12345):\n                        if lines[j] == '    }\\n':\n                            b = j\n                            break\n                    mat_lines.append((a, b))\n                    i = b\n                i += 1\n\n            for a, b in mat_lines:\n                material = MAPGEOMaterial()\n\n                # parse data \n                for i in range(a, b):\n                    if 'StaticMaterialDef' in lines[i]:\n                        material.name = lines[i+1].split('=')[1][1:-1].replace('\"', '').replace('/', '__')\n\n                    # diffuse texture\n                    if 'DiffuseTexture' in lines[i]:\n                        material.base = lines[i + 1].split('=')[1][1:].replace('\"', '')[:-1]\n                    if 'Diffuse_Texture' in lines[i]:\n                        material.base = lines[i + 1].split('=')[1][1:].replace('\"', '')[:-1]\n                    \n\n                    # mask textures \n                    if 'Mask_Textures' in lines[i]:\n                        material.base = lines[i + 1].split('=')[1][1:].replace('\"', '')[:-1]\n                        for j in range(i+2, b):\n                            if 'BaseColor' in lines[j]:\n                                colors = lines[j+1].split('=')[1][2:-\n                                                                  1].replace(' ', '').split(',')\n                                material.coat = (\n                                    float(colors[0]), float(colors[1]), float(colors[2]))\n\n                    # mask texture with diffuse texture and color\n                    elif 'Mask_Texture' in lines[i]:\n                        material.coat_normal = lines[i + 1].split('=')[1][1:].replace('\"', '')[:-1]\n                        for j in range(i+2, b):\n                            if 'Base_Color' in lines[j]:\n                                colors = lines[j+1].split('=')[1][2:-\n                                                                1].replace(' ', '').split(',')\n                                material.coat = (\n                                    float(colors[0]), float(colors[1]), float(colors[2]))\n\n                    # glow \n                    if 'GlowTexture' in lines[i]:\n                        material.base = lines[i +\n                                                 1].split('=')[1][1:].replace('\"', '')[:-1]\n                        for j in range(i+2, b):\n                            if 'Color_Mult' in lines[j]:\n                                colors = lines[j+1].split('=')[1][2:-\n                                                                  1].replace(' ', '').split(',')\n                                material.transmission = (\n                                    float(colors[0]), float(colors[1]), float(colors[2]))\n\n                    # emissive \n                    if 'Emissive_Texture' in lines[i]:\n                        material.emission_texture = lines[i + 1].split('=')[1][1:].replace('\"', '')[:-1]\n                    if 'Emissive_Color' in lines[i]:\n                        colors = lines[i+1].split('=')[1][2:-\n                                                          1].replace(' ', '').split(',')\n                        material.emission = (float(colors[0]), float(\n                            colors[1]), float(colors[2]))\n\n                self.materials[material.name] = material\n\n    def load(self):\n        for submesh_name in self.materials:\n            material = self.materials[submesh_name]\n            if not cmds.objExists(material.name):\n                continue\n            MGlobal.displayInfo(f'Loading: {material.name}')\n            t = cmds.nodeType(material.name)\n            if 'standardsurface' not in t.lower():\n                if cmds.attributeQuery('color', node = submesh_name, ex = True):\n                    texture_path = self.dirname + '/' + material.base\n\n                    # create file + p2d node\n                    MGlobal.executeCommand((\n                        f'shadingNode -asTexture -isColorManaged file -name \"{submesh_name}_file\";'\n                        f'setAttr {submesh_name}_file.fileTextureName -type \"string\" \"{texture_path}\";'\n                        f'shadingNode -asUtility place2dTexture -name \"{submesh_name}_p2d\";'\n                    ))\n\n                    # connect \n                    cmd = ''\n                    attributes = [\n                        'coverage',\n                        'translateFrame',\n                        'rotateFrame',\n                        'mirrorU',\n                        'mirrorV',\n                        'stagger',\n                        'wrapU',\n                        'wrapV',\n                        'repeatUV',\n                        'offset',\n                        'rotateUV',\n                        'noiseUV',\n                        'vertexUvOne',\n                        'vertexUvTwo',\n                        'vertexUvThree',\n                        'vertexCameraOne'\n                    ]\n                    for attribute in attributes:\n                        cmd += f'connectAttr -f {submesh_name}_p2d.{attribute} {submesh_name}_file.{attribute};'\n                    cmd += f'connectAttr -f {submesh_name}_p2d.outUV {submesh_name}_file.uv;'\n                    cmd += f'connectAttr -f {submesh_name}_p2d.outUvFilterSize {submesh_name}_file.uvFilterSize;'\n                    cmd += f'connectAttr -f {submesh_name}_file.outColor {submesh_name}.color;'\n                    cmd += f'connectAttr -f {submesh_name}_file.outTransparency {submesh_name}.transparency;'\n                    MGlobal.executeCommand(cmd) \n            else:\n                MGlobal.executeCommand(f'setAttr \"{submesh_name}.specular\" 0;')\n                if material.base:\n                    texture_path = self.dirname + '/' + material.base\n\n                    # create file + p2d node\n                    MGlobal.executeCommand((\n                        f'shadingNode -asTexture -isColorManaged file -name \"{submesh_name}_file\";'\n                        f'setAttr {submesh_name}_file.fileTextureName -type \"string\" \"{texture_path}\";'\n                        f'shadingNode -asUtility place2dTexture -name \"{submesh_name}_p2d\";'\n                    ))\n\n                    # connect \n                    cmd = ''\n                    attributes = [\n                        'coverage',\n                        'translateFrame',\n                        'rotateFrame',\n                        'mirrorU',\n                        'mirrorV',\n                        'stagger',\n                        'wrapU',\n                        'wrapV',\n                        'repeatUV',\n                        'offset',\n                        'rotateUV',\n                        'noiseUV',\n                        'vertexUvOne',\n                        'vertexUvTwo',\n                        'vertexUvThree',\n                        'vertexCameraOne'\n                    ]\n                    for attribute in attributes:\n                        cmd += f'connectAttr -f {submesh_name}_p2d.{attribute} {submesh_name}_file.{attribute};'\n                    cmd += f'connectAttr -f {submesh_name}_p2d.outUV {submesh_name}_file.uv;'\n                    cmd += f'connectAttr -f {submesh_name}_p2d.outUvFilterSize {submesh_name}_file.uvFilterSize;'\n                    cmd += f'connectAttr -f {submesh_name}_file.outColor {submesh_name}.baseColor;'\n                    MGlobal.executeCommand(cmd)\n                if material.coat:\n                    MGlobal.executeCommand((\n                        f'setAttr \"{submesh_name}.coat\" 1;'\n                        f'setAttr \"{submesh_name}.coatColor\" -type double3 {material.coat[0]} {material.coat[1]} {material.coat[2]};'\n                    ))\n                    if material.coat_normal:\n                        texture_path = self.dirname + '/' + material.emission_texure\n\n                        # create file + p2d node\n                        MGlobal.executeCommand((\n                            f'shadingNode -asTexture -isColorManaged file -name \"{submesh_name}_coatfile\";'\n                            f'setAttr {submesh_name}_coatfile.fileTextureName -type \"string\" \"{texture_path}\";'\n                            f'shadingNode -asUtility place2dTexture -name \"{submesh_name}_coatp2d\";'\n                        ))\n\n                        # connect\n                        cmd = ''\n                        attributes = [\n                            'coverage',\n                            'translateFrame',\n                            'rotateFrame',\n                            'mirrorU',\n                            'mirrorV',\n                            'stagger',\n                            'wrapU',\n                            'wrapV',\n                            'repeatUV',\n                            'offset',\n                            'rotateUV',\n                            'noiseUV',\n                            'vertexUvOne',\n                            'vertexUvTwo',\n                            'vertexUvThree',\n                            'vertexCameraOne'\n                        ]\n                        for attribute in attributes:\n                            cmd += f'connectAttr -f {submesh_name}_coatp2d.{attribute} {submesh_name}_coatfile.{attribute};'\n                        cmd += f'connectAttr -f {submesh_name}_coatp2d.outUV {submesh_name}_coatfile.uv;'\n                        cmd += f'connectAttr -f {submesh_name}_coatp2d.outUvFilterSize {submesh_name}_coatfile.uvFilterSize;'\n                        cmd += f'connectAttr -f {submesh_name}_coatfile.outColor {submesh_name}.coatNormal;'\n                        MGlobal.executeCommand(cmd)\n                if material.transmission:\n                    MGlobal.executeCommand((\n                        f'setAttr \"{submesh_name}.transmission\" 1;'\n                        f'setAttr \"{submesh_name}.transmissionColor\" -type double3 {material.transmission[0]} {material.transmission[1]} {material.transmission[2]};'\n                    ))\n                if material.emission_texture:\n                    texture_path = self.dirname + '/' + material.emission_texure\n\n                    # create file + p2d node\n                    MGlobal.executeCommand((\n                        f'shadingNode -asTexture -isColorManaged file -name \"{submesh_name}_emissionfile\";'\n                        f'setAttr {submesh_name}_emissionfile.fileTextureName -type \"string\" \"{texture_path}\";'\n                        f'shadingNode -asUtility place2dTexture -name \"{submesh_name}_emissionp2d\";'\n                    ))\n\n                    # connect\n                    cmd = ''\n                    attributes = [\n                        'coverage',\n                        'translateFrame',\n                        'rotateFrame',\n                        'mirrorU',\n                        'mirrorV',\n                        'stagger',\n                        'wrapU',\n                        'wrapV',\n                        'repeatUV',\n                        'offset',\n                        'rotateUV',\n                        'noiseUV',\n                        'vertexUvOne',\n                        'vertexUvTwo',\n                        'vertexUvThree',\n                        'vertexCameraOne'\n                    ]\n                    for attribute in attributes:\n                        cmd += f'connectAttr -f {submesh_name}_emissionp2d.{attribute} {submesh_name}_emissionfile.{attribute};'\n                    cmd += f'connectAttr -f {submesh_name}_emissionp2d.outUV {submesh_name}_emissionfile.uv;'\n                    cmd += f'connectAttr -f {submesh_name}_emissionp2d.outUvFilterSize {submesh_name}_emissionfile.uvFilterSize;'\n                    cmd += f'connectAttr -f {submesh_name}_emissionfile.outColor {submesh_name}.emissionColor;'\n                    MGlobal.executeCommand(cmd)\n                else:\n                    if material.emission:\n                        MGlobal.executeCommand((\n                            f'setAttr \"{submesh_name}.emission\" 1;'\n                            f'setAttr \"{submesh_name}.emissionColor\" -type double3 {material.emission[0]} {material.emission[1]} {material.emission[2]};'\n                        ))\n\n    def dump(self):\n        mats = cmds.ls(mat=True)\n        for material in mats:\n            MGlobal.displayInfo(f'Dumping: {material}')\n            t = cmds.nodeType(material)\n            m = MAPGEOMaterial()\n            m.name = material\n            if 'standardsurface' not in t.lower():\n                if cmds.attributeQuery('color', node = m.name, ex = True):\n                    colorfiles = cmds.listConnections(f'{m.name}.color', type = 'file')\n                    if colorfiles:\n                        m.base = cmds.getAttr(f'{colorfiles[0]}.fileTextureName')\n            else:\n                \n                colorfiles = cmds.listConnections(f'{m.name}.baseColor', type = 'file')\n                if colorfiles:\n                    m.base = cmds.getAttr(f'{colorfiles[0]}.fileTextureName')\n\n                if cmds.getAttr(f'{m.name}.transmission') > 0.0:\n                    m.transmission = cmds.getAttr(f'{m.name}.transmissionColor')[0]\n\n                if cmds.getAttr(f'{m.name}.coat') > 0.0:\n                    m.coat = cmds.getAttr(f'{m.name}.coatColor')[0]\n                    coatfiles = cmds.listConnections(f'{m.name}.coatNormal', type = 'file')\n                    if coatfiles:\n                        m.coat_normal = cmds.getAttr(f'{coatfiles[0]}.fileTextureName')\n\n                if cmds.getAttr(f'{m.name}.emission') > 0.0:\n                    emissionfiles = cmds.listConnections(f'{m.name}.emissionColor', type = 'file')\n                    if emissionfiles:\n                        m.emission_texture = cmds.getAttr(f'{emissionfiles[0]}.fileTextureName')\n                    else:\n                        m.emission = cmds.getAttr(f'{m.name}.emissionColor')[0]\n\n            self.materials[m.name] = m\n\n    def write(self, path):\n        if cmds.window('CHOOSEMAPGEONAME', ex=True):\n            cmds.deleteUI('CHOOSEMAPGEONAME')\n\n        window = cmds.window(\n            \"CHOOSEMAPGEONAME\", \n            title = \"Name of this map:\", \n            sizeable = False\n        )\n\n        layout = cmds.rowLayout (p = window, nc = 2)\n        textfield = cmds.textField(p = layout, w = 500, h = 30)\n        old_str = cmds.optionVar(q ='lolmaya_mapname')\n        if old_str:\n            cmds.textField(textfield, e = True, it = old_str)\n\n        def ok(*args):\n            mapname = cmds.textField(textfield, q = True, tx=True)\n            cmds.optionVar(sv=('lolmaya_mapname',mapname))   \n            texture_path = f'ASSETS/Maps/KitPieces/{mapname}/textures/'\n            real_texture_path = '/'.join(path.split('/')[:-1]) + '/' + texture_path\n            cmds.sysFile(real_texture_path, makeDir=True )\n            \n            if mapname:\n                executeDeferred(\"cmds.deleteUI('CHOOSEMAPGEONAME')\")\n                matlist = []\n                for matname in self.materials:\n                    dic = {}\n                    m = self.materials[matname]\n                    dic['name'] = m.name.replace('__', '/')\n                    if m.base:\n                        dic['type'] = 'diffuse'\n                        texture =  m.base.split('/')[-1]\n                        dic['diffuse_texture'] =  texture_path + texture\n                        cmds.sysFile(m.base, copy=real_texture_path + texture)\n\n                    if m.coat:\n                        dic['type'] = 'mask'\n                        if m.coat_normal:\n                            texture =  m.coat_normal.split('/')[-1]\n                            dic['mask_texture'] =  texture_path + texture\n                            cmds.sysFile(m.coat_normal, copy=real_texture_path + texture)\n                        dic['mask_color'] = m.coat\n\n                    if m.transmission:\n                        dic['type'] = 'glow'\n                        dic['glow_color'] = m.transmission\n                    \n                    if m.emission_texture or m.emission:\n                        dic['type'] = 'emissive'\n                        if m.emission_texture:\n                            texture =  m.emission_texture.split('/')[-1]\n                            dic['emissive_texture'] =  texture_path + texture\n                            cmds.sysFile(m.emission_texture, copy=real_texture_path + texture)\n                        else:\n                            dic['emissive_color'] = m.emission\n            \n                    matlist.append(dic)\n                \n                with open(path, 'w+') as f:\n                    json.dump(matlist, f, indent=4)\n            else:\n                raise Exception('Please enter map name to export materials.')\n\n        cmds.textField(textfield, edit = True, cc = ok)\n        cmds.button('OK', p = layout, w = 100, h = 30, c = ok)\n        cmds.showWindow(window)\n\n\ndef read():\n    result = cmds.fileDialog2(\n        ds = 2, fm = 1,\n        ff = 'Material PY(*.py)',\n        cap = 'Import material PY file',\n        okc = 'Import'\n    )\n    if result:\n        py_path = result[0]\n        mgpy = MAPGEOPy()\n        mgpy.read(py_path)\n        mgpy.load()\n\ndef write():\n    result = cmds.fileDialog2(\n        ds = 2, fm = 0,\n        ff = 'Material JSON(*.json)',\n        cap = 'Export material JSON file',\n        okc = 'Export'\n    )\n    if result:\n        json_path = result[0]\n        mgpy = MAPGEOPy()\n        mgpy.dump()\n        mgpy.write(json_path)\n\nread()\n" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Export all materials in scene to a JSON file, then you can convert it to league shader with Avatar made by Killery. " 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Export material" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "EMP" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 1 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/texture.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/texture.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "\nfrom maya import cmds\nfrom maya.OpenMaya import *\nfrom maya.utils import executeDeferred\nimport json\n\nclass RoundingFloat(float):\n    __repr__ = staticmethod(lambda x: format(x, '.4f'))\njson.encoder.float = RoundingFloat\n\nclass MAPGEOMaterial():\n    def __init__(self):\n        self.name = None\n        self.base = None\n        self.coat = None\n        self.coat_normal = None\n        self.transmission = None\n        self.emission = None\n        self.emission_texture = None\n\n\nclass MAPGEOPy():\n    def __init__(self):\n        self.dirname = None \n        self.materials = {}\n\n    def read(self, path):\n        self.dirname = '/'.join(path.split('/')[:-1])\n        with open(path, 'r') as f:\n            self.path = '/'.join(path.split('/')[:-1])\n            lines = f.readlines()\n\n            # get material block\n            i = 0\n            len12345 = len(lines)\n            mat_lines = []\n            while i < len12345:\n                if 'StaticMaterialDef' in lines[i]:\n                    a = i\n                    for j in range(a, len12345):\n                        if lines[j] == '    }\\n':\n                            b = j\n                            break\n                    mat_lines.append((a, b))\n                    i = b\n                i += 1\n\n            for a, b in mat_lines:\n                material = MAPGEOMaterial()\n\n                # parse data \n                for i in range(a, b):\n                    if 'StaticMaterialDef' in lines[i]:\n                        material.name = lines[i+1].split('=')[1][1:-1].replace('\"', '').replace('/', '__')\n\n                    # diffuse texture\n                    if 'DiffuseTexture' in lines[i]:\n                        material.base = lines[i + 1].split('=')[1][1:].replace('\"', '')[:-1]\n                    if 'Diffuse_Texture' in lines[i]:\n                        material.base = lines[i + 1].split('=')[1][1:].replace('\"', '')[:-1]\n                    \n\n                    # mask textures \n                    if 'Mask_Textures' in lines[i]:\n                        material.base = lines[i + 1].split('=')[1][1:].replace('\"', '')[:-1]\n                        for j in range(i+2, b):\n                            if 'BaseColor' in lines[j]:\n                                colors = lines[j+1].split('=')[1][2:-\n                                                                  1].replace(' ', '').split(',')\n                                material.coat = (\n                                    float(colors[0]), float(colors[1]), float(colors[2]))\n\n                    # mask texture with diffuse texture and color\n                    elif 'Mask_Texture' in lines[i]:\n                        material.coat_normal = lines[i + 1].split('=')[1][1:].replace('\"', '')[:-1]\n                        for j in range(i+2, b):\n                            if 'Base_Color' in lines[j]:\n                                colors = lines[j+1].split('=')[1][2:-\n                                                                1].replace(' ', '').split(',')\n                                material.coat = (\n                                    float(colors[0]), float(colors[1]), float(colors[2]))\n\n                    # glow \n                    if 'GlowTexture' in lines[i]:\n                        material.base = lines[i +\n                                                 1].split('=')[1][1:].replace('\"', '')[:-1]\n                        for j in range(i+2, b):\n                            if 'Color_Mult' in lines[j]:\n                                colors = lines[j+1].split('=')[1][2:-\n                                                                  1].replace(' ', '').split(',')\n                                material.transmission = (\n                                    float(colors[0]), float(colors[1]), float(colors[2]))\n\n                    # emissive \n                    if 'Emissive_Texture' in lines[i]:\n                        material.emission_texture = lines[i + 1].split('=')[1][1:].replace('\"', '')[:-1]\n                    if 'Emissive_Color' in lines[i]:\n                        colors = lines[i+1].split('=')[1][2:-\n                                                          1].replace(' ', '').split(',')\n                        material.emission = (float(colors[0]), float(\n                            colors[1]), float(colors[2]))\n\n                self.materials[material.name] = material\n\n    def load(self):\n        for submesh_name in self.materials:\n            material = self.materials[submesh_name]\n            if not cmds.objExists(material.name):\n                continue\n            MGlobal.displayInfo(f'Loading: {material.name}')\n            t = cmds.nodeType(material.name)\n            if 'standardsurface' not in t.lower():\n                if cmds.attributeQuery('color', node = submesh_name, ex = True):\n                    texture_path = self.dirname + '/' + material.base\n\n                    # create file + p2d node\n                    MGlobal.executeCommand((\n                        f'shadingNode -asTexture -isColorManaged file -name \"{submesh_name}_file\";'\n                        f'setAttr {submesh_name}_file.fileTextureName -type \"string\" \"{texture_path}\";'\n                        f'shadingNode -asUtility place2dTexture -name \"{submesh_name}_p2d\";'\n                    ))\n\n                    # connect \n                    cmd = ''\n                    attributes = [\n                        'coverage',\n                        'translateFrame',\n                        'rotateFrame',\n                        'mirrorU',\n                        'mirrorV',\n                        'stagger',\n                        'wrapU',\n                        'wrapV',\n                        'repeatUV',\n                        'offset',\n                        'rotateUV',\n                        'noiseUV',\n                        'vertexUvOne',\n                        'vertexUvTwo',\n                        'vertexUvThree',\n                        'vertexCameraOne'\n                    ]\n                    for attribute in attributes:\n                        cmd += f'connectAttr -f {submesh_name}_p2d.{attribute} {submesh_name}_file.{attribute};'\n                    cmd += f'connectAttr -f {submesh_name}_p2d.outUV {submesh_name}_file.uv;'\n                    cmd += f'connectAttr -f {submesh_name}_p2d.outUvFilterSize {submesh_name}_file.uvFilterSize;'\n                    cmd += f'connectAttr -f {submesh_name}_file.outColor {submesh_name}.color;'\n                    cmd += f'connectAttr -f {submesh_name}_file.outTransparency {submesh_name}.transparency;'\n                    MGlobal.executeCommand(cmd) \n            else:\n                MGlobal.executeCommand(f'setAttr \"{submesh_name}.specular\" 0;')\n                if material.base:\n                    texture_path = self.dirname + '/' + material.base\n\n                    # create file + p2d node\n                    MGlobal.executeCommand((\n                        f'shadingNode -asTexture -isColorManaged file -name \"{submesh_name}_file\";'\n                        f'setAttr {submesh_name}_file.fileTextureName -type \"string\" \"{texture_path}\";'\n                        f'shadingNode -asUtility place2dTexture -name \"{submesh_name}_p2d\";'\n                    ))\n\n                    # connect \n                    cmd = ''\n                    attributes = [\n                        'coverage',\n                        'translateFrame',\n                        'rotateFrame',\n                        'mirrorU',\n                        'mirrorV',\n                        'stagger',\n                        'wrapU',\n                        'wrapV',\n                        'repeatUV',\n                        'offset',\n                        'rotateUV',\n                        'noiseUV',\n                        'vertexUvOne',\n                        'vertexUvTwo',\n                        'vertexUvThree',\n                        'vertexCameraOne'\n                    ]\n                    for attribute in attributes:\n                        cmd += f'connectAttr -f {submesh_name}_p2d.{attribute} {submesh_name}_file.{attribute};'\n                    cmd += f'connectAttr -f {submesh_name}_p2d.outUV {submesh_name}_file.uv;'\n                    cmd += f'connectAttr -f {submesh_name}_p2d.outUvFilterSize {submesh_name}_file.uvFilterSize;'\n                    cmd += f'connectAttr -f {submesh_name}_file.outColor {submesh_name}.baseColor;'\n                    MGlobal.executeCommand(cmd)\n                if material.coat:\n                    MGlobal.executeCommand((\n                        f'setAttr \"{submesh_name}.coat\" 1;'\n                        f'setAttr \"{submesh_name}.coatColor\" -type double3 {material.coat[0]} {material.coat[1]} {material.coat[2]};'\n                    ))\n                    if material.coat_normal:\n                        texture_path = self.dirname + '/' + material.emission_texure\n\n                        # create file + p2d node\n                        MGlobal.executeCommand((\n                            f'shadingNode -asTexture -isColorManaged file -name \"{submesh_name}_coatfile\";'\n                            f'setAttr {submesh_name}_coatfile.fileTextureName -type \"string\" \"{texture_path}\";'\n                            f'shadingNode -asUtility place2dTexture -name \"{submesh_name}_coatp2d\";'\n                        ))\n\n                        # connect\n                        cmd = ''\n                        attributes = [\n                            'coverage',\n                            'translateFrame',\n                            'rotateFrame',\n                            'mirrorU',\n                            'mirrorV',\n                            'stagger',\n                            'wrapU',\n                            'wrapV',\n                            'repeatUV',\n                            'offset',\n                            'rotateUV',\n                            'noiseUV',\n                            'vertexUvOne',\n                            'vertexUvTwo',\n                            'vertexUvThree',\n                            'vertexCameraOne'\n                        ]\n                        for attribute in attributes:\n                            cmd += f'connectAttr -f {submesh_name}_coatp2d.{attribute} {submesh_name}_coatfile.{attribute};'\n                        cmd += f'connectAttr -f {submesh_name}_coatp2d.outUV {submesh_name}_coatfile.uv;'\n                        cmd += f'connectAttr -f {submesh_name}_coatp2d.outUvFilterSize {submesh_name}_coatfile.uvFilterSize;'\n                        cmd += f'connectAttr -f {submesh_name}_coatfile.outColor {submesh_name}.coatNormal;'\n                        MGlobal.executeCommand(cmd)\n                if material.transmission:\n                    MGlobal.executeCommand((\n                        f'setAttr \"{submesh_name}.transmission\" 1;'\n                        f'setAttr \"{submesh_name}.transmissionColor\" -type double3 {material.transmission[0]} {material.transmission[1]} {material.transmission[2]};'\n                    ))\n                if material.emission_texture:\n                    texture_path = self.dirname + '/' + material.emission_texure\n\n                    # create file + p2d node\n                    MGlobal.executeCommand((\n                        f'shadingNode -asTexture -isColorManaged file -name \"{submesh_name}_emissionfile\";'\n                        f'setAttr {submesh_name}_emissionfile.fileTextureName -type \"string\" \"{texture_path}\";'\n                        f'shadingNode -asUtility place2dTexture -name \"{submesh_name}_emissionp2d\";'\n                    ))\n\n                    # connect\n                    cmd = ''\n                    attributes = [\n                        'coverage',\n                        'translateFrame',\n                        'rotateFrame',\n                        'mirrorU',\n                        'mirrorV',\n                        'stagger',\n                        'wrapU',\n                        'wrapV',\n                        'repeatUV',\n                        'offset',\n                        'rotateUV',\n                        'noiseUV',\n                        'vertexUvOne',\n                        'vertexUvTwo',\n                        'vertexUvThree',\n                        'vertexCameraOne'\n                    ]\n                    for attribute in attributes:\n                        cmd += f'connectAttr -f {submesh_name}_emissionp2d.{attribute} {submesh_name}_emissionfile.{attribute};'\n                    cmd += f'connectAttr -f {submesh_name}_emissionp2d.outUV {submesh_name}_emissionfile.uv;'\n                    cmd += f'connectAttr -f {submesh_name}_emissionp2d.outUvFilterSize {submesh_name}_emissionfile.uvFilterSize;'\n                    cmd += f'connectAttr -f {submesh_name}_emissionfile.outColor {submesh_name}.emissionColor;'\n                    MGlobal.executeCommand(cmd)\n                else:\n                    if material.emission:\n                        MGlobal.executeCommand((\n                            f'setAttr \"{submesh_name}.emission\" 1;'\n                            f'setAttr \"{submesh_name}.emissionColor\" -type double3 {material.emission[0]} {material.emission[1]} {material.emission[2]};'\n                        ))\n\n    def dump(self):\n        mats = cmds.ls(mat=True)\n        for material in mats:\n            MGlobal.displayInfo(f'Dumping: {material}')\n            t = cmds.nodeType(material)\n            m = MAPGEOMaterial()\n            m.name = material\n            if 'standardsurface' not in t.lower():\n                if cmds.attributeQuery('color', node = m.name, ex = True):\n                    colorfiles = cmds.listConnections(f'{m.name}.color', type = 'file')\n                    if colorfiles:\n                        m.base = cmds.getAttr(f'{colorfiles[0]}.fileTextureName')\n            else:\n                \n                colorfiles = cmds.listConnections(f'{m.name}.baseColor', type = 'file')\n                if colorfiles:\n                    m.base = cmds.getAttr(f'{colorfiles[0]}.fileTextureName')\n\n                if cmds.getAttr(f'{m.name}.transmission') > 0.0:\n                    m.transmission = cmds.getAttr(f'{m.name}.transmissionColor')[0]\n\n                if cmds.getAttr(f'{m.name}.coat') > 0.0:\n                    m.coat = cmds.getAttr(f'{m.name}.coatColor')[0]\n                    coatfiles = cmds.listConnections(f'{m.name}.coatNormal', type = 'file')\n                    if coatfiles:\n                        m.coat_normal = cmds.getAttr(f'{coatfiles[0]}.fileTextureName')\n\n                if cmds.getAttr(f'{m.name}.emission') > 0.0:\n                    emissionfiles = cmds.listConnections(f'{m.name}.emissionColor', type = 'file')\n                    if emissionfiles:\n                        m.emission_texture = cmds.getAttr(f'{emissionfiles[0]}.fileTextureName')\n                    else:\n                        m.emission = cmds.getAttr(f'{m.name}.emissionColor')[0]\n\n            self.materials[m.name] = m\n\n    def write(self, path):\n        if cmds.window('CHOOSEMAPGEONAME', ex=True):\n            cmds.deleteUI('CHOOSEMAPGEONAME')\n\n        window = cmds.window(\n            \"CHOOSEMAPGEONAME\", \n            title = \"Name of this map:\", \n            sizeable = False\n        )\n\n        layout = cmds.rowLayout (p = window, nc = 2)\n        textfield = cmds.textField(p = layout, w = 500, h = 30)\n        old_str = cmds.optionVar(q ='lolmaya_mapname')\n        if old_str:\n            cmds.textField(textfield, e = True, it = old_str)\n\n        def ok(*args):\n            mapname = cmds.textField(textfield, q = True, tx=True)\n            cmds.optionVar(sv=('lolmaya_mapname',mapname))   \n            texture_path = f'ASSETS/Maps/KitPieces/{mapname}/textures/'\n            real_texture_path = '/'.join(path.split('/')[:-1]) + '/' + texture_path\n            cmds.sysFile(real_texture_path, makeDir=True )\n            \n            if mapname:\n                executeDeferred(\"cmds.deleteUI('CHOOSEMAPGEONAME')\")\n                matlist = []\n                for matname in self.materials:\n                    dic = {}\n                    m = self.materials[matname]\n                    dic['name'] = m.name.replace('__', '/')\n                    if m.base:\n                        dic['type'] = 'diffuse'\n                        texture =  m.base.split('/')[-1]\n                        dic['diffuse_texture'] =  texture_path + texture\n                        cmds.sysFile(m.base, copy=real_texture_path + texture)\n\n                    if m.coat:\n                        dic['type'] = 'mask'\n                        if m.coat_normal:\n                            texture =  m.coat_normal.split('/')[-1]\n                            dic['mask_texture'] =  texture_path + texture\n                            cmds.sysFile(m.coat_normal, copy=real_texture_path + texture)\n                        dic['mask_color'] = m.coat\n\n                    if m.transmission:\n                        dic['type'] = 'glow'\n                        dic['glow_color'] = m.transmission\n                    \n                    if m.emission_texture or m.emission:\n                        dic['type'] = 'emissive'\n                        if m.emission_texture:\n                            texture =  m.emission_texture.split('/')[-1]\n                            dic['emissive_texture'] =  texture_path + texture\n                            cmds.sysFile(m.emission_texture, copy=real_texture_path + texture)\n                        else:\n                            dic['emissive_color'] = m.emission\n            \n                    matlist.append(dic)\n                \n                with open(path, 'w+') as f:\n                    json.dump(matlist, f, indent=4)\n            else:\n                raise Exception('Please enter map name to export materials.')\n\n        cmds.textField(textfield, edit = True, cc = ok)\n        cmds.button('OK', p = layout, w = 100, h = 30, c = ok)\n        cmds.showWindow(window)\n\n\ndef read():\n    result = cmds.fileDialog2(\n        ds = 2, fm = 1,\n        ff = 'Material PY(*.py)',\n        cap = 'Import material PY file',\n        okc = 'Import'\n    )\n    if result:\n        py_path = result[0]\n        mgpy = MAPGEOPy()\n        mgpy.read(py_path)\n        mgpy.load()\n\ndef write():\n    result = cmds.fileDialog2(\n        ds = 2, fm = 0,\n        ff = 'Material JSON(*.json)',\n        cap = 'Export material JSON file',\n        okc = 'Export'\n    )\n    if result:\n        json_path = result[0]\n        mgpy = MAPGEOPy()\n        mgpy.dump()\n        mgpy.write(json_path)\n\nwrite()\n" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    separator
+        -enable 1
+        -width 12
+        -height 35
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -style "shelf" 
+        -horizontal 0
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Add Lightmap attribute to selected transforms." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Lightmap attribute" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 1 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/lm.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/lm.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "addAttr -ln \"lightmap\" -nn \"Lightmap\" -dt \"string\";" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+
+} 

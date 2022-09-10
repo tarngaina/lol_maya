@@ -217,6 +217,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - Output: Location of output baked textures.
         - No diffuse:
             - On: Bake only light - use 2nd UV set of selected objects and default material `standardSurface1`.
+                - **Important**: Your 2nd UV set name can't be started with numbers, Arnold won't work if UV set name starts with numbers.
             - Off: Bake with diffuse - use each 1st UV set of selected objects and their own materials.
         - Quality: You will want High quality bake for diffuse and Low quality bake for lightmap.
         - Resolution: Resolution of baked textures; integer input, should be 256, 512, 1024,...

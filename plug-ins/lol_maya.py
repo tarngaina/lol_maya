@@ -1805,7 +1805,7 @@ class SKN:
                 selections.add(mesh_dagpath, face_component)
                 MGlobal.selectCommand(selections)
                 raise FunnyError(
-                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces3.length()} faces have no UVs assigned, or, those faces UVs are not in first UV set, those faces will be selected in scene.\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.')
+                    f'[SKN.dump({mesh.name()})]: Mesh contains {bad_faces3.length()} faces have no UVs assigned, or, those faces UVs are not in current UV set, those faces will be selected in scene.\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.')
             if bad_vertices.length() > 0:
                 component = MFnSingleIndexedComponent()
                 vertex_component = component.create(
@@ -1818,7 +1818,8 @@ class SKN:
                     f'[SKN.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices are shared by mutiple materials, those vertices will be selected in scene.\n'
                     'Save/backup scene first, try one of following methods to fix:\n'
                     '1. Seperate all connected faces that shared those vertices.\n'
-                    '2. Check and reassign correct material.'
+                    '2. Check and reassign correct material.\n'
+                    '3. [not recommended] Try auto fix shared vertices button on shelf.'
                     '\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.'
                 ))
 
@@ -2050,6 +2051,10 @@ class SKN:
         # combine all submesh that has same name
         # save to SKN submeshes
         for submesh_name in map_submeshes:
+            # check submesh name's length
+            if len(submesh_name) > 64:
+                raise FunnyError(
+                    f'[SKN.dump()]: Material name is too long: {submesh_name} with {len(submesh_name)} chars, max allowed: 64 chars.')
             combined_submesh = SKNSubmesh()
             combined_submesh.name = submesh_name
             previous_max_index = 0
@@ -3142,7 +3147,7 @@ class SO:
             selections.add(mesh_dagpath, face_component)
             MGlobal.selectCommand(selections)
             raise FunnyError(
-                f'[SO.dump({mesh.name()})]: Mesh contains {bad_faces2.length()} faces have no UVs assigned, or, those faces UVs are not in first UV set, those faces will be selected in scene.\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history, that might fix the problem.')
+                f'[SO.dump({mesh.name()})]: Mesh contains {bad_faces2.length()} faces have no UVs assigned, or, those faces UVs are not in current UV set, those faces will be selected in scene.\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history, that might fix the problem.')
 
         # get shader
         instance = mesh_dagpath.instanceNumber() if mesh_dagpath.isInstanced() else 0
@@ -3160,6 +3165,9 @@ class SO:
             ss.connectedTo(plugs, True, False)
             material = MFnDependencyNode(plugs[0].node())
             self.material = material.name()
+            if len(self.material) > 64:
+                raise FunnyError(
+                    f'[SO.dump()]: Material name is too long: {self.material} with {len(self.material)} chars, max allowed: 64 chars.')
         else:
             # its only allow 1 material anyway
             self.material = 'lambert'
@@ -3170,7 +3178,7 @@ class SO:
             self.pivot = riot.pivot
             self.scb_flag = riot.scb_flag
             MGlobal.displayInfo(
-                '[SKL.dump(riot.so)]: Found riot.so (scb/sco), updated value.')
+                '[SO.dump(riot.so)]: Found riot.so (scb/sco), updated value.')
 
     def write_sco(self, path):
         with open(path, 'w') as f:
@@ -3296,7 +3304,7 @@ class MAPGEOSubmesh:
         self.vertex_count = None
 
 
-class MAPGeoModel:
+class MAPGEOModel:
     def __init__(self):
         self.name = None
         self.submeshes = []
@@ -3393,7 +3401,7 @@ class MAPGEO:
 
             model_count = bs.read_uint32()
             for m in range(0, model_count):
-                model = MAPGeoModel()
+                model = MAPGEOModel()
                 model.name = bs.read_bytes(bs.read_int32()).decode('ascii')
 
                 vertex_count = bs.read_uint32()
@@ -3603,12 +3611,12 @@ class MAPGEO:
 
             # lightmap uv
             if model.lightmap:
-                short_lightmap = model.lightmap.split('/')[-1]
-                MGlobal.executeCommand((
-                    f'addAttr -ln "lightmap" -nn "Lightmap" -dt "string" "{model.name}";'
-                    f'setAttr -type "string" {model.name}.lightmap "{short_lightmap}";'
-                ))
-                mesh.createUVSetWithName('lightmap')
+                short_lightmap = model.lightmap.split('/')[-1].split('.')[0]
+                # MGlobal.executeCommand((
+                #    f'addAttr -ln "lightmap" -nn "Lightmap" -dt "string" "{model.name}";'
+                #    f'setAttr -type "string" {model.name}.lightmap "{short_lightmap}";'
+                # ))
+                mesh.createUVSetWithName(short_lightmap)
                 lightmap_u_values = MFloatArray()
                 lightmap_v_values = MFloatArray()
                 for vertex in model.vertices:
@@ -3618,10 +3626,10 @@ class MAPGEO:
                                                   model.lightmap_scale.y + model.lightmap_pos.y))
 
                 mesh.setUVs(
-                    lightmap_u_values, lightmap_v_values, 'lightmap'
+                    lightmap_u_values, lightmap_v_values, short_lightmap
                 )
                 mesh.assignUVs(
-                    poly_count, poly_indices, 'lightmap'
+                    poly_count, poly_indices, short_lightmap
                 )
 
             for submesh in model.submeshes:
@@ -3694,7 +3702,7 @@ class MAPGEO:
                 continue
             mesh = MFnMesh(mesh_dagpath)
             mesh_vertex_count = mesh.numVertices()
-            model = MAPGeoModel()
+            model = MAPGEOModel()
 
             # name and transform
             transform = MFnTransform(mesh.parent(0))
@@ -3711,16 +3719,6 @@ class MAPGEO:
                     model.layer = '1' + model.layer
                 else:
                     model.layer = '0' + model.layer
-
-            # lightmap check first
-            util = MScriptUtil()
-            ptr = util.asIntPtr()
-            MGlobal.executeCommand(
-                f'attributeQuery -ex -n "{model.name}" "lightmap"', ptr)
-            if util.getInt(ptr) == 1:
-                lightmap = MGlobal.executeCommandStringResult(
-                    f'getAttr "{model.name}.lightmap"')
-                model.lightmap = f'ASSETS/Maps/Lightmaps/Maps/MapGeometry/{group_name}/Base/{lightmap}'
 
             # get shader/materials
             shaders = MObjectArray()
@@ -3820,28 +3818,27 @@ class MAPGEO:
                     f'[MAPGEO.dump({mesh.name()})]: Mesh contains {bad_vertices.length()} vertices are shared by mutiple materials, those vertices will be selected in scene.\n'
                     'Save/backup scene first, try one of following methods to fix:\n'
                     '1. Seperate all connected faces that shared those vertices.\n'
-                    '2. Check and reassign correct material.'
+                    '2. Check and reassign correct material.\n'
+                    '3. [not recommended] Try auto fix shared vertices button on shelf.'
                     '\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history, that might fix the problem.'
                 ))
 
-            # get all uvs
-            uv_setnames = []
-            mesh.getUVSetNames(uv_setnames)
+            # get all UV sets
+            # first uv set = diffuse
+            # second uv set = lightmap
+            # ignore other sets
+            uv_names = []
+            mesh.getUVSetNames(uv_names)
+            if len(uv_names) > 1:
+                model.lightmap = f'ASSETS/Maps/Lightmaps/Maps/MapGeometry/{group_name}/Base/{uv_names[1]}.dds'
             u_values = MFloatArray()
             v_values = MFloatArray()
-            mesh.getUVs(u_values, v_values, uv_setnames[0])
+            mesh.getUVs(u_values, v_values, uv_names[0])
             if model.lightmap:
-                have_lightmap_uv = False
-                for uv_set in uv_setnames:
-                    if uv_set == 'lightmap':
-                        have_lightmap_uv = True
-                        break
-                if not have_lightmap_uv:
-                    raise FunnyError(
-                        f'[MAPGEO.dump({mesh.name()})]: Mesh has lightmap attribute but no lightmap UV set found.')
                 lightmap_u_values = MFloatArray()
                 lightmap_v_values = MFloatArray()
-                mesh.getUVs(lightmap_u_values, lightmap_v_values, 'lightmap')
+                mesh.getUVs(lightmap_u_values,
+                            lightmap_v_values, uv_names[1])
             # iterator on vertices
             # to dump all new vertices base on unique uv
             bad_vertices2 = MIntArray()  # vertex has no UVs
@@ -3871,9 +3868,6 @@ class MAPGEO:
                 # unique uv
                 uv_indices = MIntArray()
                 iterator.getUVIndices(uv_indices)
-                # if model.lightmap:
-                #    lightmap_uv_indices = MIntArray()
-                #    iterator.getUVIndices(lightmap_uv_indices, 'lightmap')
                 uv_count = uv_indices.length()
                 if uv_count > 0:
                     seen = []
@@ -3881,21 +3875,17 @@ class MAPGEO:
                         uv_index = uv_indices[i]
                         if uv_index == -1:
                             continue
-
                         if uv_index not in seen:
                             seen.append(uv_index)
-                            diffuse_uv = MVector(
-                                u_values[uv_index],
-                                1.0 - v_values[uv_index]
-                            )
                             # dump vertices
                             vertex = MAPGEOVertex()
                             vertex.position = MVector(position)
                             vertex.normal = MVector(normal)
-                            vertex.diffuse_uv = diffuse_uv
+                            vertex.diffuse_uv = MVector(
+                                u_values[uv_index],
+                                1.0 - v_values[uv_index]
+                            )
                             if model.lightmap:
-                                #lightmap_uv_index = lightmap_uv_indices[i]
-                                # if lightmap_uv_index != -1:
                                 vertex.lightmap_uv = MVector(
                                     lightmap_u_values[uv_index],
                                     1.0 - lightmap_v_values[uv_index]

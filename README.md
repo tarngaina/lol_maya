@@ -130,12 +130,12 @@ An attempt to update RiotFileTranslator to Maya 2023.
     - A group of meshes that have materials and UVs assigned on all faces, all face normals point inward.
 
         ![](https://i.imgur.com/AlmIqQV.png)
-    - Materials:
+    - Material:
         - Material names in MAPGEO files or in BIN files are used with `/`, this character can't be used in Maya, so all `/` will be converted to `__` when import, and will be converted back to `/` when export.
         - Example: 
             - In mapgeo or bin: `Maps/KitPieces/Howling_Abyss/Materials/Keep_inst`
             - In Maya: `Maps__KitPieces__Howling_Abyss__Materials__Keep_inst`
-        - Material type that used in Maya for MAPGEO by default is Standard Surface / Arnold's Standard Surface; Lambert/other materials can work but are not fully supported with import and export materials.
+        - Material type that used in Maya for MAPGEO by default is Standard Surface / Arnold's Standard Surface; Lambert / Other materials can work but are not fully supported with import and export materials.
     - Layer: 
         - A map must have 8 layers, equal to 8 `set` in Maya.
 
@@ -191,7 +191,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
 
     ![](https://i.imgur.com/foET77o.png)
 
-    Explain from left to right: 
+    Explain buttons from left to right: 
     - Toggle on/off all layers on selected mesh.
     - Toggle on/off layer 1 - 8 on selected mesh.
     - Rename all materials path in scene with input.
@@ -201,8 +201,8 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - Read `materials.py` file to import textures.
         - Assets folder must be in same location as `materials.py`.
     - Export `materials.json`: export all materials in scene to a json file; all textures will be copied to same export location; `materials.json` can be read by `Avatar (made by Killery)` to convert back to `materials.py`.
-    - League to Maya shader:
-        - Lambert/Other materials:
+    - Extra: League to Maya shader:
+        - Lambert / Other materials:
             - Diffuse_Texture/DiffuseTexture = Color / Transparency
         - Standard Surface / Arnold's Standard Surface:
             - Diffuse Texture = Base
@@ -210,14 +210,13 @@ An attempt to update RiotFileTranslator to Maya 2023.
             - Mask Color = Coat, Mask Texture = Coat Normal
             - Emissive Texture / Emissive Color = Emission
     - Generate Lightmap UVs on 2nd UV set of selected objects.
-    - Bake texture: bake textures with [Arnold](https://arnoldrenderer.com/download/).
+    - Bake texture: bake textures with [Arnold](https://arnoldrenderer.com/download/) on selected objects.
         
         ![](https://i.imgur.com/4bEXne8.png)
         
         - Output: Location of output baked textures.
         - No diffuse:
             - On: Bake only light - use 2nd UV set of selected objects and default material `standardSurface1`.
-                - **Important**: Your 2nd UV set name can't be started with numbers, Arnold won't work if UV set name starts with numbers.
             - Off: Bake with diffuse - use each 1st UV set of selected objects and their own materials.
         - Quality: You will want High quality bake for diffuse and Low quality bake for lightmap.
         - Resolution: Resolution of baked textures; integer input, should be 256, 512, 1024,...

@@ -3612,10 +3612,6 @@ class MAPGEO:
             # lightmap uv
             if model.lightmap:
                 short_lightmap = model.lightmap.split('/')[-1].split('.')[0]
-                # MGlobal.executeCommand((
-                #    f'addAttr -ln "lightmap" -nn "Lightmap" -dt "string" "{model.name}";'
-                #    f'setAttr -type "string" {model.name}.lightmap "{short_lightmap}";'
-                # ))
                 mesh.createUVSetWithName(short_lightmap)
                 lightmap_u_values = MFloatArray()
                 lightmap_v_values = MFloatArray()

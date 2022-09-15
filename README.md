@@ -181,10 +181,10 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - Bucket Grid can only be achieved by exporting base on original MAPGEO file. (aka `riot.mapgeo` method)
         - If you export without Bucket Grid, the modified map will crash League when a skill that has ground indicator casted, example: Miss Fortune E, Gankplank R,...
 2. Read:
-    - `OEGM`: V5, V6, V7, V9, V11
+    - `OEGM`: V5, V6, V7, V9, V11, V12
 3. Write:
     - To export: select the group of meshes -> use export selection.
-    - `OEGM`: V11
+    - `OEGM`: V12
     - Limit vertices for each mesh: 65536.
     - Show/select component on error: 
         - Vertex: material shared vertex, non UVs assigned vertex.

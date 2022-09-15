@@ -403,8 +403,21 @@ class MAPGEOTranslator(MPxFileTranslator):
         if not path.endswith('.mapgeo'):
             path += '.mapgeo'
 
+        # read riot.mapgeo, path1 = riot_{same name}.mapgeo > path2 = riot.mapgeo
+        riot_mapgeo = None
+        dirname, basename = MFPath.split(path)
+        path1 = dirname + '/' + 'riot_' + basename
+        if MFPath.exsist(path1):
+            riot_mapgeo = MAPGEO()
+            riot_mapgeo.read(path1)
+        else:
+            path2 = dirname + '/' + 'riot.mapgeo'
+            if MFPath.exsist(path2):
+                riot_mapgeo = MAPGEO()
+                riot_mapgeo.read(path2)
+
         mg = MAPGEO()
-        mg.dump()
+        mg.dump(riot=riot_mapgeo)
         mg.flip()
         mg.write(path)
         return True
@@ -646,13 +659,13 @@ class BinaryStream:
         return unpack('b', self.stream.read(1))[0]
 
     def read_zero_terminated_string(self):
-        res = ''
+        res = []
         while True:
             c = self.read_char()
             if c == 0:
                 break
-            res += chr(c)
-        return res
+            res.append(chr(c))
+        return ''.join(res)
 
     def read_padded_string(self, length):
         return bytes(filter(lambda b: b != 0, self.stream.read(length))).decode('ascii')
@@ -1149,6 +1162,50 @@ class SKL:
 
             # assign new list
             self.joints = new_joints
+        else:
+            new_joints = []
+
+            # init things
+            joint_count = len(self.joints)
+            riot_joints = list([None]*joint_count)
+            other_joints = []
+            flags = list([True] * joint_count)
+
+            # get riot joints through ID attribute
+            for joint in self.joints:
+                util = MScriptUtil()
+                ptr = util.asIntPtr()
+                MGlobal.executeCommand(
+                    f'attributeQuery -ex -n "{joint.name}" "riotid"', ptr)
+
+                # if joint doesnt have attribute -> new joint
+                if util.getInt(ptr) == 0:
+                    other_joints.append(joint)
+                    continue
+
+                util = MScriptUtil()
+                ptr = util.asIntPtr()
+                MGlobal.executeCommand(
+                    f'getAttr {joint.name}.riotid;', ptr)
+                id = util.getInt(ptr)
+
+                # if duplicated ID -> bad joint
+                if not riot_joints[id]:
+                    other_joints.append(joint)
+                    continue
+
+                riot_joints[id] = joint
+
+            # add good joints first
+            for joint in riot_joints:
+                if joint != None:
+                    new_joints.append(joint)
+
+            # add new/bad joints at the end
+            for joint in other_joints:
+                new_joints.append(joint)
+
+            self.joints = new_joints
 
         # link parent
         joint_count = len(self.joints)
@@ -1393,13 +1450,11 @@ class SKN:
             vertices = MFloatPointArray()
             u_values = MFloatArray()
             v_values = MFloatArray()
-            normals = MVectorArray()
             for vertex in self.vertices:
                 vertices.append(MFloatPoint(
                     vertex.position.x, vertex.position.y, vertex.position.z))
                 u_values.append(vertex.uv.x)
                 v_values.append(1.0 - vertex.uv.y)
-                normals.append(vertex.normal)
 
             poly_count = MIntArray(face_count, 3)
             poly_indices = MIntArray()
@@ -1420,10 +1475,6 @@ class SKN:
             )
             mesh.assignUVs(
                 poly_count, poly_indices
-            )
-            mesh.setVertexNormals(
-                normals,
-                normal_indices
             )
 
             # name
@@ -1548,13 +1599,11 @@ class SKN:
                 vertices = MFloatPointArray()
                 u_values = MFloatArray()
                 v_values = MFloatArray()
-                normals = MVectorArray()
                 for vertex in shader_vertices[shader_index]:
                     vertices.append(MFloatPoint(
                         vertex.position.x, vertex.position.y, vertex.position.z))
                     u_values.append(vertex.uv.x)
                     v_values.append(1.0 - vertex.uv.y)
-                    normals.append(vertex.normal)
 
                 poly_count = MIntArray(face_count, 3)
                 poly_indices = MIntArray()
@@ -1576,10 +1625,6 @@ class SKN:
                 )
                 mesh.assignUVs(
                     poly_count, poly_indices
-                )
-                mesh.setVertexNormals(
-                    normals,
-                    normal_indices
                 )
 
                 # save the MFnMesh to bind later
@@ -2119,7 +2164,7 @@ class SKN:
                         found = True
                         break
 
-                # print submesh that not found
+                # submesh that not found
                 if not found:
                     MGlobal.displayWarning(
                         f'[SKL.dump(riot.skn)]: Missing riot material: {riot_submesh.name}')
@@ -3328,16 +3373,30 @@ class MAPGEOModel:
         self.ib_id = None
 
 
+class MAPGEOBucketGrid:
+    def __init__(self):
+        self.vertices = []
+        self.indices = []
+        self.buckets = []
+
+
+class MAPGEOBucketGridBucket:
+    def __init__(self):
+        pass
+
+
 class MAPGEO:
     def __init__(self):
         self.models = []
+        self.bucket_grid = None
 
     def flip(self):
         for model in self.models:
             for vertex in model.vertices:
                 vertex.position.x *= -1.0
-                vertex.normal.y *= -1.0
-                vertex.normal.z *= -1.0
+                if vertex.normal:
+                    vertex.normal.y *= -1.0
+                    vertex.normal.z *= -1.0
             model.translation.x *= -1.0
             model.rotation.y *= -1.0
             model.rotation.z *= -1.0
@@ -3352,7 +3411,7 @@ class MAPGEO:
                     f'[MAPGEO.read()]: Wrong file signature: {magic}')
 
             version = bs.read_uint32()
-            if version not in [5, 6, 7, 9, 11]:
+            if version not in [5, 6, 7, 9, 11, 12]:
                 raise FunnyError(
                     f'[MAPGEO.read()]: Unsupported file version: {version}')
 
@@ -3402,8 +3461,10 @@ class MAPGEO:
             model_count = bs.read_uint32()
             for m in range(0, model_count):
                 model = MAPGEOModel()
-                model.name = bs.read_bytes(bs.read_int32()).decode('ascii')
-
+                if version < 12:
+                    model.name = bs.read_bytes(bs.read_int32()).decode('ascii')
+                else:
+                    model.name = f'MapGeo_Instance_{m}'
                 vertex_count = bs.read_uint32()
                 vb_count = bs.read_uint32()
                 veg = bs.read_int32()
@@ -3513,9 +3574,46 @@ class MAPGEO:
                     bs.pad(bs.read_int32())
                     bs.pad(16)
 
+                if version >= 12:
+                    # pad 20 unknown bytes
+                    bs.pad(20)
+
                 self.models.append(model)
 
-            # pad bucket grid, dont know what to do
+            # bucket grid
+            self.bucket_grid = MAPGEOBucketGrid()
+            self.bucket_grid.min_x = bs.read_float()
+            self.bucket_grid.min_z = bs.read_float()
+            self.bucket_grid.max_x = bs.read_float()
+            self.bucket_grid.max_z = bs.read_float()
+            self.bucket_grid.max_out_stick_x = bs.read_float()
+            self.bucket_grid.max_out_stick_z = bs.read_float()
+            self.bucket_grid.bucket_size_x = bs.read_float()
+            self.bucket_grid.bucket_size_z = bs.read_float()
+
+            bucket_size = bs.read_uint16()
+            self.bucket_grid.unknown = bs.read_uint16()
+            vertex_count = bs.read_uint32()
+            index_count = bs.read_uint32()
+
+            for i in range(0, vertex_count):
+                self.bucket_grid.vertices.append(bs.read_vec3())
+
+            for i in range(0, index_count):
+                self.bucket_grid.indices.append(bs.read_uint16())
+
+            for i in range(0, bucket_size):
+                self.bucket_grid.buckets.append([])
+                for j in range(0, bucket_size):
+                    bucket = MAPGEOBucketGridBucket()
+                    bucket.max_stick_out_x = bs.read_float()
+                    bucket.max_stick_out_z = bs.read_float()
+                    bucket.start_index = bs.read_uint32()
+                    bucket.base_vertex = bs.read_uint32()
+                    bucket.inside_face_count = bs.read_uint16()
+                    bucket.sticking_out_face_count = bs.read_uint16()
+
+                    self.bucket_grid.buckets[i].append(bucket)
 
     def load(self):
         # ensure far clip plane, allow to see big objects like whole map
@@ -3565,13 +3663,11 @@ class MAPGEO:
             vertices = MFloatPointArray()
             u_values = MFloatArray()
             v_values = MFloatArray()
-            normals = MVectorArray()
             for vertex in model.vertices:
                 vertices.append(MFloatPoint(
                     vertex.position.x, vertex.position.y, vertex.position.z))
                 u_values.append(vertex.diffuse_uv.x)
                 v_values.append(1.0 - vertex.diffuse_uv.y)
-                normals.append(vertex.normal)
 
             poly_count = MIntArray(face_count, 3)
             poly_indices = MIntArray()
@@ -3592,10 +3688,6 @@ class MAPGEO:
             )
             mesh.assignUVs(
                 poly_count, poly_indices
-            )
-            mesh.setVertexNormals(
-                normals,
-                normal_indices
             )
 
             # name and transform
@@ -3653,7 +3745,7 @@ class MAPGEO:
             MGlobal.executeCommand(
                 f'sets -addElement set{i+1} {model_names}')
 
-    def dump(self):
+    def dump(self, riot=None):
         # get transform in selections
         selections = MSelectionList()
         MGlobal.getActiveSelectionList(selections)
@@ -3708,6 +3800,7 @@ class MAPGEO:
                 transform.transformation(),
                 MSpace.kWorld
             )
+
             # layer
             model.layer = ''
             for i in range(0, 8):
@@ -3984,6 +4077,14 @@ class MAPGEO:
             self.models.append(model)
             iteratorMesh.next()
 
+        if riot:
+            MGlobal.displayInfo(
+                '[MAPGEO.dump(riot.mapgeo)]: Found riot.mapgeo, copying bucket grids...')
+            self.bucket_grid = riot.bucket_grid
+        else:
+            MGlobal.displayWarning(
+                '[MAPGEO.dump()]: No riot.mapgeo found, map can be crashed due to missing bucket grids...')
+
     def write(self, path):
         def parse_data_before_write():
             vegs = []
@@ -4004,30 +4105,28 @@ class MAPGEO:
                 model.veg_id = len(vegs)
                 vegs.append(veg)
 
-                vb = bytes()
+                vb = []
                 for vertex in model.vertices:
                     if vertex.position:
-                        vb += pack('f', vertex.position.x)
-                        vb += pack('f', vertex.position.y)
-                        vb += pack('f', vertex.position.z)
+                        vb.append(pack('f', vertex.position.x))
+                        vb.append(pack('f', vertex.position.y))
+                        vb.append(pack('f', vertex.position.z))
                     if vertex.normal:
-                        vb += pack('f', vertex.normal.x)
-                        vb += pack('f', vertex.normal.y)
-                        vb += pack('f', vertex.normal.z)
+                        vb.append(pack('f', vertex.normal.x))
+                        vb.append(pack('f', vertex.normal.y))
+                        vb.append(pack('f', vertex.normal.z))
                     if vertex.diffuse_uv:
-                        vb += pack('f', vertex.diffuse_uv.x)
-                        vb += pack('f', vertex.diffuse_uv.y)
+                        vb.append(pack('f', vertex.diffuse_uv.x))
+                        vb.append(pack('f', vertex.diffuse_uv.y))
                     if vertex.lightmap_uv:
-                        vb += pack('f', vertex.lightmap_uv.x)
-                        vb += pack('f', vertex.lightmap_uv.y)
+                        vb.append(pack('f', vertex.lightmap_uv.x))
+                        vb.append(pack('f', vertex.lightmap_uv.y))
                 model.vb_id = len(vbs)
-                vbs.append(vb)
+                vbs.append(b''.join(vb))
 
-                ib = bytes()
-                for index in model.indices:
-                    ib += pack('H', index)
+                ib = [pack('H', index) for index in model.indices]
                 model.ib_id = len(ibs)
-                ibs.append(ib)
+                ibs.append(b''.join(ib))
 
             return vegs, vbs, ibs
 
@@ -4055,7 +4154,7 @@ class MAPGEO:
             bs = BinaryStream(f)
 
             bs.write_bytes('OEGM'.encode('ascii'))
-            bs.write_uint32(11)
+            bs.write_uint32(12)
 
             # head str1
             bs.write_int32(0)
@@ -4098,10 +4197,6 @@ class MAPGEO:
             model_count = len(self.models)
             bs.write_uint32(model_count)
             for model in self.models:
-                # name
-                bs.write_int32(len(model.name))
-                bs.write_bytes(model.name.encode('ascii'))
-
                 # count and buffer id
                 bs.write_uint32(len(model.vertices))
                 bs.write_uint32(1)
@@ -4169,3 +4264,38 @@ class MAPGEO:
                 bs.write_float(0)
                 bs.write_float(0)
                 bs.write_float(0)
+
+                # version 12 unknown 20 bytes
+                bs.write_bytes(bytes([0])*20)
+
+            # bucket grid
+            if self.bucket_grid:
+                bs.write_float(self.bucket_grid.min_x)
+                bs.write_float(self.bucket_grid.min_z)
+                bs.write_float(self.bucket_grid.max_x)
+                bs.write_float(self.bucket_grid.max_z)
+                bs.write_float(self.bucket_grid.max_out_stick_x)
+                bs.write_float(self.bucket_grid.max_out_stick_z)
+                bs.write_float(self.bucket_grid.bucket_size_x)
+                bs.write_float(self.bucket_grid.bucket_size_z)
+
+                bucket_size = len(self.bucket_grid.buckets)
+                bs.write_uint16(bucket_size)
+                bs.write_uint16(self.bucket_grid.unknown)
+                bs.write_uint32(len(self.bucket_grid.vertices))
+                bs.write_uint32(len(self.bucket_grid.indices))
+
+                for vertex in self.bucket_grid.vertices:
+                    bs.write_vec3(vertex)
+                for index in self.bucket_grid.indices:
+                    bs.write_uint16(index)
+
+                for i in range(0, bucket_size):
+                    for j in range(0, bucket_size):
+                        bucket = self.bucket_grid.buckets[i][j]
+                        bs.write_float(bucket.max_stick_out_x)
+                        bs.write_float(bucket.max_stick_out_z)
+                        bs.write_uint32(bucket.start_index)
+                        bs.write_uint32(bucket.base_vertex)
+                        bs.write_uint16(bucket.inside_face_count)
+                        bs.write_uint16(bucket.sticking_out_face_count)

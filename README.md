@@ -31,6 +31,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
             - SKN: For fixing incorrect transparent faces on champions.
             - SKL: For fixing bad animation blending of champions that have animation layers.
             - SCO, SCB: For fixing incorrect pivot and central point.
+            - MAPGEO: For fixing map crashed while casting a skill has ground indicator.
         - Example: If you want to export modified `yone_base.skl` base on original file, you must have either `riot_yone_base.skl` or `riot.skl` in export location; if you have both of them, `riot_yone_base.skl` will take priority.
 2. SKN: 
     - SKN data in Maya scene: 
@@ -178,7 +179,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
     
     - Bucket Grid (crucial):
         - Bucket Grid can only be achieved by exporting base on original MAPGEO file. (aka `riot.mapgeo` method)
-        - If you export without Bucket Grid, the modified map will crash League when a skill that has indicator casted, example: Miss Fortune E, Gankplank R,...
+        - If you export without Bucket Grid, the modified map will crash League when a skill that has ground indicator casted, example: Miss Fortune E, Gankplank R,...
 2. Read:
     - `OEGM`: V5, V6, V7, V9, V11
 3. Write:

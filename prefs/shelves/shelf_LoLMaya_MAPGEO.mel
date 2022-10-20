@@ -390,7 +390,41 @@ global proc shelf_LoLMaya_MAPGEO () {
         -manage 1
         -visible 1
         -preventOverride 0
-        -annotation "Rename selected objects with prefix." 
+        -annotation "Rename path of selected objects." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Rename Paths" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/mr.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/mr.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\nif cmds.window('MATRenameWin', ex=True):\n    cmds.deleteUI('MATRenameWin')\n\nwindow = cmds.window(\n    'MATRenameWin', \n    title = 'Enter prefix:', \n    sizeable = False\n)\n\nlayout = cmds.rowLayout (p = window, nc = 2)\ntextfield = cmds.textField(p = layout, w = 500, h = 30)\nold_str = cmds.optionVar(q='lolmaya_matrename')\nif old_str:\n    cmds.textField(textfield, e=True, it = old_str)\n\ndef apply(*args):\n    path = cmds.textField(textfield, q = True, tx=True)\n    if path:\n        cmds.optionVar(sv=('lolmaya_matrename', path))\n        path = path.replace('\\\\', '/')\n        path = path.replace('/', '__')\n        if not path.endswith('__'):\n            path += '__'\n        selected = cmds.ls(sl = True)\n        for obj in selected: \n            try: \n                old = obj\n                new = path + old.split('__')[-1]\n                cmds.rename(old, new)\n            except:\n                pass\n\n        MGlobal.displayInfo('Renamed selected objects.')\n\ncmds.textField(textfield, edit = True, ec = apply)\ncmds.button('Apply', p = layout, w = 100, h = 30, c = apply)\n\ncmds.showWindow(window)" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Rename selected objects." 
         -enableBackground 0
         -backgroundColor 0 0 0 
         -highlightColor 0.321569 0.521569 0.65098 
@@ -410,40 +444,6 @@ global proc shelf_LoLMaya_MAPGEO () {
         -marginWidth 0
         -marginHeight 1
         -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\ndef on_textfield(textfield):\n    cmds.optionVar(sv=('lolmaya_prefixrename', cmds.textField(textfield, q=True, tx=True)))\n\n\nif cmds.window('PREFIXRENAME', ex=True):\n    cmds.deleteUI('PREFIXRENAME')\n\nwindow = cmds.window(\n    \"PREFIXRENAME\", \n    title = 'Enter prefix:', \n    sizeable = False\n)\n\nlayout = cmds.rowLayout (p = window, nc = 2)\ntextfield = cmds.textField(p = layout, w = 500, h = 30)\nold_str = cmds.optionVar(q='lolmaya_prefixrename')\nif old_str:\n    cmds.textField(textfield, e=True, it = old_str)\ncmds.textField(textfield, e = True, cc = lambda c: on_textfield(textfield))\ndef apply(*args):\n    prefix = cmds.textField(textfield, q = True, tx=True)\n    if prefix: \n        selected = cmds.ls(sl = True)\n        i = 0\n        for obj in selected: \n            try: \n                cmds.rename(obj, f'{prefix}_{i}')\n                i += 1\n            except:\n                pass\n\n        MGlobal.displayInfo('Renamed selected objects.')\n\ncmds.textField(textfield, edit = True, ec = apply)\ncmds.button('Apply', p = layout, w = 100, h = 30, c = apply)\n\ncmds.showWindow(window)" 
-        -sourceType "python" 
-        -commandRepeatable 1
-        -flat 1
-    ;
-    shelfButton
-        -enableCommandRepeat 1
-        -flexibleWidthType 3
-        -flexibleWidthValue 32
-        -enable 1
-        -width 35
-        -height 34
-        -manage 1
-        -visible 1
-        -preventOverride 0
-        -annotation "Rename all materials path." 
-        -enableBackground 0
-        -backgroundColor 0 0 0 
-        -highlightColor 0.321569 0.521569 0.65098 
-        -align "center" 
-        -label "Rename all materials path" 
-        -labelOffset 0
-        -rotation 0
-        -flipX 0
-        -flipY 0
-        -useAlpha 1
-        -font "plainLabelFont" 
-        -overlayLabelColor 0.8 0.8 0.8 
-        -overlayLabelBackColor 0 0 0 0.5 
-        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/mr.png" 
-        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/mr.png" 
-        -style "iconOnly" 
-        -marginWidth 0
-        -marginHeight 1
-        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\nif cmds.window('MATRenameWin', ex=True):\n    cmds.deleteUI('MATRenameWin')\n\nwindow = cmds.window(\n    \"MATRenameWin\", \n    title = \"Change path name of all materials\", \n    sizeable = False\n)\n\nlayout = cmds.rowLayout (p = window, nc = 2)\ntextfield = cmds.textField(p = layout, w = 500, h = 30)\nold_str = cmds.optionVar(q='lolmaya_matrename')\nif old_str:\n    cmds.textField(textfield, e=True, it = old_str)\ndef apply(*args):\n    path = cmds.textField(textfield, q = True, tx=True)\n    if path:\n        cmds.optionVar(sv=('lolmaya_matrename', path))\n        path = path.replace('\\\\', '/')\n        path = path.replace('/', '__')\n        if not path.endswith('__'):\n            path += '__'\n        for shading_engine in cmds.ls(type='shadingEngine'):\n            if cmds.sets(shading_engine, q=True):\n                mats = cmds.ls(cmds.listConnections(shading_engine), materials=True)\n                for mat in mats:\n                    old = mat\n                    new = path + old.split('__')[-1]\n                    try:\n                        MGlobal.displayInfo(old + ' -> ' + new)\n                        cmds.rename(old, new)\n                    except Exception as e:\n                        print(e)\n        MGlobal.displayInfo('Renamed all materials path.')\n\ncmds.textField(textfield, edit = True, ec = apply)\ncmds.button('Apply', p = layout, w = 100, h = 30, c = apply)\n\ncmds.showWindow(window)" 
         -sourceType "python" 
         -commandRepeatable 1
         -flat 1

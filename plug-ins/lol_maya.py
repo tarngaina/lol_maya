@@ -199,9 +199,9 @@ class ANMTranslator(MPxFileTranslator):
             path += '.anm'
 
         # auto delete channel data before load
-        delchannel = False
-        if 'delchannel=0' not in options:
-            delchannel = True
+        delchannel = True
+        if 'delchannel=1' not in options:
+            delchannel = False
 
         anm = ANM()
         anm.read(path)
@@ -388,10 +388,15 @@ class MAPGEOTranslator(MPxFileTranslator):
         if not path.endswith('.mapgeo'):
             path += '.mapgeo'
 
+        # use standard surface material instead of lambert
+        ssmat = True
+        if 'ssmat=1' not in options:
+            ssmat = False
+
         mg = MAPGEO()
         mg.read(path)
         mg.flip()
-        mg.load()
+        mg.load(ssmat)
         return True
 
     def writer(self, file, options, access):
@@ -472,7 +477,7 @@ def initializePlugin(obj):
             None,
             ANMTranslator.creator,
             'ANMTranslatorOpts',
-            'delchannel=1',
+            'delchannel=0',
             True
         )
     except Exception as e:
@@ -510,8 +515,8 @@ def initializePlugin(obj):
             MAPGEOTranslator.name,
             None,
             MAPGEOTranslator.creator,
-            None,
-            None,
+            'MAPGEOTranslatorOpts',
+            'ssmat=0',
             True
         )
     except Exception as e:
@@ -1189,6 +1194,11 @@ class SKL:
                     f'getAttr {joint.name}.riotid;', ptr)
                 id = util.getInt(ptr)
 
+                # if id out of range
+                if id < 0 or id >= joint_count:
+                    other_joints.append(joint)
+                    continue
+
                 # if duplicated ID -> bad joint
                 if not riot_joints[id]:
                     other_joints.append(joint)
@@ -1478,7 +1488,7 @@ class SKN:
             )
 
             # name
-            mesh.setName(self.name)
+            mesh.setName(f'{self.name}Shape')
             mesh_name = mesh.name()
             MFnTransform(mesh.parent(0)).setName(f'mesh_{self.name}')
 
@@ -1571,7 +1581,7 @@ class SKN:
             # group of meshes
             group_transform = MFnTransform()
             group_transform.create()
-            group_transform.setName(self.name)
+            group_transform.setName(f'group_{self.name}')
 
             # init seperated meshes data
             shader_count = len(self.submeshes)
@@ -1632,7 +1642,7 @@ class SKN:
 
                 # name
                 submesh = self.submeshes[shader_index]
-                mesh.setName(f'{submesh.name}Shape')
+                mesh.setName(f'{self.name}_{submesh.name}Shape')
                 mesh_name = mesh.name()
                 mesh_transform = MFnTransform(mesh.parent(0))
                 mesh_transform.setName(
@@ -2553,7 +2563,7 @@ class ANM:
                 raise FunnyError(
                     f'[ANM.read()]: Wrong signature file: {magic}')
 
-    def load(self, delchannel=True):
+    def load(self, delchannel=False):
         # track of data joints that found in scene
         scene_tracks = []
 
@@ -2598,10 +2608,16 @@ class ANM:
         else:
             MGlobal.executeCommand('currentUnit -time ntsc')
 
+        # get current time
+        util = MScriptUtil()
+        ptr = util.asDoublePtr()
+        MGlobal.executeCommand('currentTime -q', ptr)
+        current = util.getDouble(ptr)
+
         # adjust animation range
         end = self.duration * self.fps
         MGlobal.executeCommand(
-            f'playbackOptions -e -min 0 -max {end} -animationStartTime 0 -animationEndTime {end} -playbackSpeed 1')
+            f'playbackOptions -e -min 0 -max {current+end} -animationStartTime 0 -animationEndTime {current+end} -playbackSpeed 1')
 
         # bind current pose to frame 0 - very helpful if its bind pose
         joint_names = ' '.join([track.joint_name for track in scene_tracks])
@@ -2621,7 +2637,8 @@ class ANM:
 
         for time in times:
             # anm will start from frame 1
-            MGlobal.executeCommand(f'currentTime {time * self.fps + 1}')
+            MGlobal.executeCommand(
+                f'currentTime {current + time * self.fps + 1}')
 
             setKeyFrame = f'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0'
             ekf = True  # empty keyframe
@@ -3615,7 +3632,7 @@ class MAPGEO:
 
                     self.bucket_grid.buckets[i].append(bucket)
 
-    def load(self):
+    def load(self, ssmat=False):
         # ensure far clip plane, allow to see big objects like whole map
         MGlobal.executeCommand('setAttr "perspShape.farClipPlane" 300000')
 
@@ -3638,9 +3655,10 @@ class MAPGEO:
 
         # create shared material
         for submesh_name in submesh_names:
+            material_type = 'standardSurface' if ssmat else 'lambert'
             MGlobal.executeCommand((
                 # material
-                f'shadingNode -asShader standardSurface -name "{submesh_name}";'
+                f'shadingNode -asShader {material_type} -name "{submesh_name}";'
                 # create renderable, independent shading group
                 f'sets -renderable true -noSurfaceShader true -empty -name "{submesh_name}_SG";'
                 # connect material to shading group

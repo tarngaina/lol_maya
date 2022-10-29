@@ -636,6 +636,13 @@ class BinaryStream:
     def pad(self, length):
         self.stream.seek(length, 1)
 
+    def end(self):
+        cur = self.stream.tell()
+        self.stream.seek(0, 2)
+        res = self.stream.tell()
+        self.stream.seek(cur)
+        return res
+
     def read_byte(self):
         return self.stream.read(1)
 
@@ -1315,10 +1322,9 @@ class SKL:
                 bs.write_uint32(Hash.elf(joint.name))
 
             # resource size
-            bs.seek(0, 2)
-            fsize = bs.tell()
+            rsize = bs.end()
             bs.seek(0)
-            bs.write_uint32(fsize)
+            bs.write_uint32(rsize)
 
 
 # skn
@@ -2845,10 +2851,9 @@ class ANM:
             bs.write_int32(frames_offset - 12)
 
             # resource size
-            bs.seek(0, 2)
-            fsize = bs.tell()
+            rsize = bs.end()
             bs.seek(12)
-            bs.write_uint32(fsize)
+            bs.write_uint32(rsize)
 
 
 # static object - sco/scb
@@ -3388,6 +3393,7 @@ class MAPGEOModel:
         self.veg_id = None
         self.vb_id = None
         self.ib_id = None
+        self.bb = None
 
 
 class MAPGEOBucketGrid:
@@ -3428,7 +3434,7 @@ class MAPGEO:
                     f'[MAPGEO.read()]: Wrong file signature: {magic}')
 
             version = bs.read_uint32()
-            if version not in [5, 6, 7, 9, 11, 12]:
+            if version not in [5, 6, 7, 9, 11, 12, 13]:
                 raise FunnyError(
                     f'[MAPGEO.read()]: Unsupported file version: {version}')
 
@@ -3443,37 +3449,39 @@ class MAPGEO:
                     # unknown str 2
                     bs.pad(bs.read_int32())
 
-            # vertex elements groups
+            # vertex elements
             vegs = []
             veg_count = bs.read_uint32()
             for i in range(0, veg_count):
                 bs.pad(4)  # usage
-
-                veg = []  # list of vertex elements
+                veg = []
                 ve_count = bs.read_uint32()
                 for j in range(0, ve_count):
                     ve = (bs.read_uint32(), 0)
                     veg.append(ve)
-
                     bs.pad(4)  # format
-
                 vegs.append(veg)
-                bs.stream.seek(8 * (15 - ve_count), 1)
+                bs.pad(8 * (15 - ve_count))  # pad empty vertex elements
 
-            # vertex buffer offsets
-            vbs = []
+            # vertex buffers offsets
+            # -> to read vertex later using vertex elements
+            vbos = []
             vb_count = bs.read_uint32()
             for i in range(0, vb_count):
-                offset = bs.read_uint32()
-                vbs.append(bs.stream.tell())
-                bs.stream.seek(offset, 1)
+                if version >= 13:
+                    bs.pad(1)  # layer
+                size = bs.read_uint32()
+                vbos.append(bs.tell())
+                bs.pad(size)
 
-            # index buffer offsets
+            # index buffers
             ibs = []
             ib_count = bs.read_uint32()
             for i in range(0, ib_count):
-                offset = bs.read_uint32()
-                ibs.append([bs.read_uint16() for j in range(0, offset // 2)])
+                if version >= 13:
+                    bs.pad(1)  # layer
+                size = bs.read_uint32()
+                ibs.append([bs.read_uint16() for j in range(0, size // 2)])
 
             model_count = bs.read_uint32()
             for m in range(0, model_count):
@@ -3484,19 +3492,18 @@ class MAPGEO:
                     model.name = f'MapGeo_Instance_{m}'
                 vertex_count = bs.read_uint32()
                 vb_count = bs.read_uint32()
-                veg = bs.read_int32()
+                veg_id = bs.read_int32()
 
                 # init vertices
                 for i in range(0, vertex_count):
                     model.vertices.append(MAPGEOVertex())
-
+                # read vertex using vertex buffers offsets and vertex elements
                 for i in range(0, vb_count):
                     vb_id = bs.read_int32()
-                    return_offset = bs.stream.tell()
-                    bs.stream.seek(vbs[vb_id])
-
+                    return_offset = bs.tell()
+                    bs.seek(vbos[vb_id])
                     for j in range(0, vertex_count):
-                        for ve in vegs[veg+i]:
+                        for ve in vegs[veg_id+i]:
                             if ve[0] == 0:
                                 model.vertices[j].position = bs.read_vec3()
                             elif ve[0] == 2:
@@ -3510,13 +3517,17 @@ class MAPGEO:
                             else:
                                 raise FunnyError(
                                     f'[MAPGEO.read()]: Unknown element: {ve[0]}')
-
-                    bs.stream.seek(return_offset)
+                    bs.seek(return_offset)
 
                 # indices
                 bs.pad(4)  # index_count
-                ib = bs.read_int32()
-                model.indices += ibs[ib]
+                ib_id = bs.read_int32()
+                model.indices += ibs[ib_id]
+
+                # layer
+                model.layer = bytes([255])
+                if version >= 13:
+                    model.layer = bs.read_byte()
 
                 # submeshes
                 submesh_count = bs.read_uint32()
@@ -3525,10 +3536,8 @@ class MAPGEO:
                     bs.pad(4)  # hash
                     submesh.name = bs.read_bytes(
                         bs.read_int32()).decode('ascii')
-
                     # maya doesnt allow '/' in name, so use __ instead, bruh
                     submesh.name = submesh.name.replace('/', '__')
-
                     submesh.index_start = bs.read_uint32()
                     submesh.index_count = bs.read_uint32()
                     submesh.vertex_start = bs.read_uint32()
@@ -3549,7 +3558,6 @@ class MAPGEO:
                 for i in range(0, 4):
                     for j in range(0, 4):
                         py_list.append(bs.read_float())
-
                 matrix = MMatrix()
                 MScriptUtil.createMatrixFromList(py_list, matrix)
                 model.translation, model.scale, model.rotation = MTransform.decompose(
@@ -3559,15 +3567,13 @@ class MAPGEO:
 
                 bs.pad(1)  # flags
 
-                # layer - 8 char binary string, example: 10101010
-                # from RIGHT to LEFT, if the char at index 3 is '1' -> the object appear on layer index 3
-                # default for no layer data: 11111111
-                model.layer = '11111111'
-                if version >= 7:
-                    model.layer = f'{bs.read_byte()[0]:08b}'[::-1]
-                    if version >= 11:
-                        # unknown byte
-                        bs.pad(1)
+                # layer - old version
+                if version >= 7 and version <= 12:
+                    model.layer = bs.read_byte()
+
+                if version >= 11:
+                    # unknown byte
+                    bs.pad(1)
 
                 if use_seperate_point_lights and version < 7:
                     # pad seperated point light
@@ -3597,6 +3603,13 @@ class MAPGEO:
 
                 self.models.append(model)
 
+            # check if current position is end position
+            # if it is then no bucket grid
+            current = bs.tell()
+            end = bs.end()
+            if current == end:
+                return
+
             # bucket grid
             self.bucket_grid = MAPGEOBucketGrid()
             self.bucket_grid.min_x = bs.read_float()
@@ -3607,7 +3620,6 @@ class MAPGEO:
             self.bucket_grid.max_out_stick_z = bs.read_float()
             self.bucket_grid.bucket_size_x = bs.read_float()
             self.bucket_grid.bucket_size_z = bs.read_float()
-
             bucket_size = bs.read_uint16()
             self.bucket_grid.unknown = bs.read_uint16()
             vertex_count = bs.read_uint32()
@@ -3615,7 +3627,6 @@ class MAPGEO:
 
             for i in range(0, vertex_count):
                 self.bucket_grid.vertices.append(bs.read_vec3())
-
             for i in range(0, index_count):
                 self.bucket_grid.indices.append(bs.read_uint16())
 
@@ -3629,7 +3640,6 @@ class MAPGEO:
                     bucket.base_vertex = bs.read_uint32()
                     bucket.inside_face_count = bs.read_uint16()
                     bucket.sticking_out_face_count = bs.read_uint16()
-
                     self.bucket_grid.buckets[i].append(bucket)
 
     def load(self, ssmat=False):
@@ -3750,6 +3760,11 @@ class MAPGEO:
 
             mesh.updateSurface()
 
+            # convert layer in byte to 8 char binary string, example: 10101010
+            # from RIGHT to LEFT, if the char at index 3 is '1' -> the object appear on layer index 3
+            # default for no layer data: 11111111
+            model.layer = f'{model.layer[0]:08b}'[::-1]
+
             # add the model to the layer data, where it belong to
             for i in range(0, 8):
                 if model.layer[i] == '1':
@@ -3826,6 +3841,9 @@ class MAPGEO:
                     model.layer = '1' + model.layer
                 else:
                     model.layer = '0' + model.layer
+
+            # convert layer from 8 char binary string to byte
+            model.layer = bytes([int(model.layer, 2)])
 
             # get shader/materials
             shaders = MObjectArray()
@@ -4108,8 +4126,14 @@ class MAPGEO:
             vegs = []
             vbs = []
             ibs = []
-
+            model_id = 0
             for model in self.models:
+                model.veg_id = model_id
+                model.vb_id = model_id
+                model.ib_id = model_id
+                model_id += 1
+
+                # vertex elements
                 veg = []
                 vertex = model.vertices[0]
                 if vertex.position:
@@ -4120,11 +4144,14 @@ class MAPGEO:
                     veg.append((7, 1))
                 if vertex.lightmap_uv:
                     veg.append((14, 1))
-                model.veg_id = len(vegs)
                 vegs.append(veg)
 
+                # vertex buffers + find bounding box in same loop
                 vb = []
+                min = MVector(float('inf'), float('inf'), float('inf'))
+                max = MVector(float('-inf'), float('-inf'), float('-inf'))
                 for vertex in model.vertices:
+                    # model vertex to bytes
                     if vertex.position:
                         vb.append(pack('f', vertex.position.x))
                         vb.append(pack('f', vertex.position.y))
@@ -4139,51 +4166,44 @@ class MAPGEO:
                     if vertex.lightmap_uv:
                         vb.append(pack('f', vertex.lightmap_uv.x))
                         vb.append(pack('f', vertex.lightmap_uv.y))
-                model.vb_id = len(vbs)
-                vbs.append(b''.join(vb))
+                    # bounding box
+                    if min.x > vertex.position.x:
+                        min.x = vertex.position.x
+                    if min.y > vertex.position.y:
+                        min.y = vertex.position.y
+                    if min.z > vertex.position.z:
+                        min.z = vertex.position.z
+                    if max.x < vertex.position.x:
+                        max.x = vertex.position.x
+                    if max.y < vertex.position.y:
+                        max.y = vertex.position.y
+                    if max.z < vertex.position.z:
+                        max.z = vertex.position.z
+                model.bb = (min, max)
+                vbs.append((bytes([255]), b''.join(vb)))
 
+                # index buffers
                 ib = [pack('H', index) for index in model.indices]
-                model.ib_id = len(ibs)
-                ibs.append(b''.join(ib))
+                ibs.append((bytes([255]), b''.join(ib)))
 
             return vegs, vbs, ibs
-
-        def get_bounding_box(vertices):
-            # totally not copied code
-            min = MVector(float('inf'), float('inf'), float('inf'))
-            max = MVector(float('-inf'), float('-inf'), float('-inf'))
-            for v in vertices:
-                vertex = v.position
-                if min.x > vertex.x:
-                    min.x = vertex.x
-                if min.y > vertex.y:
-                    min.y = vertex.y
-                if min.z > vertex.z:
-                    min.z = vertex.z
-                if max.x < vertex.x:
-                    max.x = vertex.x
-                if max.y < vertex.y:
-                    max.y = vertex.y
-                if max.z < vertex.z:
-                    max.z = vertex.z
-            return min, max
 
         with open(path, 'wb+') as f:
             bs = BinaryStream(f)
 
             bs.write_bytes('OEGM'.encode('ascii'))
-            bs.write_uint32(12)
+            bs.write_uint32(13)
 
             # head str1
             bs.write_int32(0)
-            bs.write_bytes(''.encode('ascii'))
+            bs.write_bytes(bytes())
             # head str2
             bs.write_int32(0)
-            bs.write_bytes(''.encode('ascii'))
+            bs.write_bytes(bytes())
 
             vegs, vbs, ibs = parse_data_before_write()
 
-            # vertex element groups
+            # vertex elements
             bs.write_uint32(len(vegs))
             for veg in vegs:
                 bs.write_uint32(0)  # usage - static
@@ -4192,36 +4212,38 @@ class MAPGEO:
                 for ve in veg:
                     bs.write_uint32(ve[0])
                     bs.write_uint32(ve[1])
+                # fill empty vertex elements
                 for i in range(0, 15-ve_count):
-                    # write later?
                     bs.write_uint32(0)
                     bs.write_uint32(2)
 
             # vertex buffers
-            vb_count = len(vbs)
-            bs.write_uint32(vb_count)
-            for vb in vbs:
+            bs.write_uint32(len(vbs))
+            for layer, vb in vbs:
+                bs.write_bytes(layer)
                 bs.write_uint32(len(vb))
                 bs.write_bytes(vb)
 
             # index buffers
-            ib_count = len(ibs)
-            bs.write_uint32(ib_count)
-            for ib in ibs:
+            bs.write_uint32(len(ibs))
+            for layer, ib in ibs:
+                bs.write_bytes(layer)
                 bs.write_uint32(len(ib))
                 bs.write_bytes(ib)
 
             # model
-            model_count = len(self.models)
-            bs.write_uint32(model_count)
+            bs.write_uint32(len(self.models))
             for model in self.models:
                 # count and buffer id
                 bs.write_uint32(len(model.vertices))
-                bs.write_uint32(1)
+                bs.write_uint32(1)  # vertex buffers count
                 bs.write_int32(model.veg_id)
                 bs.write_int32(model.vb_id)
                 bs.write_uint32(len(model.indices))
                 bs.write_int32(model.ib_id)
+
+                # layer
+                bs.write_bytes(model.layer)
 
                 # submeshes
                 bs.write_uint32(len(model.submeshes))
@@ -4243,9 +4265,8 @@ class MAPGEO:
                 bs.write_bool(False)
 
                 # bounding box
-                bb_min, bb_max = get_bounding_box(model.vertices)
-                bs.write_vec3(bb_min)
-                bs.write_vec3(bb_max)
+                bs.write_vec3(model.bb[0])
+                bs.write_vec3(model.bb[1])
 
                 # transform
                 matrix = MTransform.compose(
@@ -4256,14 +4277,11 @@ class MAPGEO:
                     for j in range(0, 4):
                         bs.write_float(matrix(i, j))
 
-                # flag, always 0x1f? (31)
-                bs.write_bytes(bytes([0x1f]))
+                # flag, always 31?
+                bs.write_bytes(bytes([31]))
 
-                # layer
-                bs.write_bytes(bytes([int(model.layer, 2)]))
-
-                # unknown byte, always 0x00? (0)
-                bs.write_bytes(bytes([0x00]))
+                # unknown byte, always 0?
+                bs.write_bytes(bytes([0]))
 
                 # lightmap
                 if not model.lightmap:
@@ -4277,7 +4295,7 @@ class MAPGEO:
 
                 # baked paint texture - dont know what to write
                 bs.write_int32(0)
-                bs.write_bytes(''.encode('ascii'))
+                bs.write_bytes(bytes())
                 bs.write_float(0)  # uv offset
                 bs.write_float(0)
                 bs.write_float(0)

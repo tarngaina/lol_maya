@@ -1,4 +1,4 @@
-from traceback import print_tb
+
 from maya.OpenMaya import *
 from maya.OpenMayaAnim import *
 from maya.OpenMayaMPx import *
@@ -432,7 +432,7 @@ class MAPGEOTranslator(MPxFileTranslator):
 # plugin register
 def initializePlugin(obj):
     # totally not copied code
-    plugin = MFnPlugin(obj, 'tarngaina', '3.5.4')
+    plugin = MFnPlugin(obj, 'tarngaina', '3.1')
     try:
         plugin.registerFileTranslator(
             SKNTranslator.name,

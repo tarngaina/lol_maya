@@ -1,3 +1,4 @@
+from traceback import print_tb
 from maya.OpenMaya import *
 from maya.OpenMayaAnim import *
 from maya.OpenMayaMPx import *
@@ -431,7 +432,7 @@ class MAPGEOTranslator(MPxFileTranslator):
 # plugin register
 def initializePlugin(obj):
     # totally not copied code
-    plugin = MFnPlugin(obj, 'tarngaina', '3.1')
+    plugin = MFnPlugin(obj, 'tarngaina', '3.5.4')
     try:
         plugin.registerFileTranslator(
             SKNTranslator.name,
@@ -1198,7 +1199,7 @@ class SKL:
                 util = MScriptUtil()
                 ptr = util.asIntPtr()
                 MGlobal.executeCommand(
-                    f'getAttr {joint.name}.riotid;', ptr)
+                    f'getAttr "{joint.name}.riotid"', ptr)
                 id = util.getInt(ptr)
 
                 # if id out of range
@@ -1207,7 +1208,7 @@ class SKL:
                     continue
 
                 # if duplicated ID -> bad joint
-                if not riot_joints[id]:
+                if riot_joints[id]:
                     other_joints.append(joint)
                     continue
 
@@ -1600,11 +1601,10 @@ class SKN:
                                                               submesh.vertex_start+submesh.vertex_count]
                 shader_indices[shader_index] = self.indices[submesh.index_start:
                                                             submesh.index_start+submesh.index_count]
-                if shader_index > 0:
-                    min_vertex = min(shader_indices[shader_index])
-                    shader_index_count = len(shader_indices[shader_index])
-                    for i in range(0, shader_index_count):
-                        shader_indices[shader_index][i] -= min_vertex
+                min_vertex = min(shader_indices[shader_index])
+                shader_index_count = len(shader_indices[shader_index])
+                for i in range(0, shader_index_count):
+                    shader_indices[shader_index][i] -= min_vertex
 
             for shader_index in range(0, shader_count):
                 vertex_count = len(shader_vertices[shader_index])

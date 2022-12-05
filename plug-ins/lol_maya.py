@@ -1,4 +1,3 @@
-
 from maya.OpenMaya import *
 from maya.OpenMayaAnim import *
 from maya.OpenMayaMPx import *
@@ -432,7 +431,7 @@ class MAPGEOTranslator(MPxFileTranslator):
 # plugin register
 def initializePlugin(obj):
     # totally not copied code
-    plugin = MFnPlugin(obj, 'tarngaina', '3.1')
+    plugin = MFnPlugin(obj, 'tarngaina', '3.6.0')
     try:
         plugin.registerFileTranslator(
             SKNTranslator.name,
@@ -1199,7 +1198,7 @@ class SKL:
                 util = MScriptUtil()
                 ptr = util.asIntPtr()
                 MGlobal.executeCommand(
-                    f'getAttr "{joint.name}.riotid"', ptr)
+                    f'getAttr {joint.name}.riotid', ptr)
                 id = util.getInt(ptr)
 
                 # if id out of range
@@ -3383,17 +3382,16 @@ class MAPGEOModel:
         self.scale = None
         self.rotation = None
 
-        # depend which layer that model appear on
-        self.layer = None
+        # bounding box
+        self.bb = None
 
-        # empty = no light map
+        self.layer = None
         self.lightmap = None
 
         # for dumping
         self.veg_id = None
         self.vb_id = None
         self.ib_id = None
-        self.bb = None
 
 
 class MAPGEOBucketGrid:
@@ -3402,8 +3400,15 @@ class MAPGEOBucketGrid:
         self.indices = []
         self.buckets = []
 
+        self.vertex_flags = []
+
 
 class MAPGEOBucketGridBucket:
+    def __init__(self):
+        pass
+
+
+class MAPGEOUnknownThings:
     def __init__(self):
         pass
 
@@ -3412,6 +3417,7 @@ class MAPGEO:
     def __init__(self):
         self.models = []
         self.bucket_grid = None
+        self.unknown_things = None
 
     def flip(self):
         for model in self.models:
@@ -3541,9 +3547,7 @@ class MAPGEO:
                     submesh.index_start = bs.read_uint32()
                     submesh.index_count = bs.read_uint32()
                     submesh.vertex_start = bs.read_uint32()
-                    submesh.vertex_count = bs.read_uint32() + 1
-                    if submesh.vertex_start > 0:
-                        submesh.vertex_start -= 1
+                    submesh.vertex_count = bs.read_uint32()
                     model.submeshes.append(submesh)
 
                 if version != 5:
@@ -3551,7 +3555,7 @@ class MAPGEO:
                     bs.pad(1)
 
                 # bounding box
-                bs.pad(24)
+                model.bb = (bs.read_vec3(), bs.read_vec3())
 
                 # transform matrix
                 py_list = []
@@ -3595,14 +3599,19 @@ class MAPGEO:
                 if version >= 9:
                     # pad baked paintexture
                     bs.pad(bs.read_int32())
+                    # color, OR UV
                     bs.pad(16)
 
-                if version >= 12:
-                    # pad 20 unknown bytes
-                    bs.pad(20)
+                    if version >= 12:
+                        # pad 20 unknown bytes
+                        # pad unknown string
+                        bs.pad(bs.read_int32())
+                        # color, OR UV
+                        bs.pad(16)
 
                 self.models.append(model)
 
+            # for modded file with no bucket grid
             # check if current position is end position
             # if it is then no bucket grid
             current = bs.tell()
@@ -3621,26 +3630,50 @@ class MAPGEO:
             self.bucket_grid.bucket_size_x = bs.read_float()
             self.bucket_grid.bucket_size_z = bs.read_float()
             bucket_size = bs.read_uint16()
-            self.bucket_grid.unknown = bs.read_uint16()
+
+            if version >= 13:
+                no_bucket = bs.read_bool()
+                bucket_flag = bs.read_byte()
+            else:
+                no_bucket = False
+                bs.pad(4)  # unknown flag
+
             vertex_count = bs.read_uint32()
             index_count = bs.read_uint32()
 
-            for i in range(0, vertex_count):
-                self.bucket_grid.vertices.append(bs.read_vec3())
-            for i in range(0, index_count):
-                self.bucket_grid.indices.append(bs.read_uint16())
+            if not no_bucket:
+                for i in range(0, vertex_count):
+                    self.bucket_grid.vertices.append(bs.read_vec3())
+                for i in range(0, index_count):
+                    self.bucket_grid.indices.append(bs.read_uint16())
 
-            for i in range(0, bucket_size):
-                self.bucket_grid.buckets.append([])
-                for j in range(0, bucket_size):
-                    bucket = MAPGEOBucketGridBucket()
-                    bucket.max_stick_out_x = bs.read_float()
-                    bucket.max_stick_out_z = bs.read_float()
-                    bucket.start_index = bs.read_uint32()
-                    bucket.base_vertex = bs.read_uint32()
-                    bucket.inside_face_count = bs.read_uint16()
-                    bucket.sticking_out_face_count = bs.read_uint16()
-                    self.bucket_grid.buckets[i].append(bucket)
+                for i in range(0, bucket_size):
+                    self.bucket_grid.buckets.append([])
+                    for j in range(0, bucket_size):
+                        bucket = MAPGEOBucketGridBucket()
+                        bucket.max_stick_out_x = bs.read_float()
+                        bucket.max_stick_out_z = bs.read_float()
+                        bucket.start_index = bs.read_uint32()
+                        bucket.base_vertex = bs.read_uint32()
+                        bucket.inside_face_count = bs.read_uint16()
+                        bucket.sticking_out_face_count = bs.read_uint16()
+                        self.bucket_grid.buckets[i].append(bucket)
+
+                if version >= 13 and (bucket_flag[0] & 1 == 1):
+                    # if first bit = 1, read vertex flags
+                    flag_count = index_count//3
+                    for i in range(0, flag_count):
+                        self.bucket_grid.vertex_flags.append(bs.read_byte())
+
+            if version >= 13:
+                self.unknown_things = MAPGEOUnknownThings()
+                self.unknown_things.mbvs = []
+                mbv_count = bs.read_uint32()
+                for i in range(0, mbv_count):
+                    m = bs.read_bytes(64)  # matrix4
+                    b = bs.read_bytes(24)  # bounding box
+                    v = bs.read_bytes(12)  # vector3
+                    self.unknown_things.mbvs.append(m, b, v)
 
     def load(self, ssmat=False):
         # ensure far clip plane, allow to see big objects like whole map
@@ -3794,6 +3827,10 @@ class MAPGEO:
                 f'[MAPGEO.dump()]: More than 1 group selected.')
         group_transform = MFnTransform(selected_dagpath)
         group_name = group_transform.name()
+
+        # auto freeze selected group transform
+        MGlobal.executeCommand(
+            f'makeIdentity -apply true -t 1 -r 1 -s 1 -n 0 -pn 1 -jointOrient;')
 
         layer_models = {}
         for i in range(0, 8):
@@ -4117,12 +4154,13 @@ class MAPGEO:
             MGlobal.displayInfo(
                 '[MAPGEO.dump(riot.mapgeo)]: Found riot.mapgeo, copying bucket grids...')
             self.bucket_grid = riot.bucket_grid
+            self.unknown_things = riot.unknown_things
         else:
             MGlobal.displayWarning(
                 '[MAPGEO.dump()]: No riot.mapgeo found, map can be crashed due to missing bucket grids...')
 
     def write(self, path):
-        def parse_data_before_write():
+        def prepare():
             vegs = []
             vbs = []
             ibs = []
@@ -4180,11 +4218,11 @@ class MAPGEO:
                     if max.z < vertex.position.z:
                         max.z = vertex.position.z
                 model.bb = (min, max)
-                vbs.append((bytes([255]), b''.join(vb)))
+                vbs.append((model.layer, b''.join(vb)))
 
                 # index buffers
                 ib = [pack('H', index) for index in model.indices]
-                ibs.append((bytes([255]), b''.join(ib)))
+                ibs.append((model.layer, b''.join(ib)))
 
             return vegs, vbs, ibs
 
@@ -4201,7 +4239,7 @@ class MAPGEO:
             bs.write_int32(0)
             bs.write_bytes(bytes())
 
-            vegs, vbs, ibs = parse_data_before_write()
+            vegs, vbs, ibs = prepare()
 
             # vertex elements
             bs.write_uint32(len(vegs))
@@ -4254,12 +4292,10 @@ class MAPGEO:
                     bs.write_int32(len(submesh.name))
                     bs.write_bytes(submesh.name.encode('ascii'))
 
-                    if submesh.vertex_start == 0:
-                        submesh.vertex_start += 1
                     bs.write_uint32(submesh.index_start)
                     bs.write_uint32(submesh.index_count)
                     bs.write_uint32(submesh.vertex_start)
-                    bs.write_uint32(submesh.vertex_count-1)
+                    bs.write_uint32(submesh.vertex_count)
 
                 # flip normals, always False?
                 bs.write_bool(False)
@@ -4284,24 +4320,20 @@ class MAPGEO:
                 bs.write_bytes(bytes([0]))
 
                 # lightmap
-                if not model.lightmap:
-                    model.lightmap = ''
-                bs.write_int32(len(model.lightmap))
-                bs.write_bytes(model.lightmap.encode('ascii'))
-                bs.write_float(1)  # uv offset
-                bs.write_float(1)
-                bs.write_float(0)
-                bs.write_float(0)
+                if model.lightmap:
+                    bs.write_int32(len(model.lightmap))
+                    bs.write_bytes(model.lightmap.encode('ascii'))
+                    bs.write_float(1)  # uv offset
+                    bs.write_float(1)
+                    bs.write_float(0)
+                    bs.write_float(0)
+                else:
+                    bs.write_bytes(bytes([0])*20)
 
                 # baked paint texture - dont know what to write
-                bs.write_int32(0)
-                bs.write_bytes(bytes())
-                bs.write_float(0)  # uv offset
-                bs.write_float(0)
-                bs.write_float(0)
-                bs.write_float(0)
+                bs.write_bytes(bytes([0])*20)
 
-                # version 12 unknown 20 bytes
+                # version 12 unknown texture
                 bs.write_bytes(bytes([0])*20)
 
             # bucket grid
@@ -4317,7 +4349,9 @@ class MAPGEO:
 
                 bucket_size = len(self.bucket_grid.buckets)
                 bs.write_uint16(bucket_size)
-                bs.write_uint16(self.bucket_grid.unknown)
+                bs.write_bool(False)  # no bucket grid
+                bs.write_bytes(bytes([1]))  # bucket flag
+
                 bs.write_uint32(len(self.bucket_grid.vertices))
                 bs.write_uint32(len(self.bucket_grid.indices))
 
@@ -4335,3 +4369,14 @@ class MAPGEO:
                         bs.write_uint32(bucket.base_vertex)
                         bs.write_uint16(bucket.inside_face_count)
                         bs.write_uint16(bucket.sticking_out_face_count)
+
+                flag_count = len(self.bucket_grid.indices)//3
+                for i in range(0, flag_count):
+                    bs.write_bytes(self.bucket_grid.vertex_flags[i])
+
+            if self.unknown_things:
+                bs.write_uint32(len(self.unknown_things.mbvs))
+                for m, b, v in self.unknown_things.mbvs:
+                    bs.write_bytes(m)
+                    bs.write_bytes(b)
+                    bs.write_bytes(v)

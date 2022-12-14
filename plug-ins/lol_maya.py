@@ -3673,7 +3673,7 @@ class MAPGEO:
                     m = bs.read_bytes(64)  # matrix4
                     b = bs.read_bytes(24)  # bounding box
                     v = bs.read_bytes(12)  # vector3
-                    self.unknown_things.mbvs.append(m, b, v)
+                    self.unknown_things.mbvs.append({ m, b, v })
 
     def load(self, ssmat=False):
         # ensure far clip plane, allow to see big objects like whole map

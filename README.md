@@ -59,7 +59,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
             - Combined mesh: select the bound mesh -> use export selection.
             - Group meshes: select the group of bound meshes -> use export selection.
         - `33 22 11 00`: V1
-        - Limit vertices: 65536 
+        - Limit vertices: 65535.
         - Show/select component on error: 
             - Vertex: 4+ influences vertex, material shared vertex, non UVs assigned vertex.
             - Face: invalid triangulation face, non material assigned face, non UVs assigned face.
@@ -192,7 +192,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
 3. Write:
     - To export: select the group of meshes -> use export selection.
     - `OEGM`: V13
-    - Limit vertices for each mesh: 65536.
+    - Limit vertices for each mesh: 65535.
     - Show/select component on error: 
         - Vertex: material shared vertex, non UVs assigned vertex.
         - Face: invalid triangulation face, non material assigned face, non UVs assigned face.

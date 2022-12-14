@@ -3545,7 +3545,7 @@ class MAPGEO:
                 # all quality = 1|2|4|8|16 = 31
                 bs.pad(1)
 
-                # layer - belowb version 13
+                # layer - below version 13
                 if version >= 7 and version <= 12:
                     model.layer = bs.read_byte()
 
@@ -3614,13 +3614,12 @@ class MAPGEO:
                             index_count//3)
 
                 self.camera_transformer = MAPGEOCameraTransformer()
-                self.camera_transformer.cts = []
-                mbv_count = bs.read_uint32()
-                for i in range(0, mbv_count):
+                ct_count = bs.read_uint32()
+                for i in range(0, ct_count):
                     m = bs.read_bytes(64)  # matrix4
                     b = bs.read_bytes(24)  # bounding box
                     v = bs.read_bytes(12)  # vector3
-                    self.unknown_things.mbvs.append((m, b, v))
+                    self.camera_transformer.cts.append((m, b, v))
 
     def write(self, path):
         def prepare():

@@ -1038,6 +1038,83 @@ class SKL:
                             MSpace.kWorld
                         )
 
+    def write(self, path):
+        with open(path, 'wb') as f:
+            bs = BinaryStream(f)
+
+            bs.write_uint32(0)  # resource size - later
+            bs.write_uint32(0x22FD4FC3)  # magic
+            bs.write_uint32(0)  # version
+
+            len1235 = len(self.joints)
+
+            bs.write_uint16(0)  # flags
+            bs.write_uint16(len1235)  # joints
+            bs.write_uint32(len1235)  # influences
+
+            joints_offset = 64
+            joint_indices_offset = joints_offset + len1235 * 100
+            influences_offset = joint_indices_offset + len1235 * 8
+            joint_names_offset = influences_offset + len1235 * 2
+
+            bs.write_int32(joints_offset)
+            bs.write_int32(joint_indices_offset)
+            bs.write_int32(influences_offset)
+            bs.write_int32(0)  # name
+            bs.write_int32(0)  # asset name
+            bs.write_int32(joint_names_offset)
+
+            bs.write_uint32(0xFFFFFFFF)  # reserved offset field
+            bs.write_uint32(0xFFFFFFFF)
+            bs.write_uint32(0xFFFFFFFF)
+            bs.write_uint32(0xFFFFFFFF)
+            bs.write_uint32(0xFFFFFFFF)
+
+            joint_offset = {}
+            bs.seek(joint_names_offset)
+            for i in range(0, len1235):
+                joint_offset[i] = bs.tell()
+                bs.write_bytes(self.joints[i].name.encode('ascii'))
+                bs.write_bytes(bytes([0]))  # pad
+
+            bs.seek(joints_offset)
+            for i in range(0, len1235):
+                joint = self.joints[i]
+
+                bs.write_uint16(0)  # flags
+                bs.write_uint16(i)  # id
+                bs.write_int16(joint.parent)  # -1, cant be uint
+                bs.write_uint16(0)  # pad
+                bs.write_uint32(Hash.elf(joint.name))
+                bs.write_float(2.1)  # radius/scale
+                # local
+                bs.write_vec3(joint.local_translation)
+                bs.write_vec3(joint.local_scale)
+                bs.write_quat(joint.local_rotation)
+                # inversed global
+                bs.write_vec3(joint.iglobal_translation)
+                bs.write_vec3(joint.iglobal_scale)
+                bs.write_quat(joint.iglobal_rotation)
+
+                bs.write_int32(joint_offset[i] - bs.tell())
+
+            # influences v1: 0, 1, 2... -> len(joints)
+            bs.seek(influences_offset)
+            for i in range(0, len1235):
+                bs.write_uint16(i)
+
+            # joint indices
+            bs.seek(joint_indices_offset)
+            for i in range(0, len1235):
+                bs.write_uint16(i)
+                bs.write_uint16(0)  # pad
+                bs.write_uint32(Hash.elf(joint.name))
+
+            # resource size
+            rsize = bs.end()
+            bs.seek(0)
+            bs.write_uint32(rsize)
+
     def load(self):
         # find joint existed in scene
         iterator = MItDag(MItDag.kDepthFirst, MFn.kJoint)
@@ -1054,7 +1131,8 @@ class SKL:
 
         # create joint if not existed
         # set transform
-        id = 0
+        riot_id = 0
+        execmd = ''
         for joint in self.joints:
             if joint.dagpath:
                 ik_joint = MFnIkJoint(joint.dagpath)
@@ -1072,17 +1150,14 @@ class SKL:
             MGlobal.executeCommand(
                 f'attributeQuery -ex -n "{joint.name}" "riotid"', ptr)
             if util.getInt(ptr) == 0:
-                MGlobal.executeCommand(
-                    f'addAttr -ln "riotid" -nn "Riot ID" -at byte -min 0 -max 255 -dv {id} "{joint.name}";'
-                )
-            MGlobal.executeCommand(
-                f'setAttr {joint.name}.riotid {id};'
-            )
-            id += 1
+                execmd += f'addAttr -ln "riotid" -nn "Riot ID" -at byte -min 0 -max 255 -dv {riot_id} "{joint.name}";'
+            execmd += f'setAttr {joint.name}.riotid {riot_id};'
+            riot_id += 1
 
             ik_joint.set(MTransform.compose(
                 joint.local_translation, joint.local_scale, joint.local_rotation, MSpace.kWorld
             ))
+        MGlobal.executeCommand(execmd)
 
         # link parent
         for joint in self.joints:
@@ -1201,7 +1276,7 @@ class SKL:
                     f'getAttr {joint.name}.riotid', ptr)
                 id = util.getInt(ptr)
 
-                # if id out of range
+                # if id out of range -> bad joint
                 if id < 0 or id >= joint_count:
                     other_joints.append(joint)
                     continue
@@ -1248,83 +1323,6 @@ class SKL:
         if joint_count > 256:
             raise FunnyError(
                 f'[SKL.dump()]: Too many joints found: {joint_count}, max allowed: 256 joints.')
-
-    def write(self, path):
-        with open(path, 'wb') as f:
-            bs = BinaryStream(f)
-
-            bs.write_uint32(0)  # resource size - later
-            bs.write_uint32(0x22FD4FC3)  # magic
-            bs.write_uint32(0)  # version
-
-            len1235 = len(self.joints)
-
-            bs.write_uint16(0)  # flags
-            bs.write_uint16(len1235)  # joints
-            bs.write_uint32(len1235)  # influences
-
-            joints_offset = 64
-            joint_indices_offset = joints_offset + len1235 * 100
-            influences_offset = joint_indices_offset + len1235 * 8
-            joint_names_offset = influences_offset + len1235 * 2
-
-            bs.write_int32(joints_offset)
-            bs.write_int32(joint_indices_offset)
-            bs.write_int32(influences_offset)
-            bs.write_int32(0)  # name
-            bs.write_int32(0)  # asset name
-            bs.write_int32(joint_names_offset)
-
-            bs.write_uint32(0xFFFFFFFF)  # reserved offset field
-            bs.write_uint32(0xFFFFFFFF)
-            bs.write_uint32(0xFFFFFFFF)
-            bs.write_uint32(0xFFFFFFFF)
-            bs.write_uint32(0xFFFFFFFF)
-
-            joint_offset = {}
-            bs.seek(joint_names_offset)
-            for i in range(0, len1235):
-                joint_offset[i] = bs.tell()
-                bs.write_bytes(self.joints[i].name.encode('ascii'))
-                bs.write_bytes(bytes([0]))  # pad
-
-            bs.seek(joints_offset)
-            for i in range(0, len1235):
-                joint = self.joints[i]
-
-                bs.write_uint16(0)  # flags
-                bs.write_uint16(i)  # id
-                bs.write_int16(joint.parent)  # -1, cant be uint
-                bs.write_uint16(0)  # pad
-                bs.write_uint32(Hash.elf(joint.name))
-                bs.write_float(2.1)  # radius/scale
-                # local
-                bs.write_vec3(joint.local_translation)
-                bs.write_vec3(joint.local_scale)
-                bs.write_quat(joint.local_rotation)
-                # inversed global
-                bs.write_vec3(joint.iglobal_translation)
-                bs.write_vec3(joint.iglobal_scale)
-                bs.write_quat(joint.iglobal_rotation)
-
-                bs.write_int32(joint_offset[i] - bs.tell())
-
-            # influences v1: 0, 1, 2... -> len(joints)
-            bs.seek(influences_offset)
-            for i in range(0, len1235):
-                bs.write_uint16(i)
-
-            # joint indices
-            bs.seek(joint_indices_offset)
-            for i in range(0, len1235):
-                bs.write_uint16(i)
-                bs.write_uint16(0)  # pad
-                bs.write_uint32(Hash.elf(joint.name))
-
-            # resource size
-            rsize = bs.end()
-            bs.seek(0)
-            bs.write_uint32(rsize)
 
 
 # skn
@@ -1456,6 +1454,37 @@ class SKN:
                         bs.pad(16)
                 self.vertices.append(vertex)
 
+    def write(self, path):
+        with open(path, 'wb') as f:
+            bs = BinaryStream(f)
+
+            bs.write_uint32(0x00112233)  # magic
+            bs.write_uint16(1)  # major
+            bs.write_uint16(1)  # minor
+
+            bs.write_uint32(len(self.submeshes))
+            for submesh in self.submeshes:
+                bs.write_padded_string(64, submesh.name)
+                bs.write_uint32(submesh.vertex_start)
+                bs.write_uint32(submesh.vertex_count)
+                bs.write_uint32(submesh.index_start)
+                bs.write_uint32(submesh.index_count)
+
+            bs.write_uint32(len(self.indices))
+            bs.write_uint32(len(self.vertices))
+
+            for index in self.indices:
+                bs.write_uint16(index)
+
+            for vertex in self.vertices:
+                bs.write_vec3(vertex.position)
+                for byte in vertex.influences:
+                    bs.write_bytes(byte)
+                for weight in vertex.weights:
+                    bs.write_float(weight)
+                bs.write_vec3(vertex.normal)
+                bs.write_vec2(vertex.uv)
+
     def load(self, skl=None, sepmat=False):
         def load_combined():
             vertex_count = len(self.vertices)
@@ -1499,6 +1528,7 @@ class SKN:
             MFnTransform(mesh.parent(0)).setName(f'mesh_{self.name}')
 
             # materials
+            execmd = ''
             for submesh in self.submeshes:
                 # check duplicate name node
                 if skl:
@@ -1515,14 +1545,13 @@ class SKN:
                 # shading group
                 face_start = submesh.index_start // 3
                 face_end = (submesh.index_start + submesh.index_count) // 3
-                MGlobal.executeCommand((
-                    # create renderable, independent shading group
-                    f'sets -renderable true -noSurfaceShader true -empty -name "{lambert_name}_SG";'
-                    # add submesh faces to shading group
-                    f'sets -e -forceElement "{lambert_name}_SG" {mesh_name}.f[{face_start}:{face_end}];'
-                    # connect lambert to shading group
-                    f'connectAttr -f {lambert_name}.outColor {lambert_name}_SG.surfaceShader;'
-                ))
+                # create renderable, independent shading group
+                execmd += f'sets -renderable true -noSurfaceShader true -empty -name "{lambert_name}_SG";'
+                # add submesh faces to shading group
+                execmd += f'sets -e -forceElement "{lambert_name}_SG" {mesh_name}.f[{face_start}:{face_end}];'
+                # connect lambert to shading group
+                execmd += f'connectAttr -f {lambert_name}.outColor {lambert_name}_SG.surfaceShader;'
+            MGlobal.executeCommand(execmd)
 
             if skl:
                 influence_count = len(skl.influences)
@@ -1605,6 +1634,7 @@ class SKN:
                 for i in range(0, shader_index_count):
                     shader_indices[shader_index][i] -= min_vertex
 
+            execmd = ''
             for shader_index in range(0, shader_count):
                 vertex_count = len(shader_vertices[shader_index])
                 index_count = len(shader_indices[shader_index])
@@ -1668,15 +1698,13 @@ class SKN:
                 lambert.create()
                 lambert.setName(submesh.name)
                 lambert_name = lambert.name()
-                # shading group
-                MGlobal.executeCommand((
-                    # create renderable, independent shading group
-                    f'sets -renderable true -noSurfaceShader true -empty -name "{lambert_name}_SG";'
-                    # add submesh faces to shading group
-                    f'sets -e -forceElement "{lambert_name}_SG" {mesh_name}.f[0:{face_count}];'
-                    # connect lambert to shading group
-                    f'connectAttr -f {lambert_name}.outColor {lambert_name}_SG.surfaceShader;'
-                ))
+                # create renderable, independent shading group
+                execmd += f'sets -renderable true -noSurfaceShader true -empty -name "{lambert_name}_SG";'
+                # add submesh faces to shading group
+                execmd += f'sets -e -forceElement "{lambert_name}_SG" {mesh_name}.f[0:{face_count}];'
+                # connect lambert to shading group
+                execmd += f'connectAttr -f {lambert_name}.outColor {lambert_name}_SG.surfaceShader;'
+            MGlobal.executeCommand(execmd)
 
             if skl:
                 for shader_index in range(0, shader_count):
@@ -1879,7 +1907,7 @@ class SKN:
                     'Save/backup scene first, try one of following methods to fix:\n'
                     '1. Seperate all connected faces that shared those vertices.\n'
                     '2. Check and reassign correct material.\n'
-                    '3. [not recommended] Try auto fix shared vertices button on shelf.'
+                    '3. [recommended] Try auto fix shared vertices button on shelf.'
                     '\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.'
                 ))
 
@@ -2004,7 +2032,7 @@ class SKN:
                     'Save/backup scene first, try one of following methods to fix:\n'
                     '1. Repaint weight on those vertices.\n'
                     '2. Prune small weights.\n'
-                    '3. [not recommended] Try auto fix 4 influences button on shelf.'
+                    '3. [recommended] Try auto fix 4 influences button on shelf.'
                     '\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history and rebind the skin, that might fix the problem.'
                 ))
             if bad_vertices2.length() > 0:
@@ -2197,46 +2225,15 @@ class SKN:
 
         # check limit vertices
         vertices_count = len(self.vertices)
-        if vertices_count > 65536:
+        if vertices_count > 65535:
             raise FunnyError(
-                f'[SKN.dump()]: Too many vertices found: {vertices_count}, max allowed: 65536 vertices. (base on UVs)')
+                f'[SKN.dump()]: Too many vertices found: {vertices_count}, max allowed: 65535 vertices. (base on UVs)')
 
         # check limit submeshes
         submesh_count = len(self.submeshes)
         if submesh_count > 32:
             raise FunnyError(
                 f'[SKN.dump()]: Too many materials assigned: {submesh_count}, max allowed: 32 materials.')
-
-    def write(self, path):
-        with open(path, 'wb') as f:
-            bs = BinaryStream(f)
-
-            bs.write_uint32(0x00112233)  # magic
-            bs.write_uint16(1)  # major
-            bs.write_uint16(1)  # minor
-
-            bs.write_uint32(len(self.submeshes))
-            for submesh in self.submeshes:
-                bs.write_padded_string(64, submesh.name)
-                bs.write_uint32(submesh.vertex_start)
-                bs.write_uint32(submesh.vertex_count)
-                bs.write_uint32(submesh.index_start)
-                bs.write_uint32(submesh.index_count)
-
-            bs.write_uint32(len(self.indices))
-            bs.write_uint32(len(self.vertices))
-
-            for index in self.indices:
-                bs.write_uint16(index)
-
-            for vertex in self.vertices:
-                bs.write_vec3(vertex.position)
-                for byte in vertex.influences:
-                    bs.write_bytes(byte)
-                for weight in vertex.weights:
-                    bs.write_float(weight)
-                bs.write_vec3(vertex.normal)
-                bs.write_vec2(vertex.uv)
 
 
 # anm
@@ -2568,197 +2565,6 @@ class ANM:
                 raise FunnyError(
                     f'[ANM.read()]: Wrong signature file: {magic}')
 
-    def load(self, delchannel=False):
-        # track of data joints that found in scene
-        scene_tracks = []
-
-        # loop through all ik joint in scenes
-        iterator = MItDag(MItDag.kDepthFirst, MFn.kJoint)
-        while not iterator.isDone():
-            dagpath = MDagPath()
-            iterator.getPath(dagpath)
-            ik_joint = MFnIkJoint(dagpath)
-            joint_name = ik_joint.name()
-
-            # find joint in tracks data
-            found = False
-            for track in self.tracks:
-                if track.joint_hash == Hash.elf(joint_name):
-                    track.joint_name = joint_name
-                    track.dagpath = MDagPath(dagpath)
-                    scene_tracks.append(track)
-                    found = True
-                    break
-
-            # ignore data joint that not found in scene
-            if not found:
-                MGlobal.displayWarning(
-                    f'[ANM.load()]: No joint hash found in scene: {track.joint_hash}')
-
-            iterator.next()
-
-        if len(scene_tracks) == 0:
-            raise FunnyError(
-                '[ANM.load()]: No data joints found in scene, please import SKL if joints are not in scene.')
-
-        # delete all channel data
-        if delchannel:
-            MGlobal.executeCommand('delete -all -c')
-
-        # ensure scene fps
-        # this only ensure the "import scene", not the "opening/existing scene" in maya, to make this work:
-        # select "Override to Math Source" for both Framerate % Animation Range in Maya's import options panel
-        if self.fps > 59:
-            MGlobal.executeCommand('currentUnit -time ntscf')
-        else:
-            MGlobal.executeCommand('currentUnit -time ntsc')
-
-        # get current time
-        util = MScriptUtil()
-        ptr = util.asDoublePtr()
-        MGlobal.executeCommand('currentTime -q', ptr)
-        current = util.getDouble(ptr)
-
-        # adjust animation range
-        end = self.duration * self.fps
-        MGlobal.executeCommand(
-            f'playbackOptions -e -min 0 -max {current+end} -animationStartTime 0 -animationEndTime {current+end} -playbackSpeed 1')
-
-        # bind current pose to frame 0 - very helpful if its bind pose
-        joint_names = ' '.join([track.joint_name for track in scene_tracks])
-        MGlobal.executeCommand(
-            f'currentTime 0;setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0 -at translateX -at translateY -at translateZ -at scaleX -at scaleY -at scaleZ -at rotateX -at rotateY -at rotateZ {joint_names}')
-
-        # sync global times
-        times = []
-        for track in scene_tracks:
-            for time in track.poses:
-                if time not in times:
-                    times.append(time)
-        for track in scene_tracks:
-            for time in times:
-                if time not in track.poses:
-                    track.poses[time] = None
-
-        for time in times:
-            # anm will start from frame 1
-            MGlobal.executeCommand(
-                f'currentTime {current + time * self.fps + 1}')
-
-            setKeyFrame = f'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0'
-            ekf = True  # empty keyframe
-            for track in scene_tracks:
-                pose = track.poses[time]
-                if pose:
-                    ik_joint = MFnIkJoint(track.dagpath)
-                    # translation
-                    if pose.translation:
-                        ik_joint.setTranslation(
-                            pose.translation, MSpace.kTransform)
-                        setKeyFrame += f' {track.joint_name}.translateX {track.joint_name}.translateY {track.joint_name}.translateZ'
-                        ekf = True
-                    # scale
-                    if pose.scale:
-                        scale = pose.scale
-                        util = MScriptUtil()
-                        util.createFromDouble(scale.x, scale.y, scale.z)
-                        ptr = util.asDoublePtr()
-                        ik_joint.setScale(ptr)
-                        setKeyFrame += f' {track.joint_name}.scaleX {track.joint_name}.scaleY {track.joint_name}.scaleZ'
-                        ekf = True
-                    # rotation
-                    if pose.rotation:
-                        orient = MQuaternion()
-                        ik_joint.getOrientation(orient)
-                        axe = ik_joint.rotateOrientation(MSpace.kTransform)
-                        ik_joint.setRotation(
-                            axe.inverse() * pose.rotation * orient.inverse(), MSpace.kTransform)
-                        setKeyFrame += f' {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
-                        ekf = True
-
-            if ekf:
-                MGlobal.executeCommand(setKeyFrame)
-
-        # slerp all quaternions - EULER SUCKS!
-        rotationInterpolation = 'rotationInterpolation -c quaternionSlerp'
-        for track in scene_tracks:
-            rotationInterpolation += f' {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
-        MGlobal.executeCommand(rotationInterpolation)
-
-    def dump(self):
-        # get joint in scene
-        iterator = MItDag(MItDag.kDepthFirst, MFn.kJoint)
-        while not iterator.isDone():
-            # dag path + transform
-            dagpath = MDagPath()
-            iterator.getPath(dagpath)
-            ik_joint = MFnIkJoint(dagpath)
-
-            # track data
-            track = ANMTrack()
-            track.dagpath = dagpath
-            track.joint_name = ik_joint.name()
-            track.joint_hash = Hash.elf(track.joint_name)
-            self.tracks.append(track)
-
-            iterator.next()
-
-        # dump fps
-        util = MScriptUtil()
-        ptr = util.asDoublePtr()
-        MGlobal.executeCommand('currentTimeUnitToFPS', ptr)
-        fps = util.getDouble(ptr)
-        if fps > 59:
-            self.fps = 60.0
-        else:
-            self.fps = 30.0
-
-        # dump from frame 1 to frame end
-        # if its not then well, its the ppl fault, not mine. haha suckers
-        util = MScriptUtil()
-        ptr = util.asDoublePtr()
-        MGlobal.executeCommand('playbackOptions -q -animationStartTime', ptr)
-        start = util.getDouble(ptr)
-        if start < 0:
-            raise FunnyError(
-                f'[ANM.dump()]: Animation start time must be greater or equal 0: {start}')
-        util = MScriptUtil()
-        ptr = util.asDoublePtr()
-        MGlobal.executeCommand('playbackOptions -q -animationEndTime', ptr)
-        end = util.getDouble(ptr)
-        if end < 1:
-            raise FunnyError(
-                f'[ANM.dump()]: Animation end time must be greater than 1: {end}')
-        self.duration = int(end)
-
-        for time in range(1, self.duration+1):
-            MGlobal.executeCommand(f'currentTime {time}')
-
-            for track in self.tracks:
-                ik_joint = MFnIkJoint(track.dagpath)
-
-                pose = ANMPose()
-                # translation
-                pose.translation = ik_joint.getTranslation(MSpace.kTransform)
-                # scale
-                util = MScriptUtil()
-                util.createFromDouble(0.0, 0.0, 0.0)
-                ptr = util.asDoublePtr()
-                ik_joint.getScale(ptr)
-                pose.scale = MVector(
-                    util.getDoubleArrayItem(ptr, 0),
-                    util.getDoubleArrayItem(ptr, 1),
-                    util.getDoubleArrayItem(ptr, 2)
-                )
-                # rotation
-                orient = MQuaternion()
-                ik_joint.getOrientation(orient)
-                axe = ik_joint.rotateOrientation(MSpace.kTransform)
-                rotation = MQuaternion()
-                ik_joint.getRotation(rotation, MSpace.kTransform)
-                pose.rotation = axe * rotation * orient
-                track.poses[time] = pose
-
     def write(self, path):
         # build unique vecs + quats
         uni_vecs = {}
@@ -2853,6 +2659,198 @@ class ANM:
             rsize = bs.end()
             bs.seek(12)
             bs.write_uint32(rsize)
+
+    def load(self, delchannel=False):
+        # track of data joints that found in scene
+        scene_tracks = []
+
+        # loop through all ik joint in scenes
+        iterator = MItDag(MItDag.kDepthFirst, MFn.kJoint)
+        while not iterator.isDone():
+            dagpath = MDagPath()
+            iterator.getPath(dagpath)
+            ik_joint = MFnIkJoint(dagpath)
+            joint_name = ik_joint.name()
+
+            # find joint in tracks data
+            found = False
+            for track in self.tracks:
+                if track.joint_hash == Hash.elf(joint_name):
+                    track.joint_name = joint_name
+                    track.dagpath = MDagPath(dagpath)
+                    scene_tracks.append(track)
+                    found = True
+                    break
+
+            # ignore data joint that not found in scene
+            if not found:
+                MGlobal.displayWarning(
+                    f'[ANM.load()]: No joint hash found in scene: {track.joint_hash}')
+
+            iterator.next()
+
+        if len(scene_tracks) == 0:
+            raise FunnyError(
+                '[ANM.load()]: No data joints found in scene, please import SKL if joints are not in scene.')
+
+        execmd = ''
+        # delete all channel data
+        if delchannel:
+            execmd += 'delete -all -c;'
+
+        # ensure scene fps
+        # this only ensure the "import scene", not the "opening/existing scene" in maya, to make this work:
+        # select "Override to Math Source" for both Framerate % Animation Range in Maya's import options panel
+        if self.fps > 59:
+            execmd += 'currentUnit -time ntscf;'
+        else:
+            execmd += 'currentUnit -time ntsc;'
+
+        # get current time
+        util = MScriptUtil()
+        ptr = util.asDoublePtr()
+        MGlobal.executeCommand('currentTime -q', ptr)
+        current = util.getDouble(ptr)
+
+        # adjust animation range
+        end = self.duration * self.fps
+        execmd += f'playbackOptions -e -min 0 -max {current+end} -animationStartTime 0 -animationEndTime {current+end} -playbackSpeed 1;'
+
+        # bind current pose to frame 0 - very helpful if its bind pose
+        joint_names = ' '.join([track.joint_name for track in scene_tracks])
+        execmd += f'currentTime 0;setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0 -at translateX -at translateY -at translateZ -at scaleX -at scaleY -at scaleZ -at rotateX -at rotateY -at rotateZ {joint_names};'
+
+        MGlobal.executeCommand(execmd)
+
+        # sync global times
+        times = []
+        for track in scene_tracks:
+            for time in track.poses:
+                if time not in times:
+                    times.append(time)
+        for track in scene_tracks:
+            for time in times:
+                if time not in track.poses:
+                    track.poses[time] = None
+
+        for time in times:
+            # anm will start from frame 1
+            MGlobal.executeCommand(
+                f'currentTime {current + time * self.fps + 1};')
+
+            setKeyFrame = f'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0'
+            ekf = True  # empty keyframe
+            for track in scene_tracks:
+                pose = track.poses[time]
+                if pose:
+                    ik_joint = MFnIkJoint(track.dagpath)
+                    # translation
+                    if pose.translation:
+                        ik_joint.setTranslation(
+                            pose.translation, MSpace.kTransform)
+                        setKeyFrame += f' {track.joint_name}.translateX {track.joint_name}.translateY {track.joint_name}.translateZ'
+                        ekf = False
+                    # scale
+                    if pose.scale:
+                        scale = pose.scale
+                        util = MScriptUtil()
+                        util.createFromDouble(scale.x, scale.y, scale.z)
+                        ptr = util.asDoublePtr()
+                        ik_joint.setScale(ptr)
+                        setKeyFrame += f' {track.joint_name}.scaleX {track.joint_name}.scaleY {track.joint_name}.scaleZ'
+                        ekf = False
+                    # rotation
+                    if pose.rotation:
+                        orient = MQuaternion()
+                        ik_joint.getOrientation(orient)
+                        axe = ik_joint.rotateOrientation(MSpace.kTransform)
+                        ik_joint.setRotation(
+                            axe.inverse() * pose.rotation * orient.inverse(), MSpace.kTransform)
+                        setKeyFrame += f' {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
+                        ekf = False
+
+            if not ekf:
+                MGlobal.executeCommand(setKeyFrame)
+
+        # slerp all quaternions - EULER SUCKS!
+        rotationInterpolation = 'rotationInterpolation -c quaternionSlerp'
+        for track in scene_tracks:
+            rotationInterpolation += f' {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
+        MGlobal.executeCommand(rotationInterpolation)
+
+    def dump(self):
+        # get joint in scene
+        iterator = MItDag(MItDag.kDepthFirst, MFn.kJoint)
+        while not iterator.isDone():
+            # dag path + transform
+            dagpath = MDagPath()
+            iterator.getPath(dagpath)
+            ik_joint = MFnIkJoint(dagpath)
+
+            # track data
+            track = ANMTrack()
+            track.dagpath = dagpath
+            track.joint_name = ik_joint.name()
+            track.joint_hash = Hash.elf(track.joint_name)
+            self.tracks.append(track)
+
+            iterator.next()
+
+        # dump fps
+        util = MScriptUtil()
+        ptr = util.asDoublePtr()
+        MGlobal.executeCommand('currentTimeUnitToFPS', ptr)
+        fps = util.getDouble(ptr)
+        if fps > 59:
+            self.fps = 60.0
+        else:
+            self.fps = 30.0
+
+        # dump from frame 1 to frame end
+        # if its not then well, its the ppl fault, not mine. haha suckers
+        util = MScriptUtil()
+        ptr = util.asDoublePtr()
+        MGlobal.executeCommand('playbackOptions -q -animationStartTime', ptr)
+        start = util.getDouble(ptr)
+        if start < 0:
+            raise FunnyError(
+                f'[ANM.dump()]: Animation start time must be greater or equal 0: {start}')
+        util = MScriptUtil()
+        ptr = util.asDoublePtr()
+        MGlobal.executeCommand('playbackOptions -q -animationEndTime', ptr)
+        end = util.getDouble(ptr)
+        if end < 1:
+            raise FunnyError(
+                f'[ANM.dump()]: Animation end time must be greater than 1: {end}')
+        self.duration = int(end)
+
+        for time in range(1, self.duration+1):
+            MGlobal.executeCommand(f'currentTime {time}')
+
+            for track in self.tracks:
+                ik_joint = MFnIkJoint(track.dagpath)
+
+                pose = ANMPose()
+                # translation
+                pose.translation = ik_joint.getTranslation(MSpace.kTransform)
+                # scale
+                util = MScriptUtil()
+                util.createFromDouble(0.0, 0.0, 0.0)
+                ptr = util.asDoublePtr()
+                ik_joint.getScale(ptr)
+                pose.scale = MVector(
+                    util.getDoubleArrayItem(ptr, 0),
+                    util.getDoubleArrayItem(ptr, 1),
+                    util.getDoubleArrayItem(ptr, 2)
+                )
+                # rotation
+                orient = MQuaternion()
+                ik_joint.getOrientation(orient)
+                axe = ik_joint.rotateOrientation(MSpace.kTransform)
+                rotation = MQuaternion()
+                ik_joint.getRotation(rotation, MSpace.kTransform)
+                pose.rotation = axe * rotation * orient
+                track.poses[time] = pose
 
 
 # static object - sco/scb
@@ -3002,6 +3000,112 @@ class SO:
                 self.uvs.append(MVector(uvs[0], uvs[3]))
                 self.uvs.append(MVector(uvs[1], uvs[4]))
                 self.uvs.append(MVector(uvs[2], uvs[5]))
+
+    def write_sco(self, path):
+        with open(path, 'w') as f:
+            f.write('[ObjectBegin]\n')  # magic
+
+            f.write(f'Name= {self.name}\n')
+            f.write(
+                f'CentralPoint= {self.central.x:.4f} {self.central.y:.4f} {self.central.z:.4f}\n')
+            if self.pivot != None:
+                f.write(
+                    f'PivotPoint= {self.pivot.x:.4f} {self.pivot.y:.4f} {self.pivot.z:.4f}\n')
+
+            # vertices
+            f.write(f'Verts= {len(self.vertices)}\n')
+            for position in self.vertices:
+                f.write(f'{position.x:.4f} {position.y:.4f} {position.z:.4f}\n')
+
+            # faces
+            face_count = len(self.indices) // 3
+            f.write(f'Faces= {face_count}\n')
+            for i in range(0, face_count):
+                index = i * 3
+                f.write('3\t')
+                f.write(f' {self.indices[index]:>5}')
+                f.write(f' {self.indices[index+1]:>5}')
+                f.write(f' {self.indices[index+2]:>5}')
+                f.write(f'\t{self.material:>20}\t')
+                f.write(f'{self.uvs[index].x:.12f} {self.uvs[index].y:.12f} ')
+                f.write(
+                    f'{self.uvs[index+1].x:.12f} {self.uvs[index+1].y:.12f} ')
+                f.write(
+                    f'{self.uvs[index+2].x:.12f} {self.uvs[index+2].y:.12f}\n')
+
+            f.write('[ObjectEnd]')
+
+    def write_scb(self, path):
+        # dump bb before flip
+        def get_bounding_box():
+            # totally not copied code
+            min = MVector(float('inf'), float('inf'), float('inf'))
+            max = MVector(float('-inf'), float('-inf'), float('-inf'))
+            for vertex in self.vertices:
+                if min.x > vertex.x:
+                    min.x = vertex.x
+                if min.y > vertex.y:
+                    min.y = vertex.y
+                if min.z > vertex.z:
+                    min.z = vertex.z
+                if max.x < vertex.x:
+                    max.x = vertex.x
+                if max.y < vertex.y:
+                    max.y = vertex.y
+                if max.z < vertex.z:
+                    max.z = vertex.z
+            return min, max
+
+        with open(path, 'wb') as f:
+            bs = BinaryStream(f)
+
+            bs.write_bytes('r3d2Mesh'.encode('ascii'))  # magic
+            bs.write_uint16(3)  # major
+            bs.write_uint16(2)  # minor
+
+            bs.write_padded_string(128, '')  # well
+
+            face_count = len(self.indices) // 3
+            bs.write_uint32(len(self.vertices))
+            bs.write_uint32(face_count)
+
+            # flags:
+            # 1 - vertex color
+            # 2 - local origin locator and pivot
+            # why 2? idk ¯\_(ツ)_/¯
+            bs.write_uint32(self.scb_flag)
+
+            # bounding box
+            bb = get_bounding_box()
+            bs.write_vec3(bb[0])
+            bs.write_vec3(bb[1])
+
+            bs.write_uint32(0)  # vertex color
+
+            # vertices
+            for vertex in self.vertices:
+                bs.write_vec3(vertex)
+
+            # central
+            bs.write_vec3(self.central)
+
+            # faces - easy peasy squeezy last part
+            for i in range(0, face_count):
+                index = i * 3
+                bs.write_uint32(self.indices[index])
+                bs.write_uint32(self.indices[index+1])
+                bs.write_uint32(self.indices[index+2])
+
+                bs.write_padded_string(64, self.material)
+
+                # u u u
+                bs.write_float(self.uvs[index].x)
+                bs.write_float(self.uvs[index+1].x)
+                bs.write_float(self.uvs[index+2].x)
+                # v v v
+                bs.write_float(self.uvs[index].y)
+                bs.write_float(self.uvs[index+1].y)
+                bs.write_float(self.uvs[index+2].y)
 
     def load(self):
         vertex_count = len(self.vertices)
@@ -3246,112 +3350,6 @@ class SO:
             MGlobal.displayInfo(
                 '[SO.dump(riot.so)]: Found riot.so (scb/sco), updated value.')
 
-    def write_sco(self, path):
-        with open(path, 'w') as f:
-            f.write('[ObjectBegin]\n')  # magic
-
-            f.write(f'Name= {self.name}\n')
-            f.write(
-                f'CentralPoint= {self.central.x:.4f} {self.central.y:.4f} {self.central.z:.4f}\n')
-            if self.pivot != None:
-                f.write(
-                    f'PivotPoint= {self.pivot.x:.4f} {self.pivot.y:.4f} {self.pivot.z:.4f}\n')
-
-            # vertices
-            f.write(f'Verts= {len(self.vertices)}\n')
-            for position in self.vertices:
-                f.write(f'{position.x:.4f} {position.y:.4f} {position.z:.4f}\n')
-
-            # faces
-            face_count = len(self.indices) // 3
-            f.write(f'Faces= {face_count}\n')
-            for i in range(0, face_count):
-                index = i * 3
-                f.write('3\t')
-                f.write(f' {self.indices[index]:>5}')
-                f.write(f' {self.indices[index+1]:>5}')
-                f.write(f' {self.indices[index+2]:>5}')
-                f.write(f'\t{self.material:>20}\t')
-                f.write(f'{self.uvs[index].x:.12f} {self.uvs[index].y:.12f} ')
-                f.write(
-                    f'{self.uvs[index+1].x:.12f} {self.uvs[index+1].y:.12f} ')
-                f.write(
-                    f'{self.uvs[index+2].x:.12f} {self.uvs[index+2].y:.12f}\n')
-
-            f.write('[ObjectEnd]')
-
-    def write_scb(self, path):
-        # dump bb before flip
-        def get_bounding_box():
-            # totally not copied code
-            min = MVector(float('inf'), float('inf'), float('inf'))
-            max = MVector(float('-inf'), float('-inf'), float('-inf'))
-            for vertex in self.vertices:
-                if min.x > vertex.x:
-                    min.x = vertex.x
-                if min.y > vertex.y:
-                    min.y = vertex.y
-                if min.z > vertex.z:
-                    min.z = vertex.z
-                if max.x < vertex.x:
-                    max.x = vertex.x
-                if max.y < vertex.y:
-                    max.y = vertex.y
-                if max.z < vertex.z:
-                    max.z = vertex.z
-            return min, max
-
-        with open(path, 'wb') as f:
-            bs = BinaryStream(f)
-
-            bs.write_bytes('r3d2Mesh'.encode('ascii'))  # magic
-            bs.write_uint16(3)  # major
-            bs.write_uint16(2)  # minor
-
-            bs.write_padded_string(128, '')  # well
-
-            face_count = len(self.indices) // 3
-            bs.write_uint32(len(self.vertices))
-            bs.write_uint32(face_count)
-
-            # flags:
-            # 1 - vertex color
-            # 2 - local origin locator and pivot
-            # why 2? idk ¯\_(ツ)_/¯
-            bs.write_uint32(self.scb_flag)
-
-            # bounding box
-            bb = get_bounding_box()
-            bs.write_vec3(bb[0])
-            bs.write_vec3(bb[1])
-
-            bs.write_uint32(0)  # vertex color
-
-            # vertices
-            for vertex in self.vertices:
-                bs.write_vec3(vertex)
-
-            # central
-            bs.write_vec3(self.central)
-
-            # faces - easy peasy squeezy last part
-            for i in range(0, face_count):
-                index = i * 3
-                bs.write_uint32(self.indices[index])
-                bs.write_uint32(self.indices[index+1])
-                bs.write_uint32(self.indices[index+2])
-
-                bs.write_padded_string(64, self.material)
-
-                # u u u
-                bs.write_float(self.uvs[index].x)
-                bs.write_float(self.uvs[index+1].x)
-                bs.write_float(self.uvs[index+2].x)
-                # v v v
-                bs.write_float(self.uvs[index].y)
-                bs.write_float(self.uvs[index+1].y)
-                bs.write_float(self.uvs[index+2].y)
-
 
 class MAPGEOVertex:
     def __init__(self):
@@ -3377,47 +3375,32 @@ class MAPGEOModel:
         self.vertices = []
         self.indices = []
 
-        # transform
-        self.translation = None
-        self.scale = None
-        self.rotation = None
-
         # bounding box
         self.bb = None
 
         self.layer = None
         self.lightmap = None
 
-        # for dumping
-        self.veg_id = None
-        self.vb_id = None
-        self.ib_id = None
-
 
 class MAPGEOBucketGrid:
     def __init__(self):
+        self.header = None
         self.vertices = []
         self.indices = []
         self.buckets = []
+        self.face_flags = []
 
-        self.vertex_flags = []
 
-
-class MAPGEOBucketGridBucket:
+class MAPGEOCameraTransformer:
     def __init__(self):
-        pass
-
-
-class MAPGEOUnknownThings:
-    def __init__(self):
-        pass
+        self.cts = []
 
 
 class MAPGEO:
     def __init__(self):
         self.models = []
         self.bucket_grid = None
-        self.unknown_things = None
+        self.camera_transformer = None
 
     def flip(self):
         for model in self.models:
@@ -3426,9 +3409,6 @@ class MAPGEO:
                 if vertex.normal:
                     vertex.normal.y *= -1.0
                     vertex.normal.z *= -1.0
-            model.translation.x *= -1.0
-            model.rotation.y *= -1.0
-            model.rotation.z *= -1.0
 
     def read(self, path):
         with open(path, 'rb') as f:
@@ -3449,10 +3429,10 @@ class MAPGEO:
                 use_seperate_point_lights = bs.read_bool()
 
             if version >= 9:
-                # unknown str 1
+                # shader sampler 1
                 bs.pad(bs.read_int32())
                 if version >= 11:
-                    # unknown str 2
+                    # shader sampler 2
                     bs.pad(bs.read_int32())
 
             # vertex elements
@@ -3555,28 +3535,22 @@ class MAPGEO:
                     bs.pad(1)
 
                 # bounding box
-                model.bb = (bs.read_vec3(), bs.read_vec3())
+                bs.pad(24)
 
                 # transform matrix
-                py_list = []
-                for i in range(0, 4):
-                    for j in range(0, 4):
-                        py_list.append(bs.read_float())
-                matrix = MMatrix()
-                MScriptUtil.createMatrixFromList(py_list, matrix)
-                model.translation, model.scale, model.rotation = MTransform.decompose(
-                    MTransformationMatrix(matrix),
-                    MSpace.kWorld
-                )
+                # its all identity matrix plus we freeze when export
+                bs.pad(64)
 
-                bs.pad(1)  # flags
+                # quality: 1, 2, 4, 8, 16
+                # all quality = 1|2|4|8|16 = 31
+                bs.pad(1)
 
-                # layer - old version
+                # layer - belowb version 13
                 if version >= 7 and version <= 12:
                     model.layer = bs.read_byte()
 
                 if version >= 11:
-                    # unknown byte
+                    # render flag
                     bs.pad(1)
 
                 if use_seperate_point_lights and version < 7:
@@ -3592,101 +3566,267 @@ class MAPGEO:
                     bs.read_int32()).decode('ascii')
                 # this is not color, we have been tricked, backstabbed and possibly, bamboozled
                 # real lightmap uv = lightmap uv * lightmap scale + lightmap pos
-                model.lightmap_scale = MVector(
-                    bs.read_float(), bs.read_float())
-                model.lightmap_pos = MVector(bs.read_float(), bs.read_float())
+                model.lightmap_scale = bs.read_vec2()
+                model.lightmap_pos = bs.read_vec2()
 
                 if version >= 9:
-                    # pad baked paintexture
+                    # baked light texture
                     bs.pad(bs.read_int32())
                     # color, OR UV
                     bs.pad(16)
 
                     if version >= 12:
-                        # pad 20 unknown bytes
-                        # pad unknown string
+                        # baked paint texture
                         bs.pad(bs.read_int32())
                         # color, OR UV
                         bs.pad(16)
 
                 self.models.append(model)
 
-            # for modded file with no bucket grid
-            # check if current position is end position
-            # if it is then no bucket grid
+            # for modded file with no bucket grid, camera transformer: stop reading
             current = bs.tell()
             end = bs.end()
             if current == end:
                 return
 
-            # bucket grid
-            self.bucket_grid = MAPGEOBucketGrid()
-            self.bucket_grid.min_x = bs.read_float()
-            self.bucket_grid.min_z = bs.read_float()
-            self.bucket_grid.max_x = bs.read_float()
-            self.bucket_grid.max_z = bs.read_float()
-            self.bucket_grid.max_out_stick_x = bs.read_float()
-            self.bucket_grid.max_out_stick_z = bs.read_float()
-            self.bucket_grid.bucket_size_x = bs.read_float()
-            self.bucket_grid.bucket_size_z = bs.read_float()
-            bucket_size = bs.read_uint16()
-
+            # there is no reason to read bucket grid below v13
             if version >= 13:
+                # bucket grid
+                self.bucket_grid = MAPGEOBucketGrid()
+                # min/max x/z(16), max out stick x/z(8), bucket size x/z(8)
+                self.bucket_grid.header = bs.read_bytes(32)
+                bucket_size = bs.read_uint16()
                 no_bucket = bs.read_bool()
                 bucket_flag = bs.read_byte()
-            else:
-                no_bucket = False
-                bs.pad(4)  # unknown flag
+                vertex_count = bs.read_uint32()
+                index_count = bs.read_uint32()
+                if not no_bucket:
+                    self.bucket_grid.vertices = bs.read_bytes(12*vertex_count)
+                    self.bucket_grid.indices = bs.read_bytes(2*index_count)
+                    # max stick out x/z(8)
+                    # start index + base vertex(8)
+                    # inside face count + sticking out face count(4)
+                    self.bucket_grid.buckets = bs.read_bytes(
+                        20*bucket_size*bucket_size)
+                    if bucket_flag[0] & 1 == 1:
+                        # if first bit = 1, read face flags
+                        self.bucket_grid.face_flags = bs.read_bytes(
+                            index_count//3)
 
-            vertex_count = bs.read_uint32()
-            index_count = bs.read_uint32()
-
-            if not no_bucket:
-                for i in range(0, vertex_count):
-                    self.bucket_grid.vertices.append(bs.read_vec3())
-                for i in range(0, index_count):
-                    self.bucket_grid.indices.append(bs.read_uint16())
-
-                for i in range(0, bucket_size):
-                    self.bucket_grid.buckets.append([])
-                    for j in range(0, bucket_size):
-                        bucket = MAPGEOBucketGridBucket()
-                        bucket.max_stick_out_x = bs.read_float()
-                        bucket.max_stick_out_z = bs.read_float()
-                        bucket.start_index = bs.read_uint32()
-                        bucket.base_vertex = bs.read_uint32()
-                        bucket.inside_face_count = bs.read_uint16()
-                        bucket.sticking_out_face_count = bs.read_uint16()
-                        self.bucket_grid.buckets[i].append(bucket)
-
-                if version >= 13 and (bucket_flag[0] & 1 == 1):
-                    # if first bit = 1, read vertex flags
-                    flag_count = index_count//3
-                    for i in range(0, flag_count):
-                        self.bucket_grid.vertex_flags.append(bs.read_byte())
-
-            if version >= 13:
-                self.unknown_things = MAPGEOUnknownThings()
-                self.unknown_things.mbvs = []
+                self.camera_transformer = MAPGEOCameraTransformer()
+                self.camera_transformer.cts = []
                 mbv_count = bs.read_uint32()
                 for i in range(0, mbv_count):
                     m = bs.read_bytes(64)  # matrix4
                     b = bs.read_bytes(24)  # bounding box
                     v = bs.read_bytes(12)  # vector3
-                    self.unknown_things.mbvs.append({ m, b, v })
+                    self.unknown_things.mbvs.append((m, b, v))
+
+    def write(self, path):
+        def prepare():
+            vegs = []
+            vbs = []
+            ibs = []
+            for model in self.models:
+                # vertex elements
+                veg = []
+                vertex = model.vertices[0]
+                if vertex.position:
+                    veg.append((0, 2))
+                if vertex.normal:
+                    veg.append((2, 2))
+                if vertex.diffuse_uv:
+                    veg.append((7, 1))
+                if vertex.lightmap_uv:
+                    veg.append((14, 1))
+                vegs.append(veg)
+
+                # vertex buffers + find bounding box in same loop
+                vb = []
+                min = MVector(float('inf'), float('inf'), float('inf'))
+                max = MVector(float('-inf'), float('-inf'), float('-inf'))
+                for vertex in model.vertices:
+                    # model vertex to bytes
+                    if vertex.position:
+                        vb.append(pack('f', vertex.position.x))
+                        vb.append(pack('f', vertex.position.y))
+                        vb.append(pack('f', vertex.position.z))
+                    if vertex.normal:
+                        vb.append(pack('f', vertex.normal.x))
+                        vb.append(pack('f', vertex.normal.y))
+                        vb.append(pack('f', vertex.normal.z))
+                    if vertex.diffuse_uv:
+                        vb.append(pack('f', vertex.diffuse_uv.x))
+                        vb.append(pack('f', vertex.diffuse_uv.y))
+                    if vertex.lightmap_uv:
+                        vb.append(pack('f', vertex.lightmap_uv.x))
+                        vb.append(pack('f', vertex.lightmap_uv.y))
+                    # bounding box
+                    if min.x > vertex.position.x:
+                        min.x = vertex.position.x
+                    if min.y > vertex.position.y:
+                        min.y = vertex.position.y
+                    if min.z > vertex.position.z:
+                        min.z = vertex.position.z
+                    if max.x < vertex.position.x:
+                        max.x = vertex.position.x
+                    if max.y < vertex.position.y:
+                        max.y = vertex.position.y
+                    if max.z < vertex.position.z:
+                        max.z = vertex.position.z
+                model.bb = (min, max)
+                vbs.append((model.layer, b''.join(vb)))
+
+                # index buffers
+                ib = [pack('H', index) for index in model.indices]
+                ibs.append((model.layer, b''.join(ib)))
+
+            # use identity matrix for all models
+            im = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                  0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+            imb = b''.join([pack('f', f) for f in im])
+
+            return vegs, vbs, ibs, imb
+
+        with open(path, 'wb+') as f:
+            bs = BinaryStream(f)
+
+            bs.write_bytes('OEGM'.encode('ascii'))
+            bs.write_uint32(13)
+
+            # shader sampler 1
+            bs.write_int32(0)
+            bs.write_bytes(bytes())
+            # shader sampler 2
+            bs.write_int32(0)
+            bs.write_bytes(bytes())
+
+            vegs, vbs, ibs, imb = prepare()
+
+            # vertex elements
+            bs.write_uint32(len(vegs))
+            for veg in vegs:
+                bs.write_uint32(0)  # usage - static
+                ve_count = len(veg)
+                bs.write_uint32(ve_count)
+                for ve in veg:
+                    bs.write_uint32(ve[0])
+                    bs.write_uint32(ve[1])
+                # fill empty vertex elements
+                for i in range(0, 15-ve_count):
+                    bs.write_uint32(0)
+                    bs.write_uint32(2)
+
+            # vertex buffers
+            bs.write_uint32(len(vbs))
+            for layer, vb in vbs:
+                bs.write_bytes(layer)
+                bs.write_uint32(len(vb))
+                bs.write_bytes(vb)
+
+            # index buffers
+            bs.write_uint32(len(ibs))
+            for layer, ib in ibs:
+                bs.write_bytes(layer)
+                bs.write_uint32(len(ib))
+                bs.write_bytes(ib)
+
+            # model
+            bs.write_uint32(len(self.models))
+            model_id = 0
+            for model in self.models:
+                # count and buffer id
+                bs.write_uint32(len(model.vertices))
+                bs.write_uint32(1)  # vertex buffers count
+                bs.write_int32(model_id)  # veg id
+                bs.write_int32(model_id)  # vb id
+                bs.write_uint32(len(model.indices))
+                bs.write_int32(model_id)  # ib id
+                model_id += 1
+
+                # layer
+                bs.write_bytes(model.layer)
+
+                # submeshes
+                bs.write_uint32(len(model.submeshes))
+                for submesh in model.submeshes:
+                    submesh.name = submesh.name.replace('__', '/')
+
+                    bs.write_uint32(0)  # hash, always 0?
+                    bs.write_int32(len(submesh.name))
+                    bs.write_bytes(submesh.name.encode('ascii'))
+
+                    bs.write_uint32(submesh.index_start)
+                    bs.write_uint32(submesh.index_count)
+                    bs.write_uint32(submesh.vertex_start)
+                    bs.write_uint32(submesh.vertex_count)
+
+                # flip normals
+                bs.write_bool(False)
+
+                # bounding box
+                bs.write_vec3(model.bb[0])
+                bs.write_vec3(model.bb[1])
+
+                # transform
+                bs.write_bytes(imb)
+
+                # quality, 31 = all quality
+                bs.write_bytes(bytes([31]))
+
+                # render flag
+                bs.write_bytes(bytes([0]))
+
+                # lightmap
+                if model.lightmap:
+                    bs.write_int32(len(model.lightmap))
+                    bs.write_bytes(model.lightmap.encode('ascii'))
+                    bs.write_float(1)  # scale
+                    bs.write_float(1)
+                    bs.write_float(0)  # pos
+                    bs.write_float(0)
+                else:
+                    bs.write_bytes(bytes([0])*20)
+
+                # baked light texture
+                bs.write_bytes(bytes([0])*20)
+
+                # baked paint texture
+                bs.write_bytes(bytes([0])*20)
+
+            # bucket grid
+            if self.bucket_grid:
+                bs.write_bytes(self.bucket_grid.header)
+                # bucket size
+                bs.write_uint16(int(sqrt(len(self.bucket_grid.buckets)//20)))
+                bs.write_bool(False)  # no bucket grid
+                bs.write_bytes(bytes([1]))  # bucket flag
+                bs.write_uint32(len(self.bucket_grid.vertices)//12)
+                bs.write_uint32(len(self.bucket_grid.indices)//2)
+                bs.write_bytes(self.bucket_grid.vertices)
+                bs.write_bytes(self.bucket_grid.indices)
+                bs.write_bytes(self.bucket_grid.buckets)
+                bs.write_bytes(self.bucket_grid.face_flags)
+
+            if self.camera_transformer:
+                bs.write_uint32(len(self.camera_transformer.cts))
+                for m, b, v in self.camera_transformer.cts:
+                    bs.write_bytes(m)
+                    bs.write_bytes(b)
+                    bs.write_bytes(v)
 
     def load(self, ssmat=False):
-        # ensure far clip plane, allow to see big objects like whole map
-        MGlobal.executeCommand('setAttr "perspShape.farClipPlane" 300000')
+        # to call only 1 cmd
+        execmd = ''
 
+        # ensure far clip plane, to see whole map
+        execmd += 'setAttr "perspShape.farClipPlane" 300000;'
         # render with alpha cut
-        MGlobal.executeCommand(
-            'setAttr "hardwareRenderingGlobals.transparencyAlgorithm" 5')
+        execmd += 'setAttr "hardwareRenderingGlobals.transparencyAlgorithm" 5;'
 
-        # create 8 sets for 8 layers
+        # init 8 layers
         layer_models = {}
         for i in range(0, 8):
-            MGlobal.executeCommand(f'sets -name "set{i+1}"')
             layer_models[i] = []
 
         # map submeshes by name
@@ -3697,16 +3837,14 @@ class MAPGEO:
                     submesh_names.append(submesh.name)
 
         # create shared material
+        material_type = 'standardSurface' if ssmat else 'lambert'
         for submesh_name in submesh_names:
-            material_type = 'standardSurface' if ssmat else 'lambert'
-            MGlobal.executeCommand((
-                # material
-                f'shadingNode -asShader {material_type} -name "{submesh_name}";'
-                # create renderable, independent shading group
-                f'sets -renderable true -noSurfaceShader true -empty -name "{submesh_name}_SG";'
-                # connect material to shading group
-                f'connectAttr -f {submesh_name}.outColor {submesh_name}_SG.surfaceShader;'
-            ))
+            # material
+            execmd += f'shadingNode -asShader {material_type} -name "{submesh_name}";'
+            # create renderable, independent shading group
+            execmd += f'sets -renderable true -noSurfaceShader true -empty -name "{submesh_name}_SG";'
+            # connect material to shading group
+            execmd += f'connectAttr -f {submesh_name}.outColor {submesh_name}_SG.surfaceShader;'
 
         # the group of all meshes, the name of this group = map ID, for example: Map11, Map12
         group_transform = MFnTransform()
@@ -3757,10 +3895,6 @@ class MAPGEO:
             transform = MFnTransform(mesh.parent(0))
             transform.setName(model.name)
             transform_name = transform.name()
-            transform.set(MTransform.compose(
-                model.translation, model.scale, model.rotation,
-                MSpace.kWorld
-            ))
 
             # lightmap uv
             if model.lightmap:
@@ -3786,10 +3920,8 @@ class MAPGEO:
                 # shading group
                 face_start = submesh.index_start // 3
                 face_end = (submesh.index_start + submesh.index_count) // 3
-                MGlobal.executeCommand((
-                    # add submesh faces to shading group
-                    f'sets -e -forceElement "{submesh_name}_SG" {mesh_name}.f[{face_start}:{face_end}];'
-                ))
+                # add submesh faces to shading group
+                execmd += f'sets -e -forceElement "{submesh_name}_SG" {mesh_name}.f[{face_start}:{face_end}];'
 
             mesh.updateSurface()
 
@@ -3805,11 +3937,12 @@ class MAPGEO:
 
             group_transform.addChild(transform.object())
 
-        # set model to layers
+        # create set and assign mesh to set
         for i in range(0, 8):
             model_names = ' '.join(layer_models[i])
-            MGlobal.executeCommand(
-                f'sets -addElement set{i+1} {model_names}')
+            execmd += f'sets -name "set{i+1}";sets -addElement set{i+1} {model_names};'
+        execmd += 'select -cl;'
+        MGlobal.executeCommand(execmd)
 
     def dump(self, riot=None):
         # get transform in selections
@@ -3866,10 +3999,6 @@ class MAPGEO:
             transform = MFnTransform(mesh.parent(0))
             model.name = transform.name()
             MGlobal.displayInfo(f'[MAPGEO.dump()]: Dumping {model.name}')
-            model.translation, model.scale, model.rotation = MTransform.decompose(
-                transform.transformation(),
-                MSpace.kWorld
-            )
 
             # layer
             model.layer = ''
@@ -3891,6 +4020,7 @@ class MAPGEO:
             if shader_count < 1:
                 raise FunnyError(
                     f'[MAPGEO.dump({mesh.name()})]: No material assigned to this mesh, please assign one.')
+
             # init shaders data to work on multiple shader
             shader_vertices = []
             shader_indices = []
@@ -3981,7 +4111,7 @@ class MAPGEO:
                     'Save/backup scene first, try one of following methods to fix:\n'
                     '1. Seperate all connected faces that shared those vertices.\n'
                     '2. Check and reassign correct material.\n'
-                    '3. [not recommended] Try auto fix shared vertices button on shelf.'
+                    '3. [recommended] Try auto fix shared vertices button on shelf.'
                     '\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history, that might fix the problem.'
                 ))
 
@@ -4143,10 +4273,15 @@ class MAPGEO:
 
             # check limit vertices
             vertices_count = max(model.indices)
-            if vertices_count > 65536:
+            if vertices_count > 65535:
                 raise FunnyError(
-                    f'[MAPGEO.dump({mesh.name()})]: Too many vertices found: {vertices_count}, max allowed: 65536 vertices.')
+                    f'[MAPGEO.dump({mesh.name()})]: Too many vertices found: {vertices_count}, max allowed: 65535 vertices.')
 
+            # check limit submeshes
+            submesh_count = len(model.submeshes)
+            if submesh_count > 64:
+                raise FunnyError(
+                    f'[MAPGEO.dump({mesh.name()})]: Too many materials assigned on this mesh: {submesh_count}, max allowed: 64 materials on each mesh.')
             self.models.append(model)
             iteratorMesh.next()
 
@@ -4154,229 +4289,7 @@ class MAPGEO:
             MGlobal.displayInfo(
                 '[MAPGEO.dump(riot.mapgeo)]: Found riot.mapgeo, copying bucket grids...')
             self.bucket_grid = riot.bucket_grid
-            self.unknown_things = riot.unknown_things
+            self.camera_transformer = riot.camera_transformer
         else:
             MGlobal.displayWarning(
                 '[MAPGEO.dump()]: No riot.mapgeo found, map can be crashed due to missing bucket grids...')
-
-    def write(self, path):
-        def prepare():
-            vegs = []
-            vbs = []
-            ibs = []
-            model_id = 0
-            for model in self.models:
-                model.veg_id = model_id
-                model.vb_id = model_id
-                model.ib_id = model_id
-                model_id += 1
-
-                # vertex elements
-                veg = []
-                vertex = model.vertices[0]
-                if vertex.position:
-                    veg.append((0, 2))
-                if vertex.normal:
-                    veg.append((2, 2))
-                if vertex.diffuse_uv:
-                    veg.append((7, 1))
-                if vertex.lightmap_uv:
-                    veg.append((14, 1))
-                vegs.append(veg)
-
-                # vertex buffers + find bounding box in same loop
-                vb = []
-                min = MVector(float('inf'), float('inf'), float('inf'))
-                max = MVector(float('-inf'), float('-inf'), float('-inf'))
-                for vertex in model.vertices:
-                    # model vertex to bytes
-                    if vertex.position:
-                        vb.append(pack('f', vertex.position.x))
-                        vb.append(pack('f', vertex.position.y))
-                        vb.append(pack('f', vertex.position.z))
-                    if vertex.normal:
-                        vb.append(pack('f', vertex.normal.x))
-                        vb.append(pack('f', vertex.normal.y))
-                        vb.append(pack('f', vertex.normal.z))
-                    if vertex.diffuse_uv:
-                        vb.append(pack('f', vertex.diffuse_uv.x))
-                        vb.append(pack('f', vertex.diffuse_uv.y))
-                    if vertex.lightmap_uv:
-                        vb.append(pack('f', vertex.lightmap_uv.x))
-                        vb.append(pack('f', vertex.lightmap_uv.y))
-                    # bounding box
-                    if min.x > vertex.position.x:
-                        min.x = vertex.position.x
-                    if min.y > vertex.position.y:
-                        min.y = vertex.position.y
-                    if min.z > vertex.position.z:
-                        min.z = vertex.position.z
-                    if max.x < vertex.position.x:
-                        max.x = vertex.position.x
-                    if max.y < vertex.position.y:
-                        max.y = vertex.position.y
-                    if max.z < vertex.position.z:
-                        max.z = vertex.position.z
-                model.bb = (min, max)
-                vbs.append((model.layer, b''.join(vb)))
-
-                # index buffers
-                ib = [pack('H', index) for index in model.indices]
-                ibs.append((model.layer, b''.join(ib)))
-
-            return vegs, vbs, ibs
-
-        with open(path, 'wb+') as f:
-            bs = BinaryStream(f)
-
-            bs.write_bytes('OEGM'.encode('ascii'))
-            bs.write_uint32(13)
-
-            # head str1
-            bs.write_int32(0)
-            bs.write_bytes(bytes())
-            # head str2
-            bs.write_int32(0)
-            bs.write_bytes(bytes())
-
-            vegs, vbs, ibs = prepare()
-
-            # vertex elements
-            bs.write_uint32(len(vegs))
-            for veg in vegs:
-                bs.write_uint32(0)  # usage - static
-                ve_count = len(veg)
-                bs.write_uint32(ve_count)
-                for ve in veg:
-                    bs.write_uint32(ve[0])
-                    bs.write_uint32(ve[1])
-                # fill empty vertex elements
-                for i in range(0, 15-ve_count):
-                    bs.write_uint32(0)
-                    bs.write_uint32(2)
-
-            # vertex buffers
-            bs.write_uint32(len(vbs))
-            for layer, vb in vbs:
-                bs.write_bytes(layer)
-                bs.write_uint32(len(vb))
-                bs.write_bytes(vb)
-
-            # index buffers
-            bs.write_uint32(len(ibs))
-            for layer, ib in ibs:
-                bs.write_bytes(layer)
-                bs.write_uint32(len(ib))
-                bs.write_bytes(ib)
-
-            # model
-            bs.write_uint32(len(self.models))
-            for model in self.models:
-                # count and buffer id
-                bs.write_uint32(len(model.vertices))
-                bs.write_uint32(1)  # vertex buffers count
-                bs.write_int32(model.veg_id)
-                bs.write_int32(model.vb_id)
-                bs.write_uint32(len(model.indices))
-                bs.write_int32(model.ib_id)
-
-                # layer
-                bs.write_bytes(model.layer)
-
-                # submeshes
-                bs.write_uint32(len(model.submeshes))
-                for submesh in model.submeshes:
-                    submesh.name = submesh.name.replace('__', '/')
-
-                    bs.write_uint32(0)  # hash, always 0?
-                    bs.write_int32(len(submesh.name))
-                    bs.write_bytes(submesh.name.encode('ascii'))
-
-                    bs.write_uint32(submesh.index_start)
-                    bs.write_uint32(submesh.index_count)
-                    bs.write_uint32(submesh.vertex_start)
-                    bs.write_uint32(submesh.vertex_count)
-
-                # flip normals, always False?
-                bs.write_bool(False)
-
-                # bounding box
-                bs.write_vec3(model.bb[0])
-                bs.write_vec3(model.bb[1])
-
-                # transform
-                matrix = MTransform.compose(
-                    model.translation, model.scale, model.rotation,
-                    MSpace.kWorld
-                ).asMatrix()
-                for i in range(0, 4):
-                    for j in range(0, 4):
-                        bs.write_float(matrix(i, j))
-
-                # flag, always 31?
-                bs.write_bytes(bytes([31]))
-
-                # unknown byte, always 0?
-                bs.write_bytes(bytes([0]))
-
-                # lightmap
-                if model.lightmap:
-                    bs.write_int32(len(model.lightmap))
-                    bs.write_bytes(model.lightmap.encode('ascii'))
-                    bs.write_float(1)  # uv offset
-                    bs.write_float(1)
-                    bs.write_float(0)
-                    bs.write_float(0)
-                else:
-                    bs.write_bytes(bytes([0])*20)
-
-                # baked paint texture - dont know what to write
-                bs.write_bytes(bytes([0])*20)
-
-                # version 12 unknown texture
-                bs.write_bytes(bytes([0])*20)
-
-            # bucket grid
-            if self.bucket_grid:
-                bs.write_float(self.bucket_grid.min_x)
-                bs.write_float(self.bucket_grid.min_z)
-                bs.write_float(self.bucket_grid.max_x)
-                bs.write_float(self.bucket_grid.max_z)
-                bs.write_float(self.bucket_grid.max_out_stick_x)
-                bs.write_float(self.bucket_grid.max_out_stick_z)
-                bs.write_float(self.bucket_grid.bucket_size_x)
-                bs.write_float(self.bucket_grid.bucket_size_z)
-
-                bucket_size = len(self.bucket_grid.buckets)
-                bs.write_uint16(bucket_size)
-                bs.write_bool(False)  # no bucket grid
-                bs.write_bytes(bytes([1]))  # bucket flag
-
-                bs.write_uint32(len(self.bucket_grid.vertices))
-                bs.write_uint32(len(self.bucket_grid.indices))
-
-                for vertex in self.bucket_grid.vertices:
-                    bs.write_vec3(vertex)
-                for index in self.bucket_grid.indices:
-                    bs.write_uint16(index)
-
-                for i in range(0, bucket_size):
-                    for j in range(0, bucket_size):
-                        bucket = self.bucket_grid.buckets[i][j]
-                        bs.write_float(bucket.max_stick_out_x)
-                        bs.write_float(bucket.max_stick_out_z)
-                        bs.write_uint32(bucket.start_index)
-                        bs.write_uint32(bucket.base_vertex)
-                        bs.write_uint16(bucket.inside_face_count)
-                        bs.write_uint16(bucket.sticking_out_face_count)
-
-                flag_count = len(self.bucket_grid.indices)//3
-                for i in range(0, flag_count):
-                    bs.write_bytes(self.bucket_grid.vertex_flags[i])
-
-            if self.unknown_things:
-                bs.write_uint32(len(self.unknown_things.mbvs))
-                for m, b, v in self.unknown_things.mbvs:
-                    bs.write_bytes(m)
-                    bs.write_bytes(b)
-                    bs.write_bytes(v)

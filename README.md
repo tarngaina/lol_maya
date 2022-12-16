@@ -202,7 +202,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
         ![](https://i.imgur.com/8eZIWQU.png)
 4. Shelf buttons:
 
-    ![](https://i.imgur.com/Q2GY24l.png)
+    ![](https://i.imgur.com/TzLNQ4h.png)
 
     Explain buttons from left to right: 
     - Toggle on/off all layers on selected mesh.
@@ -224,6 +224,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
             - Mask Color <-> Coat, Mask Texture <-> Coat Normal
             - Emissive Texture <-> Emissive Color <-> Emission
     - Generate Lightmap UVs on 2nd UV set of selected objects.
+    - Delete Lightmap UVs and 2nd UV set of selected objects.
     - Bake texture: bake textures with [Arnold](https://arnoldrenderer.com/download/) on selected objects.
         
         ![](https://i.imgur.com/4bEXne8.png)

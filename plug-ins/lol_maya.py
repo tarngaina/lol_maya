@@ -3391,16 +3391,16 @@ class MAPGEOBucketGrid:
         self.face_flags = []
 
 
-class MAPGEOCameraTransformer:
+class MAPGEOPlanarReflector:  # hope its the last name
     def __init__(self):
-        self.cts = []
+        self.prs = []
 
 
 class MAPGEO:
     def __init__(self):
         self.models = []
         self.bucket_grid = None
-        self.camera_transformer = None
+        self.planar_reflector = None
 
     def flip(self):
         for model in self.models:
@@ -3583,7 +3583,7 @@ class MAPGEO:
 
                 self.models.append(model)
 
-            # for modded file with no bucket grid, camera transformer: stop reading
+            # for modded file with no bucket grid, planar reflector: stop reading
             current = bs.tell()
             end = bs.end()
             if current == end:
@@ -3613,13 +3613,16 @@ class MAPGEO:
                         self.bucket_grid.face_flags = bs.read_bytes(
                             index_count//3)
 
-                self.camera_transformer = MAPGEOCameraTransformer()
-                ct_count = bs.read_uint32()
-                for i in range(0, ct_count):
-                    m = bs.read_bytes(64)  # matrix4
-                    b = bs.read_bytes(24)  # bounding box
-                    v = bs.read_bytes(12)  # vector3
-                    self.camera_transformer.cts.append((m, b, v))
+                self.planar_reflector = MAPGEOPlanarReflector()
+                pr_count = bs.read_uint32()
+                for i in range(0, pr_count):
+                    # matrix4 transform of viewpoint?
+                    m = bs.read_bytes(64) 
+                    # 2 vec3 position to indicate the plane
+                    b = bs.read_bytes(24) 
+                    # vec3 normal, direction of plane
+                    v = bs.read_bytes(12) 
+                    self.planar_reflector.prs.append((m, b, v))
 
     def write(self, path):
         def prepare():
@@ -3807,9 +3810,9 @@ class MAPGEO:
                 bs.write_bytes(self.bucket_grid.buckets)
                 bs.write_bytes(self.bucket_grid.face_flags)
 
-            if self.camera_transformer:
-                bs.write_uint32(len(self.camera_transformer.cts))
-                for m, b, v in self.camera_transformer.cts:
+            if self.planar_reflector:
+                bs.write_uint32(len(self.planar_reflector.prs))
+                for m, b, v in self.planar_reflector.prs:
                     bs.write_bytes(m)
                     bs.write_bytes(b)
                     bs.write_bytes(v)
@@ -4288,7 +4291,7 @@ class MAPGEO:
             MGlobal.displayInfo(
                 '[MAPGEO.dump(riot.mapgeo)]: Found riot.mapgeo, copying bucket grids...')
             self.bucket_grid = riot.bucket_grid
-            self.camera_transformer = riot.camera_transformer
+            self.planar_reflector = riot.planar_reflector
         else:
             MGlobal.displayWarning(
                 '[MAPGEO.dump()]: No riot.mapgeo found, map can be crashed due to missing bucket grids...')

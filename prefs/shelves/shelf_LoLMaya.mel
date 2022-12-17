@@ -163,47 +163,12 @@ global proc shelf_LoLMaya () {
         -manage 1
         -visible 1
         -preventOverride 0
-        -annotation "Delete all non-deformer history." 
-        -enableBackground 0
-        -backgroundColor 0 0 0 
-        -highlightColor 0.321569 0.521569 0.65098 
-        -align "center" 
-        -label "Non-Deformer History" 
-        -labelOffset 0
-        -rotation 0
-        -flipX 0
-        -flipY 0
-        -useAlpha 1
-        -font "plainLabelFont" 
-        -imageOverlayLabel "NonDef" 
-        -overlayLabelColor 0.8 0.8 0.8 
-        -overlayLabelBackColor 0 0 0 1 
-        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/dh.png" 
-        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/dh.png" 
-        -style "iconOnly" 
-        -marginWidth 0
-        -marginHeight 1
-        -command "BakeAllNonDefHistory;\nprint \"Deleted all non-deformer history.\"" 
-        -sourceType "mel" 
-        -commandRepeatable 1
-        -flat 1
-    ;
-    shelfButton
-        -enableCommandRepeat 1
-        -flexibleWidthType 3
-        -flexibleWidthValue 32
-        -enable 1
-        -width 35
-        -height 34
-        -manage 1
-        -visible 1
-        -preventOverride 0
         -annotation "Delete all channels" 
         -enableBackground 0
         -backgroundColor 0 0 0 
         -highlightColor 0.321569 0.521569 0.65098 
         -align "center" 
-        -label "Channels" 
+        -label "Delete all channels" 
         -labelOffset 0
         -rotation 0
         -flipX 0
@@ -522,40 +487,6 @@ global proc shelf_LoLMaya () {
         -marginHeight 1
         -command "from maya import cmds\nfrom maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\ncmd = cmds.confirmDialog(\n  title = 'Fix all shared vertices',\n  message = 'This function does not support skinCluster, all your weights will be lost after use this. Continue?',\n  button = ['Yes','No'],\n  defaultButton = 'Yes',\n  cancelButton = 'No'\n)\nif cmd == 'Yes':\n    iterator = MItDag(MItDag.kDepthFirst, MFn.kMesh)\n    while not iterator.isDone():\n        mesh_dagpath = MDagPath()\n        iterator.getPath(mesh_dagpath)\n        mesh = MFnMesh(mesh_dagpath)\n\n        # get shader/materials\n        shaders = MObjectArray()\n        face_shader = MIntArray()\n        instance = mesh_dagpath.instanceNumber() if mesh_dagpath.isInstanced() else 0\n        mesh.getConnectedShaders(instance, shaders, face_shader)\n        shader_count = shaders.length()\n        if shader_count < 1:\n            iterator.next()\n            continue\n\n        # extract all shared vertices first\n        face_count = face_shader.length()\n        map_faces = []\n        for i in range(0, shader_count):\n            map_faces.append(MIntArray())\n        for i in range(0, face_count):\n            map_faces[face_shader[i]].append(i)\n\n        for i in range(0, shader_count-1):\n            component = MFnSingleIndexedComponent()\n            face_component = component.create(\n                MFn.kMeshPolygonComponent)\n            component.addElements(map_faces[i])\n            selections = MSelectionList()\n            selections.add(mesh_dagpath, face_component)\n            MGlobal.selectCommand(selections)\n            MGlobal.executeCommand(\n                'polyChipOff -ch 1 -kft 1 -dup 0 -off 0')\n        iterator.next()\n    MGlobal.executeCommand('select -cl')\n    MGlobal.executeCommand('DeleteAllHistory')\n    MGlobal.displayInfo('Fixed all shared vertices.')" 
         -sourceType "python" 
-        -commandRepeatable 1
-        -flat 1
-    ;
-    shelfButton
-        -enableCommandRepeat 1
-        -flexibleWidthType 3
-        -flexibleWidthValue 32
-        -enable 1
-        -width 35
-        -height 34
-        -manage 1
-        -visible 1
-        -preventOverride 0
-        -annotation "Change the selected faces into triangles." 
-        -enableBackground 0
-        -backgroundColor 0 0 0 
-        -highlightColor 0.321569 0.521569 0.65098 
-        -align "center" 
-        -label "Triangulate" 
-        -labelOffset 0
-        -rotation 0
-        -flipX 0
-        -flipY 0
-        -useAlpha 1
-        -font "plainLabelFont" 
-        -overlayLabelColor 0.8 0.8 0.8 
-        -overlayLabelBackColor 0 0 0 0.5 
-        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/tri.png" 
-        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/tri.png" 
-        -style "iconOnly" 
-        -marginWidth 0
-        -marginHeight 1
-        -command "polyPerformAction polyTriangulate f 0" 
-        -sourceType "mel" 
         -commandRepeatable 1
         -flat 1
     ;
@@ -882,40 +813,6 @@ global proc shelf_LoLMaya () {
         -manage 1
         -visible 1
         -preventOverride 0
-        -annotation "Set current pose as bind pose." 
-        -enableBackground 0
-        -backgroundColor 0 0 0 
-        -highlightColor 0.321569 0.521569 0.65098 
-        -align "center" 
-        -label "Set bindPose" 
-        -labelOffset 0
-        -rotation 0
-        -flipX 0
-        -flipY 0
-        -useAlpha 1
-        -font "plainLabelFont" 
-        -overlayLabelColor 0.8 0.8 0.8 
-        -overlayLabelBackColor 0 0 0 0.5 
-        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/setbp.png" 
-        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/setbp.png" 
-        -style "iconOnly" 
-        -marginWidth 0
-        -marginHeight 1
-        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\nbps = cmds.dagPose(q=True, bp=True)\nif bps and len(bps) > 0:\n    joints = cmds.dagPose(bps[0], q=True, m=True)\n    for j in joints:\n        cmds.dagPose(j, rs=True, name=bps[0])\n            \nMGlobal.displayInfo('Updated bindpose.')" 
-        -sourceType "python" 
-        -commandRepeatable 1
-        -flat 1
-    ;
-    shelfButton
-        -enableCommandRepeat 1
-        -flexibleWidthType 3
-        -flexibleWidthValue 32
-        -enable 1
-        -width 35
-        -height 34
-        -manage 1
-        -visible 1
-        -preventOverride 0
         -annotation "Go to bind pose." 
         -enableBackground 0
         -backgroundColor 0 0 0 
@@ -937,6 +834,40 @@ global proc shelf_LoLMaya () {
         -marginHeight 1
         -command "GoToBindPose;" 
         -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Set current pose as bind pose." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Set bindPose" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/setbp.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/setbp.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\nbps = cmds.dagPose(q=True, bp=True)\nif bps and len(bps) > 0:\n    joints = cmds.dagPose(bps[0], q=True, m=True)\n    for j in joints:\n        cmds.dagPose(j, rs=True, name=bps[0])\n            \nMGlobal.displayInfo('Updated bindpose.')" 
+        -sourceType "python" 
         -commandRepeatable 1
         -flat 1
     ;
@@ -1155,75 +1086,6 @@ global proc shelf_LoLMaya () {
         -marginWidth 0
         -marginHeight 1
         -command "from maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\ncmd = MGlobal.executeCommandStringResult(\n  'confirmDialog -title \"Force max 4 influences\" -message \"Please backup/save scene first because this function might not work as expect. Continue?\" -button \"Yes\" -button \"No\" -defaultButton \"Yes\" -cancelButton \"No\"'\n)\nif cmd == 'Yes':\n    # get mesh in selections\n    selections = MSelectionList()\n    MGlobal.getActiveSelectionList(selections)\n    iterator = MItSelectionList(selections, MFn.kMesh)\n    if iterator.isDone():\n        raise Exception(f'Please select a mesh.')\n    mesh_dagpath = MDagPath()\n    iterator.getDagPath(mesh_dagpath)  # get first mesh\n    iterator.next()\n    if not iterator.isDone():\n        raise Exception(\n            f'More than 1 mesh selected., combine all meshes if you have mutiple meshes.')\n    mesh = MFnMesh(mesh_dagpath)\n    mesh_name = mesh.name()\n    vertices_num = mesh.numVertices()\n\n    # find skin cluster node upstream - bypass history node\n    iterator = MItDependencyGraph(\n        mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\n    if iterator.isDone():\n        raise Exception('Failed to find created skin cluster.')\n    skin_cluster = MFnSkinCluster(iterator.currentItem())\n    skin_cluster_name = skin_cluster.name()\n\n    # get weights\n    component = MFnSingleIndexedComponent()\n    vertex_component = component.create(MFn.kMeshVertComponent)\n    weights = MDoubleArray()\n    util = MScriptUtil()\n    ptr = util.asUintPtr()\n    skin_cluster.getWeights(mesh_dagpath, vertex_component, weights, ptr)\n    weight_influence_count = util.getUint(ptr)\n\n    # fix 4 influence weights\n    for i in range(0, vertices_num):\n        found_weights = []\n        inf_count = 0\n\n        for j in range(0, weight_influence_count):\n            weight = weights[i * weight_influence_count + j]\n            if weight > 0:\n                inf_count += 1\n                found_weights.append((weight, j))\n\n        if inf_count > 4:\n            # get sorted weights + influence\n            found_weights = sorted(\n                found_weights, key=lambda f: f[0], reverse=True)\n\n            # 4 highest weights\n            high_weights = found_weights[:4]\n            # the rest small weights\n            low_weights = found_weights[4:]\n\n            # sum all low weights and remove them\n            low_sum = 0.0\n            for weight, influence in low_weights:\n                low_sum += weight\n                weights[i * weight_influence_count + influence] = 0.0\n\n            # distributed low weights to high weights + re calculate weight sum for normalize\n            low_sum /= 4\n            weight_sum = 0.0\n            for weight, influence in high_weights:\n                weights[i * weight_influence_count + influence] += low_sum\n\n    # set weights back\n    MGlobal.executeCommand(f'setAttr {skin_cluster_name}.normalizeWeights 0')\n    mask_influence = MIntArray()\n    MScriptUtil.createIntArrayFromList(\n        list(range(0, weight_influence_count)), mask_influence)\n    skin_cluster.setWeights(mesh_dagpath, vertex_component,\n                            mask_influence, weights, False)\n    MGlobal.executeCommand(f'setAttr {skin_cluster_name}.normalizeWeights 1')\n    MGlobal.executeCommand(\n        f'skinPercent -normalize true {skin_cluster_name} {mesh_name}')\n\n    MGlobal.displayInfo('Forced max 4 influences.')\n" 
-        -sourceType "python" 
-        -commandRepeatable 1
-        -flat 1
-    ;
-    shelfButton
-        -enableCommandRepeat 1
-        -flexibleWidthType 3
-        -flexibleWidthValue 32
-        -enable 1
-        -width 35
-        -height 34
-        -manage 1
-        -visible 1
-        -preventOverride 0
-        -annotation "Unbind, delete history, rebind on a selected skin cluster." 
-        -enableBackground 0
-        -backgroundColor 0 0 0 
-        -highlightColor 0.321569 0.521569 0.65098 
-        -align "center" 
-        -label "Rebind" 
-        -labelOffset 0
-        -rotation 0
-        -flipX 0
-        -flipY 0
-        -useAlpha 1
-        -font "plainLabelFont" 
-        -overlayLabelColor 0.725962 0.725962 0.725962 
-        -overlayLabelBackColor 0 0 0 0 
-        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/rebind.png" 
-        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/rebind.png" 
-        -style "iconOnly" 
-        -marginWidth 0
-        -marginHeight 1
-        -command "from maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\ncmd = MGlobal.executeCommandStringResult(\n  'confirmDialog -title \"Rebind skinned mesh with same vertex id\" -message \"Please backup/save scene first because this function might not work as expect. Continue?\" -button \"Yes\" -button \"No\" -defaultButton \"Yes\" -cancelButton \"No\"'\n)\nif cmd == 'Yes':\n    # get mesh in selections\n    selections = MSelectionList()\n    MGlobal.getActiveSelectionList(selections)\n    iterator = MItSelectionList(selections, MFn.kMesh)\n    if iterator.isDone():\n        raise Exception(f'Please select a mesh.')\n    mesh_dagpath = MDagPath()\n    iterator.getDagPath(mesh_dagpath)  # get first mesh\n    iterator.next()\n    if not iterator.isDone():\n        raise Exception(\n            f'More than 1 mesh selected., combine all meshes if you have mutiple meshes.')\n    mesh = MFnMesh(mesh_dagpath)\n    mesh_name = mesh.name()\n\n    # find skin cluster\n    iterator = MItDependencyGraph(\n        mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\n    if iterator.isDone():\n        raise Exception('Failed to find skin cluster.')\n    skin_cluster = MFnSkinCluster(iterator.currentItem())\n\n    # get weights\n    component = MFnSingleIndexedComponent()\n    vertex_component = component.create(MFn.kMeshVertComponent)\n    weights = MDoubleArray()\n    util = MScriptUtil()\n    ptr = util.asUintPtr()\n    skin_cluster.getWeights(mesh_dagpath, vertex_component, weights, ptr)\n\n    # get influence\n    influences_dagpath = MDagPathArray()\n    skin_cluster.influenceObjects(influences_dagpath)\n    influence_count = influences_dagpath.length()\n\n    # unbind\n    MGlobal.executeCommand(f'skinCluster -e  -ubk {mesh_name}')\n    MGlobal.executeCommand('DeleteAllHistory')\n\n    # rebind\n    selections = MSelectionList()\n    selections.add(mesh_dagpath)\n    for i in range(0, influence_count):\n        selections.add(influences_dagpath[i])\n    MGlobal.selectCommand(selections)\n    MGlobal.executeCommand(f'skinCluster -mi 4 -tsb -n {mesh_name}_skinCluster')\n\n    # get created skincluster\n    iterator = MItDependencyGraph(\n        mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\n    if iterator.isDone():\n        raise Exception('Failed to find created skin cluster.')\n    skin_cluster = MFnSkinCluster(iterator.currentItem())\n\n    # get influences mask (influences indices)\n    new_influences_dagpath = MDagPathArray()\n    skin_cluster.influenceObjects(new_influences_dagpath)\n    mask_influence = MIntArray(influence_count)\n    for i in range(0, influence_count):\n        for j in range(0, influence_count):\n            if new_influences_dagpath[i] == influences_dagpath[j]:\n                mask_influence[i] = j\n                break\n\n    # set weights\n    MGlobal.executeCommand(f'setAttr {mesh_name}_skinCluster.normalizeWeights 0')\n    skin_cluster.setWeights(mesh_dagpath, vertex_component,\n                            mask_influence, weights, False)\n    MGlobal.executeCommand(f'setAttr {mesh_name}_skinCluster.normalizeWeights 1')\n    MGlobal.executeCommand(\n        f'skinPercent -normalize true {mesh_name}_skinCluster {mesh_name}')\n\n    MGlobal.displayInfo('Rebound.')\n" 
-        -sourceType "python" 
-        -commandRepeatable 1
-        -flat 1
-    ;
-    shelfButton
-        -enableCommandRepeat 1
-        -flexibleWidthType 3
-        -flexibleWidthValue 32
-        -enable 1
-        -width 35
-        -height 34
-        -manage 1
-        -visible 1
-        -preventOverride 0
-        -annotation "Copy weights from source group meshes to dest group meshes. (base on same mesh name)" 
-        -enableBackground 0
-        -backgroundColor 0 0 0 
-        -highlightColor 0.321569 0.521569 0.65098 
-        -align "center" 
-        -label "Copy group weights" 
-        -labelOffset 0
-        -rotation 0
-        -flipX 0
-        -flipY 0
-        -useAlpha 1
-        -font "plainLabelFont" 
-        -imageOverlayLabel "Grp" 
-        -overlayLabelColor 0.8 0.8 0.8 
-        -overlayLabelBackColor 0 0 0 1 
-        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/cgw.png" 
-        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/cgw.png" 
-        -style "iconOnly" 
-        -marginWidth 0
-        -marginHeight 1
-        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\nselected =cmds.ls(sl = True)\n\nsrcs = cmds.listRelatives(selected[0])\ndsts = cmds.listRelatives(selected[1])\n\nfor src in srcs:\n    full_src = f'{selected[0]}|{src}'\n    sc1 = cmds.ls(cmds.listHistory(full_src, pdo = True), type = 'skinCluster')[0]\n    if sc1 == None:\n        continue\n    for dst in dsts:\n        if dst == src:\n            full_dst = f'{selected[1]}|{dst}'\n            sc2 = cmds.ls(cmds.listHistory(full_dst, pdo = True), type = 'skinCluster')[0]\n            if sc2 == None:\n                break\n            cmds.copySkinWeights(ss = sc1, ds = sc2, nm = True, ia = 'closestJoint', sa = 'closestPoint')\n            MGlobal.displayInfo(f'Copied weights: {sc1} -> {sc2}')\n            break\nMGlobal.displayInfo('Copied group weights.')" 
         -sourceType "python" 
         -commandRepeatable 1
         -flat 1

@@ -627,6 +627,8 @@ class BinaryStream:
     def __init__(self, f):
         self.stream = f
 
+    # stuffs
+
     def seek(self, pos, mode=0):
         self.stream.seek(pos, mode)
 
@@ -642,6 +644,8 @@ class BinaryStream:
         res = self.stream.tell()
         self.stream.seek(cur)
         return res
+
+    # reads
 
     def read_byte(self):
         return self.stream.read(1)
@@ -667,13 +671,10 @@ class BinaryStream:
     def read_float(self):
         return unpack('f', self.stream.read(4))[0]
 
-    def read_char(self):
-        return unpack('b', self.stream.read(1))[0]
-
     def read_zero_terminated_string(self):
         res = []
         while True:
-            c = self.read_char()
+            c = unpack('b', self.stream.read(1))[0]
             if c == 0:
                 break
             res.append(chr(c))
@@ -683,54 +684,53 @@ class BinaryStream:
         return bytes(filter(lambda b: b != 0, self.stream.read(length))).decode('ascii')
 
     def read_vec2(self):
-        return MVector(self.read_float(), self.read_float())
+        x, y = unpack('2f', self.stream.read(8))
+        return MVector(x, y)
 
     def read_vec3(self):
-        return MVector(self.read_float(), self.read_float(), self.read_float())
+        x, y, z = unpack('3f', self.stream.read(12))
+        return MVector(x, y, z)
 
     def read_quat(self):
-        return MQuaternion(self.read_float(), self.read_float(), self.read_float(), self.read_float())
+        x, y, z, w = unpack('4f', self.stream.read(16))
+        return MQuaternion(x, y, z, w)
+
+    # writes
 
     def write_bytes(self, value):
         self.stream.write(value)
 
     def write_bool(self, value):
-        self.write_bytes(pack('?', value))
+        self.stream.write(pack('?', value))
 
     def write_int16(self, value):
-        self.write_bytes(pack('h', value))
+        self.stream.write(pack('h', value))
 
     def write_uint16(self, value):
-        self.write_bytes(pack('H', value))
+        self.stream.write(pack('H', value))
 
     def write_int32(self, value):
-        self.write_bytes(pack('i', value))
+        self.stream.write(pack('i', value))
 
     def write_uint32(self, value):
-        self.write_bytes(pack('I', value))
+        self.stream.write(pack('I', value))
 
     def write_float(self, value):
-        self.write_bytes(pack('f', value))
+        self.stream.write(pack('f', value))
 
     def write_padded_string(self, length, value):
         while len(value) < length:
             value += '\u0000'
-        self.write_bytes(value.encode('ascii'))
+        self.stream.write(value.encode('ascii'))
 
     def write_vec2(self, vec2):
-        self.write_float(vec2.x)
-        self.write_float(vec2.y)
+        self.stream.write(pack('2f', vec2.x, vec2.y))
 
     def write_vec3(self, vec3):
-        self.write_float(vec3.x)
-        self.write_float(vec3.y)
-        self.write_float(vec3.z)
+        self.stream.write(pack('3f', vec3.x, vec3.y, vec3.z))
 
     def write_quat(self, quat):
-        self.write_float(quat.x)
-        self.write_float(quat.y)
-        self.write_float(quat.z)
-        self.write_float(quat.w)
+        self.stream.write(pack('4f', quat.x, quat.y, quat.z, quat.w))
 
 
 # for convert anm/skl joint name to elf hash
@@ -3039,8 +3039,8 @@ class SO:
         # dump bb before flip
         def get_bounding_box():
             # totally not copied code
-            min = MVector(float('inf'), float('inf'), float('inf'))
-            max = MVector(float('-inf'), float('-inf'), float('-inf'))
+            min = MVector(9999999999.0, 9999999999.0, 9999999999.0)
+            max = MVector(-9999999999.0, -9999999999.0, -9999999999.0)
             for vertex in self.vertices:
                 if min.x > vertex.x:
                     min.x = vertex.x
@@ -3352,11 +3352,18 @@ class SO:
 
 
 class MAPGEOVertex:
+    __slots__ = ['position', 'normal', 'diffuse_uv',
+                 'lightmap_uv', 'uv_index', 'new_index']
+
     def __init__(self):
         self.position = None
         self.normal = None
         self.diffuse_uv = None
         self.lightmap_uv = None
+
+        # for dumping
+        self.uv_index = None
+        self.new_index = None
 
 
 class MAPGEOSubmesh:
@@ -3429,10 +3436,10 @@ class MAPGEO:
                 use_seperate_point_lights = bs.read_bool()
 
             if version >= 9:
-                # shader sampler 1
+                # baked terrain sampler 1
                 bs.pad(bs.read_int32())
                 if version >= 11:
-                    # shader sampler 2
+                    # baked terrain sampler 2
                     bs.pad(bs.read_int32())
 
             # vertex elements
@@ -3456,9 +3463,9 @@ class MAPGEO:
             for i in range(0, vb_count):
                 if version >= 13:
                     bs.pad(1)  # layer
-                size = bs.read_uint32()
+                vb_size = bs.read_uint32()
                 vbos.append(bs.tell())
-                bs.pad(size)
+                bs.pad(vb_size)
 
             # index buffers
             ibs = []
@@ -3466,8 +3473,8 @@ class MAPGEO:
             for i in range(0, ib_count):
                 if version >= 13:
                     bs.pad(1)  # layer
-                size = bs.read_uint32()
-                ibs.append([bs.read_uint16() for j in range(0, size // 2)])
+                ib_size = bs.read_uint32()
+                ibs.append([bs.read_uint16() for j in range(0, ib_size // 2)])
 
             model_count = bs.read_uint32()
             for m in range(0, model_count):
@@ -3481,8 +3488,8 @@ class MAPGEO:
                 veg_id = bs.read_int32()
 
                 # init vertices
-                for i in range(0, vertex_count):
-                    model.vertices.append(MAPGEOVertex())
+                model.vertices = [MAPGEOVertex()
+                                  for i in range(0, vertex_count)]
                 # read vertex using vertex buffers offsets and vertex elements
                 for i in range(0, vb_count):
                     vb_id = bs.read_int32()
@@ -3617,11 +3624,11 @@ class MAPGEO:
                 pr_count = bs.read_uint32()
                 for i in range(0, pr_count):
                     # matrix4 transform of viewpoint?
-                    m = bs.read_bytes(64) 
+                    m = bs.read_bytes(64)
                     # 2 vec3 position to indicate the plane
-                    b = bs.read_bytes(24) 
+                    b = bs.read_bytes(24)
                     # vec3 normal, direction of plane
-                    v = bs.read_bytes(12) 
+                    v = bs.read_bytes(12)
                     self.planar_reflector.prs.append((m, b, v))
 
     def write(self, path):
@@ -3645,24 +3652,22 @@ class MAPGEO:
 
                 # vertex buffers + find bounding box in same loop
                 vb = []
-                min = MVector(float('inf'), float('inf'), float('inf'))
-                max = MVector(float('-inf'), float('-inf'), float('-inf'))
+                min = MVector(9999999999.0, 9999999999.0, 9999999999.0)
+                max = MVector(-9999999999.0, -9999999999.0, -9999999999.0)
                 for vertex in model.vertices:
                     # model vertex to bytes
                     if vertex.position:
-                        vb.append(pack('f', vertex.position.x))
-                        vb.append(pack('f', vertex.position.y))
-                        vb.append(pack('f', vertex.position.z))
+                        vb.append(pack('3f', vertex.position.x,
+                                  vertex.position.y, vertex.position.z))
                     if vertex.normal:
-                        vb.append(pack('f', vertex.normal.x))
-                        vb.append(pack('f', vertex.normal.y))
-                        vb.append(pack('f', vertex.normal.z))
+                        vb.append(pack('3f', vertex.normal.x,
+                                  vertex.normal.y, vertex.normal.z))
                     if vertex.diffuse_uv:
-                        vb.append(pack('f', vertex.diffuse_uv.x))
-                        vb.append(pack('f', vertex.diffuse_uv.y))
+                        vb.append(
+                            pack('2f', vertex.diffuse_uv.x, vertex.diffuse_uv.y))
                     if vertex.lightmap_uv:
-                        vb.append(pack('f', vertex.lightmap_uv.x))
-                        vb.append(pack('f', vertex.lightmap_uv.y))
+                        vb.append(
+                            pack('2f', vertex.lightmap_uv.x, vertex.lightmap_uv.y))
                     # bounding box
                     if min.x > vertex.position.x:
                         min.x = vertex.position.x
@@ -3680,13 +3685,12 @@ class MAPGEO:
                 vbs.append((model.layer, b''.join(vb)))
 
                 # index buffers
-                ib = [pack('H', index) for index in model.indices]
-                ibs.append((model.layer, b''.join(ib)))
+                ib = pack(f'{len(model.indices)}H', *model.indices)
+                ibs.append((model.layer, ib))
 
             # use identity matrix for all models
-            im = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-                  0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
-            imb = b''.join([pack('f', f) for f in im])
+            imb = pack('16f', *[1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+                       0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0])
 
             return vegs, vbs, ibs, imb
 
@@ -3696,10 +3700,10 @@ class MAPGEO:
             bs.write_bytes('OEGM'.encode('ascii'))
             bs.write_uint32(13)
 
-            # shader sampler 1
+            # baked terrain sampler 1
             bs.write_int32(0)
             bs.write_bytes(bytes())
-            # shader sampler 2
+            # baked terrain sampler 2
             bs.write_int32(0)
             bs.write_bytes(bytes())
 
@@ -3873,9 +3877,6 @@ class MAPGEO:
             poly_count = MIntArray(face_count, 3)
             poly_indices = MIntArray()
             MScriptUtil.createIntArrayFromList(model.indices, poly_indices)
-            normal_indices = MIntArray()
-            MScriptUtil.createIntArrayFromList(
-                list(range(len(model.vertices))), normal_indices)
 
             mesh = MFnMesh()
             mesh.create(

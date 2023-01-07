@@ -443,7 +443,7 @@ class MAPGEOTranslator(MPxFileTranslator):
 # plugin register
 def initializePlugin(obj):
     # totally not copied code
-    plugin = MFnPlugin(obj, 'tarngaina', '3.6.0')
+    plugin = MFnPlugin(obj, 'tarngaina', '4.0.2')
     try:
         plugin.registerFileTranslator(
             SKNTranslator.name,

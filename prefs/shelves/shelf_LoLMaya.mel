@@ -1090,5 +1090,39 @@ global proc shelf_LoLMaya () {
         -commandRepeatable 1
         -flat 1
     ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Unbind, delete history, rebind on a selected skin cluster." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Rebind" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.725962 0.725962 0.725962 
+        -overlayLabelBackColor 0 0 0 0 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/rebind.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/rebind.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\ncmd = MGlobal.executeCommandStringResult(\n  'confirmDialog -title \"Rebind skinned mesh with same vertex id\" -message \"Please backup/save scene first because this function might not work as expect. Continue?\" -button \"Yes\" -button \"No\" -defaultButton \"Yes\" -cancelButton \"No\"'\n)\nif cmd == 'Yes':\n    # get mesh in selections\n    selections = MSelectionList()\n    MGlobal.getActiveSelectionList(selections)\n    iterator = MItSelectionList(selections, MFn.kMesh)\n    if iterator.isDone():\n        raise Exception(f'Please select a mesh.')\n    mesh_dagpath = MDagPath()\n    iterator.getDagPath(mesh_dagpath)  # get first mesh\n    iterator.next()\n    if not iterator.isDone():\n        raise Exception(\n            f'More than 1 mesh selected., combine all meshes if you have mutiple meshes.')\n    mesh = MFnMesh(mesh_dagpath)\n    mesh_name = mesh.name()\n\n    # find skin cluster\n    iterator = MItDependencyGraph(\n        mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\n    if iterator.isDone():\n        raise Exception('Failed to find skin cluster.')\n    skin_cluster = MFnSkinCluster(iterator.currentItem())\n\n    # get weights\n    component = MFnSingleIndexedComponent()\n    vertex_component = component.create(MFn.kMeshVertComponent)\n    weights = MDoubleArray()\n    util = MScriptUtil()\n    ptr = util.asUintPtr()\n    skin_cluster.getWeights(mesh_dagpath, vertex_component, weights, ptr)\n\n    # get influence\n    influences_dagpath = MDagPathArray()\n    skin_cluster.influenceObjects(influences_dagpath)\n    influence_count = influences_dagpath.length()\n\n    # unbind\n    MGlobal.executeCommand(f'skinCluster -e  -ubk {mesh_name}')\n    MGlobal.executeCommand('DeleteHistory')\n\n    # rebind\n    selections = MSelectionList()\n    selections.add(mesh_dagpath)\n    for i in range(0, influence_count):\n        selections.add(influences_dagpath[i])\n    MGlobal.selectCommand(selections)\n    MGlobal.executeCommand(f'skinCluster -mi 4 -tsb -n {mesh_name}_skinCluster')\n\n    # get created skincluster\n    iterator = MItDependencyGraph(\n        mesh.object(), MFn.kSkinClusterFilter, MItDependencyGraph.kUpstream)\n    if iterator.isDone():\n        raise Exception('Failed to find created skin cluster.')\n    skin_cluster = MFnSkinCluster(iterator.currentItem())\n\n    # get influences mask (influences indices)\n    new_influences_dagpath = MDagPathArray()\n    skin_cluster.influenceObjects(new_influences_dagpath)\n    mask_influence = MIntArray(influence_count)\n    for i in range(0, influence_count):\n        for j in range(0, influence_count):\n            if new_influences_dagpath[i] == influences_dagpath[j]:\n                mask_influence[i] = j\n                break\n\n    # set weights\n    MGlobal.executeCommand(f'setAttr {mesh_name}_skinCluster.normalizeWeights 0')\n    skin_cluster.setWeights(mesh_dagpath, vertex_component,\n                            mask_influence, weights, False)\n    MGlobal.executeCommand(f'setAttr {mesh_name}_skinCluster.normalizeWeights 1')\n    MGlobal.executeCommand(\n        f'skinPercent -normalize true {mesh_name}_skinCluster {mesh_name}')\n\n    MGlobal.displayInfo('Rebound.')\n" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
 
 } 

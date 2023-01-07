@@ -115,7 +115,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
 
 
 ### Shelf buttons
-![](https://i.imgur.com/ooZv4cZ.png)
+![](https://i.imgur.com/w0bxDow.png)
 1. Hover mouse on shelf buttons to read tooltip.
 2. Explain some buttons:
     - Namespace buttons: Quickly add/remove a temporary namespace on selected objects.
@@ -128,6 +128,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - L<->R: mirror rotation of a selected joint startswith `L_` or `R_` to the opposite joint.
         - A<->B: mirror rotation of first selected joint to second selected joint.
     - 4 influences fix button: prune and force max 4 influences on selected skin cluster.
+    - Rebind button: Quickly unbind, delete history, rebind selected skin cluster.
 
 ### MAPGEO
 1. MAPGEO data in Maya scene:

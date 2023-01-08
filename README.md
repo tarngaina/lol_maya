@@ -212,7 +212,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
     - Fix shared vertices on all meshes in scene.
     - Import `materials.py`: 
         - Read `materials.py` file to import textures.
-        - Assets folder must be in same location as `materials.py`.
+        - `assets` folder must be in same location as `materials.py`.
     - Export `materials.json`: export all materials in scene to a json file; all textures will be copied to same export location; `materials.json` can be read by `Avatar (made by Killery)` to convert back to `materials.py`.
     - Extra: League shader <-> Maya shader:
         - Lambert / Other materials:

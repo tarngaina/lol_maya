@@ -3569,7 +3569,7 @@ class MAPGEO:
                 ibs[i] = bs.read_uint16(ib_size // 2)
 
             # for skip reading same vertex buffer
-            unpacked_floats = [[] for i in range(vb_count)]
+            unpacked_floats = [None]*vb_count
             desc_size = {
                 0: 3,  # position vec3
                 2: 3,  # normal vec3 (pad)
@@ -3588,7 +3588,7 @@ class MAPGEO:
                     model.name = f'MapGeo_Instance_{model_id}'
                 vertex_count, vb_count, vd_id = bs.read_uint32(3)
 
-                # read vertex buffer ids
+                # read vertex buffer ids    
                 vb_ids = [bs.read_int32()] if vb_count == 1 else bs.read_int32(
                     vb_count)
 
@@ -3601,6 +3601,7 @@ class MAPGEO:
                     if unpacked_floats[vb_id] != None:
                         continue
 
+                    unpacked_floats[vb_id] = []
                     # calculate float size through vertex descriptions
                     float_size = 0
                     for desc_name, desc_format in vd:

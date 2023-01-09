@@ -201,19 +201,21 @@ An attempt to update RiotFileTranslator to Maya 2023.
         ![](https://i.imgur.com/8eZIWQU.png)
 4. Shelf buttons:
 
-    ![](https://i.imgur.com/TzLNQ4h.png)
+    ![](https://i.imgur.com/0WDyRnX.png)
 
     Explain buttons from left to right: 
     - Toggle on/off all layers on selected mesh.
     - Toggle on/off layer 1 - 8 on selected mesh.
     - Rename path of selected objects with input.
     - Rename selected objects with input.
+    - Select all faces of all meshes that have same assigned material as selected face.
     - Set all black emissions weight to 0.
     - Fix shared vertices on all meshes in scene.
     - Import `materials.py`: 
         - Read `materials.py` file to import textures.
         - `assets` folder must be in same location as `materials.py`.
     - Export `materials.json`: export all materials in scene to a json file; all textures will be copied to same export location; `materials.json` can be read by `Avatar (made by Killery)` to convert back to `materials.py`.
+    - Export `materials.py`: export all materials in scene to a py file, only diffuse textures will be exported and only export into `default_env` shader.
     - Extra: League shader <-> Maya shader:
         - Lambert / Other materials:
             - Diffuse Texture -> Color / Transparency

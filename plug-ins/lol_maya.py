@@ -2750,10 +2750,6 @@ class ANM:
                 match_track.joint_name = joint_name
                 match_track.dagpath = MDagPath(dagpath)
                 scene_tracks.append(match_track)
-            else:
-                # ignore data joint that not found in scene
-                MGlobal.displayWarning(
-                    f'[ANM.load()]: No joint hash found in scene: {track.joint_hash}')
 
             iterator.next()
 
@@ -2853,10 +2849,9 @@ class ANM:
             f' {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
             for track in scene_tracks
         ]
-        MGlobal.executeCommand((
-            'rotationInterpolation -c quaternionSlerp'
+        rotationInterpolation = 'rotationInterpolation -c quaternionSlerp' + \
             ''.join(track_rotate_keys)
-        ))
+        MGlobal.executeCommand(rotationInterpolation)
 
     def dump(self):
         # get joint in scene
@@ -3588,7 +3583,7 @@ class MAPGEO:
                     model.name = f'MapGeo_Instance_{model_id}'
                 vertex_count, vb_count, vd_id = bs.read_uint32(3)
 
-                # read vertex buffer ids    
+                # read vertex buffer ids
                 vb_ids = [bs.read_int32()] if vb_count == 1 else bs.read_int32(
                     vb_count)
 

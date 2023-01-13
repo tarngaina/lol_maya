@@ -2802,8 +2802,7 @@ class ANM:
 
         for time in times:
             # anm will start from frame 1
-            MGlobal.executeCommand(
-                f'currentTime {current + time * self.fps + 1};')
+            MAnimControl.setCurrentTime(MTime(current + time * self.fps + 1))
 
             setKeyFrame = f'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0'
             ekf = True  # empty keyframe
@@ -2818,7 +2817,7 @@ class ANM:
                                     pose.translation.y, pose.translation.z),
                             MSpace.kTransform
                         )
-                        setKeyFrame += f' {track.joint_name}.translateX {track.joint_name}.translateY {track.joint_name}.translateZ'
+                        setKeyFrame += f' {track.joint_name}.translate'
                         ekf = False
                     # scale
                     if pose.scale != None:
@@ -2827,7 +2826,7 @@ class ANM:
                         util.createFromDouble(scale.x, scale.y, scale.z)
                         ptr = util.asDoublePtr()
                         ik_joint.setScale(ptr)
-                        setKeyFrame += f' {track.joint_name}.scaleX {track.joint_name}.scaleY {track.joint_name}.scaleZ'
+                        setKeyFrame += f' {track.joint_name}.scale'
                         ekf = False
                     # rotation
                     if pose.rotation != None:
@@ -2838,7 +2837,7 @@ class ANM:
                             pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w)
                         ik_joint.setRotation(
                             axe.inverse() * rotation * orient.inverse(), MSpace.kTransform)
-                        setKeyFrame += f' {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
+                        setKeyFrame += f' {track.joint_name}.rotate'
                         ekf = False
 
             if not ekf:
@@ -3730,10 +3729,10 @@ class MAPGEO:
                 # min/max x/z(16), max out stick x/z(8), bucket size x/z(8)
                 self.bucket_grid.header = bs.read_bytes(32)
                 bucket_size = bs.read_uint16()
-                no_bucket = bs.read_byte()[0]
-                bucket_flag = bs.read_byte()
+                self.bucket_grid.no_bucket = bs.read_byte()[0]
+                self.bucket_grid.bucket_flag = bs.read_byte()[0]
                 vertex_count, index_count = bs.read_uint32(2)
-                if no_bucket == 0:
+                if self.bucket_grid.no_bucket == 0:
                     self.bucket_grid.vertices = bs.read_bytes(12*vertex_count)
                     self.bucket_grid.indices = bs.read_bytes(2*index_count)
                     # max stick out x/z(8)
@@ -3741,7 +3740,7 @@ class MAPGEO:
                     # inside face count + sticking out face count(4)
                     self.bucket_grid.buckets = bs.read_bytes(
                         20*bucket_size*bucket_size)
-                    if bucket_flag[0] & 1 == 1:
+                    if self.bucket_grid.bucket_flag > 1:
                         # if first bit = 1, read face flags
                         self.bucket_grid.face_flags = bs.read_bytes(
                             index_count//3)
@@ -3912,31 +3911,35 @@ class MAPGEO:
 
                 # lightmap
                 if model.lightmap not in (None, ''):
-                    bs.write_int32(len(model.lightmap))
+                    bs.write_uint32(len(model.lightmap))
                     bs.write_ascii(model.lightmap)
-                    bs.write_float(1, 1, 0, 0)  # scale & offset
                 else:
-                    bs.write_bytes(bytes([0])*20)
+                    bs.write_uint32(0)
+                bs.write_float(1.0, 1.0, 0.0, 0.0)  # lightmap scale & offset
 
                 # baked light
-                bs.write_bytes(bytes([0])*20)
+                bs.write_uint32(0)
+                bs.write_float(1.0, 1.0, 0.0, 0.0)
 
                 # baked paint
-                bs.write_bytes(bytes([0])*20)
+                bs.write_uint32(0)
+                bs.write_float(1.0, 1.0, 0.0, 0.0)
 
             # bucket grid
             if self.bucket_grid != None:
                 bs.write_bytes(self.bucket_grid.header)
                 # bucket size
                 bs.write_uint16(int(sqrt(len(self.bucket_grid.buckets)//20)))
-                bs.write_bytes(bytes([0]))  # no bucket grid
-                bs.write_bytes(bytes([1]))  # bucket flag
+                bs.write_bytes(bytes([self.bucket_grid.no_bucket]))
+                bs.write_bytes(bytes([self.bucket_grid.bucket_flag]))
                 bs.write_uint32(len(self.bucket_grid.vertices)//12)
                 bs.write_uint32(len(self.bucket_grid.indices)//2)
-                bs.write_bytes(self.bucket_grid.vertices)
-                bs.write_bytes(self.bucket_grid.indices)
-                bs.write_bytes(self.bucket_grid.buckets)
-                bs.write_bytes(self.bucket_grid.face_flags)
+                if self.bucket_grid.no_bucket == 0:
+                    bs.write_bytes(self.bucket_grid.vertices)
+                    bs.write_bytes(self.bucket_grid.indices)
+                    bs.write_bytes(self.bucket_grid.buckets)
+                    if self.bucket_grid.bucket_flag > 1:
+                        bs.write_bytes(self.bucket_grid.face_flags)
 
             if self.planar_reflector != None:
                 bs.write_uint32(len(self.planar_reflector.prs))
@@ -4027,7 +4030,7 @@ class MAPGEO:
 
             # lightmap uv
             if model.lightmap not in (None, ''):
-                short_lightmap = model.lightmap.split('/')[-1].split('.')[0]
+                short_lightmap = model.lightmap.split('/')[-1]
                 mesh.createUVSetWithName(short_lightmap)
                 lightmap_u_values = MFloatArray(vertex_count)
                 lightmap_v_values = MFloatArray(vertex_count)
@@ -4035,8 +4038,8 @@ class MAPGEO:
                     vertex = model.vertices[i]
                     lightmap_u_values[i] = vertex.lightmap_uv.x * \
                         model.lightmap_so[0] + model.lightmap_so[2]
-                    lightmap_v_values[i] = vertex.lightmap_uv.y * \
-                        model.lightmap_so[1] + model.lightmap_so[3]
+                    lightmap_v_values[i] = 1.0-(vertex.lightmap_uv.y *
+                                                model.lightmap_so[1] + model.lightmap_so[3])
 
                 mesh.setUVs(
                     lightmap_u_values, lightmap_v_values, short_lightmap
@@ -4232,7 +4235,7 @@ class MAPGEO:
             uv_names = []
             mesh.getUVSetNames(uv_names)
             if len(uv_names) > 1:
-                model.lightmap = f'ASSETS/Maps/Lightmaps/Maps/MapGeometry/{group_name}/Base/{uv_names[1]}.dds'
+                model.lightmap = f'ASSETS/Maps/Lightmaps/Maps/MapGeometry/{group_name}/Base/{uv_names[1]}'
             u_values = MFloatArray()
             v_values = MFloatArray()
             mesh.getUVs(u_values, v_values, uv_names[0])

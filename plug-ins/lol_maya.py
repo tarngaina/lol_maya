@@ -2324,17 +2324,17 @@ class SKN:
 # anm
 class ANMPose:
     __slots__ = (
-        'translation', 'scale', 'rotation',
+        'time', 'translation', 'scale', 'rotation',
         'translation_index', 'scale_index', 'rotation_index',
-        'time'
     )
 
     def __init__(self):
+        self.time = None
         self.translation = None
         self.scale = None
         self.rotation = None
 
-        # for dumping v4
+        # for dumping
         self.translation_index = None
         self.scale_index = None
         self.rotation_index = None
@@ -2342,7 +2342,9 @@ class ANMPose:
 
 class ANMTrack:
     __slots__ = (
-        'joint_hash', 'poses', 'joint_name', 'dagpath'
+        'joint_hash', 'poses',
+        'joint_name', 'curves', 'curve_times', 'curve_values',
+        'ik_joint'
     )
 
     def __init__(self):
@@ -2351,7 +2353,11 @@ class ANMTrack:
 
         # for loading
         self.joint_name = None
-        self.dagpath = None
+        self.curves = {}
+        self.curve_times = {}
+        self.curve_values = {}
+        # for dumping
+        self.ik_joint = None
 
 
 class ANM:
@@ -2359,9 +2365,8 @@ class ANM:
         self.tracks = []
         self.fps = None
         self.duration = None  # normalized
-
-        # for loading
-        self.compressed = None
+        # for dumping v4
+        self.frame_count = None
 
     def flip(self):
         # DO A FLIP!
@@ -2541,7 +2546,7 @@ class ANM:
                 elif version == 4:
                     # v4
 
-                    bs.pad(16)  # resource size, format token, version, flags
+                    bs.pad(16)  # resource size, format token, ?, flags
 
                     track_count, frame_count = bs.read_uint32(2)
                     self.fps = 1 / bs.read_float()  # frame duration
@@ -2646,7 +2651,7 @@ class ANM:
 
         vec_index = 0
         quat_index = 0
-        for time in range(1, self.duration+1):
+        for time in range(1, self.frame_count+1):
             for track in self.tracks:
                 pose = track.poses[time]
                 translation_key = f'{pose.translation.x:.6f} {pose.translation.y:.6f} {pose.translation.z:.6f}'
@@ -2678,11 +2683,11 @@ class ANM:
             bs.write_uint32(
                 4,  # version
                 0,  # resource size
-                0xBE0794D3,  # magic
+                0xBE0794D3,  # format token
                 0,  # ?
                 0,  # flags,
                 len(self.tracks),  # track count
-                self.duration  # frame count
+                self.frame_count  # frame count
             )
             bs.write_float(1.0 / self.fps)  # frame duration = 1 / fps
 
@@ -2696,29 +2701,34 @@ class ANM:
             # pad 12 empty bytes
             bs.write_bytes(bytes([0])*12)
 
-            # all floats in uni vecs and uni quats
-            uni_floats = []
             # uni vecs
-            for vec_key in uni_vecs:
-                vec = vec_key.split()
-                uni_floats.extend(float(value) for value in vec)
+            bs.write_float(
+                *[
+                    float(value)
+                    for vec_key in uni_vecs
+                    for value in vec_key.split()
+                ]
+            )
+
             # uni quats
-            quats_offset = bs.tell()+len(uni_floats)*4
-            for quat_key in uni_quats:
-                quat = quat_key.split()
-                uni_floats.extend(float(value) for value in quat)
-            # write all floats at once
-            bs.write_float(*uni_floats)
+            quats_offset = bs.tell()
+            bs.write_float(
+                *[
+                    float(value)
+                    for quat_key in uni_quats
+                    for value in quat_key.split()
+                ]
+            )
 
             # frames
             frames_offset = bs.tell()
-            for time in range(1, self.duration+1):
+            for frame in range(1, self.frame_count+1):
                 for track in self.tracks:
                     bs.write_uint32(track.joint_hash)
                     bs.write_uint16(
-                        track.poses[time].translation_index,
-                        track.poses[time].scale_index,
-                        track.poses[time].rotation_index,
+                        track.poses[frame].translation_index,
+                        track.poses[frame].scale_index,
+                        track.poses[frame].rotation_index,
                     )
                     bs.write_uint16(0)  # pad
 
@@ -2732,61 +2742,68 @@ class ANM:
             bs.write_uint32(bs.end())
 
     def load(self, delchannel=False):
-        # track of data joints that found in scene
-        scene_tracks = []
+        # ensure scene fps
+        # this only ensure the "import scene", not the "opening/existing scene" in maya, to make this work:
+        # select "Override to Math Source" for both Framerate & Animation Range in Maya's import options panel
+        if self.fps > 59:
+            MTime.setUIUnit(MTime.kNTSCField)
+        else:
+            MTime.setUIUnit(MTime.kNTSCFrame)
 
+        ui_unit = MTime.uiUnit()
+        time0 = MTime(0.0, ui_unit)
+
+        # get current time
+        current = MAnimControl.currentTime().value()
+
+        # delete all channel data
+        if delchannel:
+            MGlobal.executeCommand('delete -all -c;currentTime 0;')
+            current = 0.0  # reset current
+
+        # ensure animation range
+        end = self.duration * self.fps
+        MAnimControl.setMinMaxTime(time0, MTime(current+end, ui_unit))
+        MAnimControl.setAnimationStartEndTime(
+            time0, MTime(current+end, ui_unit))
+        MAnimControl.setPlaybackSpeed(1.0)
+
+        # file's joints that found in scene
+        scene_tracks = []
+        attributes = [
+            'tx', 'ty', 'tz',
+            'rx', 'ry', 'rz',
+            'sx', 'sy', 'sz'
+        ]
         # loop through all ik joint in scenes
         iterator = MItDag(MItDag.kDepthFirst, MFn.kJoint)
+        dagpath = MDagPath()
         while not iterator.isDone():
-            dagpath = MDagPath()
             iterator.getPath(dagpath)
             ik_joint = MFnIkJoint(dagpath)
             joint_name = ik_joint.name()
 
-            # find joint in tracks data
+            # find file's joints that match this scene's joint's name
             match_track = next(
                 (track for track in self.tracks if track.joint_hash == Hash.elf(joint_name)), None)
             if match_track != None:
+                # get name to slerp rotation curve later
                 match_track.joint_name = joint_name
-                match_track.dagpath = MDagPath(dagpath)
+                match_track.ik_joint = ik_joint
+                for attr in attributes:
+                    match_track.curve_times[attr] = MTimeArray()
+                    match_track.curve_values[attr] = MDoubleArray()
                 scene_tracks.append(match_track)
-
             iterator.next()
 
         if len(scene_tracks) == 0:
             raise FunnyError(
                 '[ANM.load()]: No data joints found in scene, please import SKL if joints are not in scene.')
 
-        execmd = ''
-
-        # ensure scene fps
-        # this only ensure the "import scene", not the "opening/existing scene" in maya, to make this work:
-        # select "Override to Math Source" for both Framerate % Animation Range in Maya's import options panel
-        if self.fps > 59:
-            execmd += 'currentUnit -time ntscf;'
-        else:
-            execmd += 'currentUnit -time ntsc;'
-
-        # get current time
-        util = MScriptUtil()
-        ptr = util.asDoublePtr()
-        MGlobal.executeCommand('currentTime -q', ptr)
-        current = util.getDouble(ptr)
-
-        # delete all channel data
-        if delchannel:
-            execmd += 'currentTime 0;delete -all -c;'
-            current = 0
-
         # bind current pose to frame 0 - very helpful if its bind pose
         joint_names = ' '.join([track.joint_name for track in scene_tracks])
-        execmd += f'currentTime 0;setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0 -at translateX -at translateY -at translateZ -at scaleX -at scaleY -at scaleZ -at rotateX -at rotateY -at rotateZ {joint_names};'
-
-        # adjust animation range
-        end = self.duration * self.fps
-        execmd += f'playbackOptions -e -min 0 -max {current+end} -animationStartTime 0 -animationEndTime {current+end} -playbackSpeed 1;'
-
-        MGlobal.executeCommand(execmd)
+        MGlobal.executeCommand(
+            f'currentTime 0;setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0 -at translateX -at translateY -at translateZ -at scaleX -at scaleY -at scaleZ -at rotateX -at rotateY -at rotateZ {joint_names};')
 
         # get global times
         times = []
@@ -2799,118 +2816,124 @@ class ANM:
             for time in times:
                 if time not in track.poses:
                     track.poses[time] = None
+        # MTime instance at time  (dict comp)
+        mtimes = {time: MTime(current + time * self.fps + 1, ui_unit)
+                  for time in times}
 
+        # build curve data
         for time in times:
-            # anm will start from frame 1
-            MAnimControl.setCurrentTime(MTime(current + time * self.fps + 1))
-
-            setKeyFrame = f'setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0'
-            ekf = True  # empty keyframe
             for track in scene_tracks:
                 pose = track.poses[time]
                 if pose != None:
-                    ik_joint = MFnIkJoint(track.dagpath)
-                    # translation
+                    mtime = mtimes[time]
                     if pose.translation != None:
-                        ik_joint.setTranslation(
-                            MVector(pose.translation.x,
-                                    pose.translation.y, pose.translation.z),
-                            MSpace.kTransform
-                        )
-                        setKeyFrame += f' {track.joint_name}.translate'
-                        ekf = False
-                    # scale
-                    if pose.scale != None:
-                        scale = pose.scale
-                        util = MScriptUtil()
-                        util.createFromDouble(scale.x, scale.y, scale.z)
-                        ptr = util.asDoublePtr()
-                        ik_joint.setScale(ptr)
-                        setKeyFrame += f' {track.joint_name}.scale'
-                        ekf = False
-                    # rotation
+                        track.curve_times['tx'].append(mtime)
+                        track.curve_values['tx'].append(pose.translation.x)
+                        track.curve_times['ty'].append(mtime)
+                        track.curve_values['ty'].append(pose.translation.y)
+                        track.curve_times['tz'].append(mtime)
+                        track.curve_values['tz'].append(pose.translation.z)
+
                     if pose.rotation != None:
-                        orient = MQuaternion()
-                        ik_joint.getOrientation(orient)
-                        axe = ik_joint.rotateOrientation(MSpace.kTransform)
-                        rotation = MQuaternion(
-                            pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w)
-                        ik_joint.setRotation(
-                            axe.inverse() * rotation * orient.inverse(), MSpace.kTransform)
-                        setKeyFrame += f' {track.joint_name}.rotate'
-                        ekf = False
+                        euler = MQuaternion(
+                            pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w
+                        ).asEulerRotation()
+                        track.curve_times['rx'].append(mtime)
+                        track.curve_values['rx'].append(euler.x)
+                        track.curve_times['ry'].append(mtime)
+                        track.curve_values['ry'].append(euler.y)
+                        track.curve_times['rz'].append(mtime)
+                        track.curve_values['rz'].append(euler.z)
 
-            if not ekf:
-                MGlobal.executeCommand(setKeyFrame)
+                    if pose.scale != None:
+                        track.curve_times['sx'].append(mtime)
+                        track.curve_values['sx'].append(pose.scale.x)
+                        track.curve_times['sy'].append(mtime)
+                        track.curve_values['sy'].append(pose.scale.y)
+                        track.curve_times['sz'].append(mtime)
+                        track.curve_values['sz'].append(pose.scale.z)
 
-        # slerp all quaternions - EULER SUCKS!
-        track_rotate_keys = [
+        # set keys on curve
+        for track in scene_tracks:
+            # init curves, do this after because it reset transform
+            joint_node = track.ik_joint.object()
+            dep = MFnDependencyNode(joint_node)
+
+            for attr in attributes:
+                # plug=node.attribute: example: tx_plug=Root.tX
+                attr_plug = dep.findPlug(attr)
+
+                # get/create curve for this attribute
+                anim_curve = None
+                if MAnimUtil.isAnimated(attr_plug):
+                    anim_curve = MFnAnimCurve(attr_plug)
+                else:
+                    anim_curve = MFnAnimCurve()
+                    anim_curve.create(
+                        joint_node, attr_plug.attribute())
+                anim_curve.addKeys(
+                    track.curve_times[attr],
+                    track.curve_values[attr]
+                )
+
+        # slerp all rotation curve
+        track_rotate_curves = [
             f' {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
             for track in scene_tracks
         ]
         rotationInterpolation = 'rotationInterpolation -c quaternionSlerp' + \
-            ''.join(track_rotate_keys)
+            ''.join(track_rotate_curves)
         MGlobal.executeCommand(rotationInterpolation)
+        MAnimControl.setCurrentTime(MAnimControl.animationEndTime())
 
     def dump(self):
         # get joint in scene
         iterator = MItDag(MItDag.kDepthFirst, MFn.kJoint)
+        dagpath = MDagPath()
         while not iterator.isDone():
-            # dag path + transform
-            dagpath = MDagPath()
+            # dag path
             iterator.getPath(dagpath)
-            ik_joint = MFnIkJoint(dagpath)
 
             # track data
             track = ANMTrack()
-            track.dagpath = dagpath
-            track.joint_name = ik_joint.name()
+            track.ik_joint = MFnIkJoint(dagpath)
+            track.joint_name = track.ik_joint.name()
             track.joint_hash = Hash.elf(track.joint_name)
             self.tracks.append(track)
 
             iterator.next()
 
         # dump fps
-        util = MScriptUtil()
-        ptr = util.asDoublePtr()
-        MGlobal.executeCommand('currentTimeUnitToFPS', ptr)
-        fps = util.getDouble(ptr)
+        ui_unit = MTime.uiUnit()
+        fps = MTime(1, MTime.kSeconds).asUnits(ui_unit)
         self.fps = 60.0 if fps > 59 else 30.0
 
         # dump from frame 1 to frame end
         # if its not then well, its the ppl fault, not mine. haha suckers
-        util = MScriptUtil()
-        ptr = util.asDoublePtr()
-        MGlobal.executeCommand('playbackOptions -q -animationStartTime', ptr)
-        start = util.getDouble(ptr)
+        start = MAnimControl.animationStartTime().value()
         if start < 0:
             raise FunnyError(
                 f'[ANM.dump()]: Animation start time must be greater or equal 0: {start}')
-        util = MScriptUtil()
-        ptr = util.asDoublePtr()
-        MGlobal.executeCommand('playbackOptions -q -animationEndTime', ptr)
-        end = util.getDouble(ptr)
+        end = MAnimControl.animationEndTime().value()
         if end < 1:
             raise FunnyError(
                 f'[ANM.dump()]: Animation end time must be greater than 1: {end}')
-        self.duration = int(end)
 
-        for time in range(1, self.duration+1):
-            MGlobal.executeCommand(f'currentTime {time}')
-
+        self.frame_count = int(end)
+        for frame in range(1, self.frame_count+1):
+            MAnimControl.setCurrentTime(MTime(frame, ui_unit))
             for track in self.tracks:
-                ik_joint = MFnIkJoint(track.dagpath)
 
                 pose = ANMPose()
                 # translation
-                translation = ik_joint.getTranslation(MSpace.kTransform)
+                translation = track.ik_joint.getTranslation(MSpace.kTransform)
                 pose.translation = Vector(
                     translation.x, translation.y, translation.z)
                 # scale
                 util = MScriptUtil()
                 util.createFromDouble(0.0, 0.0, 0.0)
                 ptr = util.asDoublePtr()
-                ik_joint.getScale(ptr)
+                track.ik_joint.getScale(ptr)
                 pose.scale = Vector(
                     util.getDoubleArrayItem(ptr, 0),
                     util.getDoubleArrayItem(ptr, 1),
@@ -2918,14 +2941,14 @@ class ANM:
                 )
                 # rotation
                 orient = MQuaternion()
-                ik_joint.getOrientation(orient)
-                axe = ik_joint.rotateOrientation(MSpace.kTransform)
+                track.ik_joint.getOrientation(orient)
+                axe = track.ik_joint.rotateOrientation(MSpace.kTransform)
                 rotation = MQuaternion()
-                ik_joint.getRotation(rotation, MSpace.kTransform)
+                track.ik_joint.getRotation(rotation, MSpace.kTransform)
                 rotation = axe * rotation * orient
                 pose.rotation = Quaternion(
                     rotation.x, rotation.y, rotation.z, rotation.w)
-                track.poses[time] = pose
+                track.poses[frame] = pose
 
 
 # static object - sco/scb

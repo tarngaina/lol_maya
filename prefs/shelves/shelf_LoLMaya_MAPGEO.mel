@@ -14,6 +14,202 @@ global proc shelf_LoLMaya_MAPGEO () {
         -manage 1
         -visible 1
         -preventOverride 0
+        -annotation "Add the file to the current scene" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Import..." 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/imp.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/imp.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "Import" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Export selected objects (and related info) to a new file" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Export Selection..." 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/expsl.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/expsl.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "ExportSelection" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    separator
+        -enable 1
+        -width 12
+        -height 35
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -style "shelf" 
+        -horizontal 0
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Delete history on all objects" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "History" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/dh.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/dh.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "DeleteAllHistory" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Rename selected objects." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Rename Objects" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/pref.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/pref.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\ndef on_textfield(textfield):\n    cmds.optionVar(sv=('lolmaya_prefixrename', cmds.textField(textfield, q=True, tx=True)))\n\n\nif cmds.window('PREFIXRENAME', ex=True):\n    cmds.deleteUI('PREFIXRENAME')\n\nwindow = cmds.window(\n    \"PREFIXRENAME\", \n    title = 'Enter prefix:', \n    sizeable = False\n)\n\nlayout = cmds.rowLayout (p = window, nc = 2)\ntextfield = cmds.textField(p = layout, w = 500, h = 30)\nold_str = cmds.optionVar(q='lolmaya_prefixrename')\nif old_str:\n    cmds.textField(textfield, e=True, it = old_str)\ncmds.textField(textfield, e = True, cc = lambda c: on_textfield(textfield))\ndef apply(*args):\n    prefix = cmds.textField(textfield, q = True, tx=True)\n    if prefix: \n        selected = cmds.ls(sl = True)\n        i = 0\n        for obj in selected: \n            try: \n                cmds.rename(obj, f'{prefix}_{i}')\n                i += 1\n            except:\n                pass\n\n        MGlobal.displayInfo('Renamed selected objects.')\n\ncmds.textField(textfield, edit = True, ec = apply)\ncmds.button('Apply', p = layout, w = 100, h = 30, c = apply)\n\ncmds.showWindow(window)" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Rename path of selected objects." 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "Rename Paths" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/mr.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/mr.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\nif cmds.window('MATRenameWin', ex=True):\n    cmds.deleteUI('MATRenameWin')\n\nwindow = cmds.window(\n    'MATRenameWin', \n    title = 'Enter prefix:', \n    sizeable = False\n)\n\nlayout = cmds.rowLayout (p = window, nc = 2)\ntextfield = cmds.textField(p = layout, w = 500, h = 30)\nold_str = cmds.optionVar(q='lolmaya_matrename')\nif old_str:\n    cmds.textField(textfield, e=True, it = old_str)\n\ndef apply(*args):\n    path = cmds.textField(textfield, q = True, tx=True)\n    if path:\n        cmds.optionVar(sv=('lolmaya_matrename', path))\n        path = path.replace('\\\\', '/')\n        path = path.replace('/', '__')\n        if not path.endswith('__'):\n            path += '__'\n        selected = cmds.ls(sl = True)\n        for obj in selected: \n            try: \n                old = obj\n                new = path + old.split('__')[-1]\n                cmds.rename(old, new)\n            except:\n                pass\n\n        MGlobal.displayInfo('Renamed selected objects.')\n\ncmds.textField(textfield, edit = True, ec = apply)\ncmds.button('Apply', p = layout, w = 100, h = 30, c = apply)\n\ncmds.showWindow(window)" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    separator
+        -enable 1
+        -width 12
+        -height 35
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -style "shelf" 
+        -horizontal 0
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
         -annotation "Create 8 layers and assign selected object to all layers." 
         -enableBackground 0
         -backgroundColor 0 0 0 
@@ -73,19 +269,6 @@ global proc shelf_LoLMaya_MAPGEO () {
         -sourceType "python" 
         -commandRepeatable 1
         -flat 1
-    ;
-    separator
-        -enable 1
-        -width 34
-        -height 35
-        -manage 1
-        -visible 1
-        -preventOverride 0
-        -enableBackground 0
-        -backgroundColor 0 0 0 
-        -highlightColor 0.321569 0.521569 0.65098 
-        -style "shelf" 
-        -horizontal 0
     ;
     shelfButton
         -enableCommandRepeat 1
@@ -390,74 +573,6 @@ global proc shelf_LoLMaya_MAPGEO () {
         -manage 1
         -visible 1
         -preventOverride 0
-        -annotation "Rename path of selected objects." 
-        -enableBackground 0
-        -backgroundColor 0 0 0 
-        -highlightColor 0.321569 0.521569 0.65098 
-        -align "center" 
-        -label "Rename Paths" 
-        -labelOffset 0
-        -rotation 0
-        -flipX 0
-        -flipY 0
-        -useAlpha 1
-        -font "plainLabelFont" 
-        -overlayLabelColor 0.8 0.8 0.8 
-        -overlayLabelBackColor 0 0 0 0.5 
-        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/mr.png" 
-        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/mr.png" 
-        -style "iconOnly" 
-        -marginWidth 0
-        -marginHeight 1
-        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\nif cmds.window('MATRenameWin', ex=True):\n    cmds.deleteUI('MATRenameWin')\n\nwindow = cmds.window(\n    'MATRenameWin', \n    title = 'Enter prefix:', \n    sizeable = False\n)\n\nlayout = cmds.rowLayout (p = window, nc = 2)\ntextfield = cmds.textField(p = layout, w = 500, h = 30)\nold_str = cmds.optionVar(q='lolmaya_matrename')\nif old_str:\n    cmds.textField(textfield, e=True, it = old_str)\n\ndef apply(*args):\n    path = cmds.textField(textfield, q = True, tx=True)\n    if path:\n        cmds.optionVar(sv=('lolmaya_matrename', path))\n        path = path.replace('\\\\', '/')\n        path = path.replace('/', '__')\n        if not path.endswith('__'):\n            path += '__'\n        selected = cmds.ls(sl = True)\n        for obj in selected: \n            try: \n                old = obj\n                new = path + old.split('__')[-1]\n                cmds.rename(old, new)\n            except:\n                pass\n\n        MGlobal.displayInfo('Renamed selected objects.')\n\ncmds.textField(textfield, edit = True, ec = apply)\ncmds.button('Apply', p = layout, w = 100, h = 30, c = apply)\n\ncmds.showWindow(window)" 
-        -sourceType "python" 
-        -commandRepeatable 1
-        -flat 1
-    ;
-    shelfButton
-        -enableCommandRepeat 1
-        -flexibleWidthType 3
-        -flexibleWidthValue 32
-        -enable 1
-        -width 35
-        -height 34
-        -manage 1
-        -visible 1
-        -preventOverride 0
-        -annotation "Rename selected objects." 
-        -enableBackground 0
-        -backgroundColor 0 0 0 
-        -highlightColor 0.321569 0.521569 0.65098 
-        -align "center" 
-        -label "Rename Objects" 
-        -labelOffset 0
-        -rotation 0
-        -flipX 0
-        -flipY 0
-        -useAlpha 1
-        -font "plainLabelFont" 
-        -overlayLabelColor 0.8 0.8 0.8 
-        -overlayLabelBackColor 0 0 0 0.5 
-        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/pref.png" 
-        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/pref.png" 
-        -style "iconOnly" 
-        -marginWidth 0
-        -marginHeight 1
-        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\ndef on_textfield(textfield):\n    cmds.optionVar(sv=('lolmaya_prefixrename', cmds.textField(textfield, q=True, tx=True)))\n\n\nif cmds.window('PREFIXRENAME', ex=True):\n    cmds.deleteUI('PREFIXRENAME')\n\nwindow = cmds.window(\n    \"PREFIXRENAME\", \n    title = 'Enter prefix:', \n    sizeable = False\n)\n\nlayout = cmds.rowLayout (p = window, nc = 2)\ntextfield = cmds.textField(p = layout, w = 500, h = 30)\nold_str = cmds.optionVar(q='lolmaya_prefixrename')\nif old_str:\n    cmds.textField(textfield, e=True, it = old_str)\ncmds.textField(textfield, e = True, cc = lambda c: on_textfield(textfield))\ndef apply(*args):\n    prefix = cmds.textField(textfield, q = True, tx=True)\n    if prefix: \n        selected = cmds.ls(sl = True)\n        i = 0\n        for obj in selected: \n            try: \n                cmds.rename(obj, f'{prefix}_{i}')\n                i += 1\n            except:\n                pass\n\n        MGlobal.displayInfo('Renamed selected objects.')\n\ncmds.textField(textfield, edit = True, ec = apply)\ncmds.button('Apply', p = layout, w = 100, h = 30, c = apply)\n\ncmds.showWindow(window)" 
-        -sourceType "python" 
-        -commandRepeatable 1
-        -flat 1
-    ;
-    shelfButton
-        -enableCommandRepeat 1
-        -flexibleWidthType 3
-        -flexibleWidthValue 32
-        -enable 1
-        -width 35
-        -height 34
-        -manage 1
-        -visible 1
-        -preventOverride 0
         -annotation "Display and edit connections in shading networks" 
         -enableBackground 0
         -backgroundColor 0 0 0 
@@ -583,40 +698,6 @@ global proc shelf_LoLMaya_MAPGEO () {
         -marginHeight 1
         -command "\nfrom maya.OpenMaya import *\nfrom maya.OpenMayaAnim import *\n\niterator = MItDag(MItDag.kDepthFirst, MFn.kMesh)\nwhile not iterator.isDone():\n    mesh_dagpath = MDagPath()\n    iterator.getPath(mesh_dagpath)\n    mesh = MFnMesh(mesh_dagpath)\n\n    # get shader/materials\n    shaders = MObjectArray()\n    face_shader = MIntArray()\n    instance = mesh_dagpath.instanceNumber() if mesh_dagpath.isInstanced() else 0\n    mesh.getConnectedShaders(instance, shaders, face_shader)\n    shader_count = shaders.length()\n    if shader_count < 1:\n        iterator.next()\n        continue\n\n    # extract all shared vertices first\n    face_count = face_shader.length()\n    map_faces = []\n    for i in range(0, shader_count):\n        map_faces.append(MIntArray())\n    for i in range(0, face_count):\n        map_faces[face_shader[i]].append(i)\n\n    for i in range(0, shader_count-1):\n        component = MFnSingleIndexedComponent()\n        face_component = component.create(\n            MFn.kMeshPolygonComponent)\n        component.addElements(map_faces[i])\n        selections = MSelectionList()\n        selections.add(mesh_dagpath, face_component)\n        MGlobal.selectCommand(selections)\n        MGlobal.executeCommand(\n            'polyChipOff -ch 1 -kft 1 -dup 0 -off 0')\n    iterator.next()\nMGlobal.executeCommand('select -cl')\nMGlobal.executeCommand('DeleteAllHistory')\nMGlobal.executeCommand('confirmDialog -message \"Fixed all shared vertices.\" -button \"Ok\" -defaultButton \"Ok\" -cancelButton \"Ok\"')\n" 
         -sourceType "python" 
-        -commandRepeatable 1
-        -flat 1
-    ;
-    shelfButton
-        -enableCommandRepeat 1
-        -flexibleWidthType 3
-        -flexibleWidthValue 32
-        -enable 1
-        -width 35
-        -height 34
-        -manage 1
-        -visible 1
-        -preventOverride 0
-        -annotation "Freeze transform value of selected objects." 
-        -enableBackground 0
-        -backgroundColor 0 0 0 
-        -highlightColor 0.321569 0.521569 0.65098 
-        -align "center" 
-        -label "Freeze Transformations" 
-        -labelOffset 0
-        -rotation 0
-        -flipX 0
-        -flipY 0
-        -useAlpha 1
-        -font "plainLabelFont" 
-        -overlayLabelColor 0.8 0.8 0.8 
-        -overlayLabelBackColor 0 0 0 1 
-        -image "C:/Users/tarng/Documents/maya/2023/prefs/icons/ft.png" 
-        -image1 "C:/Users/tarng/Documents/maya/2023/prefs/icons/ft.png" 
-        -style "iconOnly" 
-        -marginWidth 0
-        -marginHeight 1
-        -command "FreezeTransformations" 
-        -sourceType "mel" 
         -commandRepeatable 1
         -flat 1
     ;

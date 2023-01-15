@@ -201,13 +201,13 @@ An attempt to update RiotFileTranslator to Maya 2023.
         ![](https://i.imgur.com/8eZIWQU.png)
 4. Shelf buttons:
 
-    ![](https://i.imgur.com/0WDyRnX.png)
+    ![](https://i.imgur.com/dRiK2Mt.png)
 
-    Explain buttons from left to right: 
+    Explain buttons from left to right:
+    - Rename path of selected objects with input prefix.
+    - Rename selected objects with input prefix. 
     - Toggle on/off all layers on selected mesh.
     - Toggle on/off layer 1 - 8 on selected mesh.
-    - Rename path of selected objects with input.
-    - Rename selected objects with input.
     - Select all faces of all meshes that have same assigned material as selected face.
     - Set all black emissions weight to 0.
     - Fix shared vertices on all meshes in scene.

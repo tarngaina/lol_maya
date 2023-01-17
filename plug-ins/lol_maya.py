@@ -3763,7 +3763,7 @@ class MAPGEO:
                     # inside face count + sticking out face count(4)
                     self.bucket_grid.buckets = bs.read_bytes(
                         20*bucket_size*bucket_size)
-                    if self.bucket_grid.bucket_flag > 1:
+                    if self.bucket_grid.bucket_flag >= 1:
                         # if first bit = 1, read face flags
                         self.bucket_grid.face_flags = bs.read_bytes(
                             index_count//3)

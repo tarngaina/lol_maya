@@ -214,8 +214,8 @@ An attempt to update RiotFileTranslator to Maya 2023.
     - Import `materials.py`: 
         - Read `materials.py` file to import textures.
         - `assets` folder must be in same location as `materials.py`.
-    - Export `materials.json`: export all materials in scene to a json file; all textures will be copied to same export location; `materials.json` can be read by `Avatar (made by Killery)` to convert back to `materials.py`.
-    - Export `materials.py`: export all materials in scene to a py file, only diffuse textures will be exported and only export into `default_env` shader.
+    - Export `materials.json`: export all materials of selected meshes to a json file; all textures will be copied to same export location; if nothing get selected, this button export all materials in scene instead; `materials.json` can be read by `Avatar (made by Killery)` to convert back to `materials.py`.
+    - Export `materials.py`: export all materials of selected meshes to a py file; all textures will be copied to same export location; if nothing get selected, this button export all materials in scene instead; only diffuse textures will be exported and only export into `default_env` shader.
     - Extra: League shader <-> Maya shader:
         - Lambert / Other materials:
             - Diffuse Texture -> Color / Transparency

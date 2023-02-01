@@ -3961,7 +3961,7 @@ class MAPGEO:
                     bs.write_bytes(self.bucket_grid.vertices)
                     bs.write_bytes(self.bucket_grid.indices)
                     bs.write_bytes(self.bucket_grid.buckets)
-                    if self.bucket_grid.bucket_flag > 1:
+                    if self.bucket_grid.bucket_flag >= 1:
                         bs.write_bytes(self.bucket_grid.face_flags)
 
             if self.planar_reflector != None:

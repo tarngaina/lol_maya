@@ -443,7 +443,7 @@ class MAPGEOTranslator(MPxFileTranslator):
 # plugin register
 def initializePlugin(obj):
     # totally not copied code
-    plugin = MFnPlugin(obj, 'tarngaina', '4.1.0')
+    plugin = MFnPlugin(obj, 'tarngaina', '4.1.2')
     try:
         plugin.registerFileTranslator(
             SKNTranslator.name,
@@ -3589,7 +3589,7 @@ class MAPGEO:
             unpacked_floats = [None]*vb_count
             desc_size = {
                 0: 3,  # position vec3
-                2: 3,  # normal vec3 (pad)
+                2: 3,  # normal vec3 (pad when read)
                 4: 1,  # color 4bytes=1float (pad)
                 7: 2,  # diffuse uv vec2
                 14: 2  # lightmap uv vec2
@@ -3936,17 +3936,19 @@ class MAPGEO:
                 if model.lightmap not in (None, ''):
                     bs.write_uint32(len(model.lightmap))
                     bs.write_ascii(model.lightmap)
+                    # lightmap scale & offset
+                    bs.write_float(1.0, 1.0, 0.0, 0.0)
                 else:
                     bs.write_uint32(0)
-                bs.write_float(1.0, 1.0, 0.0, 0.0)  # lightmap scale & offset
+                    bs.write_float(0.0, 0.0, 0.0, 0.0)
 
                 # baked light
                 bs.write_uint32(0)
-                bs.write_float(1.0, 1.0, 0.0, 0.0)
+                bs.write_float(0.0, 0.0, 0.0, 0.0)
 
                 # baked paint
                 bs.write_uint32(0)
-                bs.write_float(1.0, 1.0, 0.0, 0.0)
+                bs.write_float(0.0, 0.0, 0.0, 0.0)
 
             # bucket grid
             if self.bucket_grid != None:
@@ -4005,7 +4007,7 @@ class MAPGEO:
         # the group of all meshes, the name of this group = map ID, for example: Map11, Map12
         group_transform = MFnTransform()
         group_transform.create()
-        group_transform.setName('MapID')
+        group_name = 'MapID'
 
         for model in self.models:
             MGlobal.displayInfo(f'[MAPGEO.load()]: Loading {model.name}')
@@ -4051,9 +4053,14 @@ class MAPGEO:
             transform.setName(model.name)
             transform_name = transform.name()
 
+            lightmap_flag = model.lightmap not in (None, '')
             # lightmap uv
-            if model.lightmap not in (None, ''):
-                short_lightmap = model.lightmap.split('/')[-1]
+            if lightmap_flag:
+                temp_lightmap = model.lightmap.split('/')
+                short_lightmap = temp_lightmap[-1]
+                full_lightmap = '__'.join(temp_lightmap[:-1])
+                group_name = f'riot_{full_lightmap}'
+
                 mesh.createUVSetWithName(short_lightmap)
                 lightmap_u_values = MFloatArray(vertex_count)
                 lightmap_v_values = MFloatArray(vertex_count)
@@ -4093,10 +4100,17 @@ class MAPGEO:
 
             group_transform.addChild(transform.object())
 
-        # create set and assign mesh to set
+        group_transform.setName(group_name)
+
+        # check/create set and assign mesh to set
         for i in range(8):
             model_names = ' '.join(layer_models[i])
-            execmd += f'sets -name "set{i+1}";sets -addElement set{i+1} {model_names};'
+            util = MScriptUtil()
+            ptr = util.asIntPtr()
+            MGlobal.executeCommand(f'objExists set{i+1}', ptr)
+            if util.getInt(ptr) == 0:
+                execmd += f'sets -name "set{i+1}";'
+            execmd += f'sets -addElement set{i+1} {model_names};'
         execmd += 'select -cl;'
         MGlobal.executeCommand(execmd)
 
@@ -4257,12 +4271,18 @@ class MAPGEO:
             # ignore other sets
             uv_names = []
             mesh.getUVSetNames(uv_names)
+            lightmap_flag = False
             if len(uv_names) > 1:
-                model.lightmap = f'ASSETS/Maps/Lightmaps/Maps/MapGeometry/{group_name}/Base/{uv_names[1]}'
+                if group_name.startswith('riot_'):
+                    model.lightmap = group_name.replace(
+                        'riot_', '').replace('__', '/')+'/'+uv_names[1]
+                else:
+                    model.lightmap = f'ASSETS/Maps/Lightmaps/Maps/MapGeometry/{group_name}/Base/{uv_names[1]}'
+                lightmap_flag = True
             u_values = MFloatArray()
             v_values = MFloatArray()
             mesh.getUVs(u_values, v_values, uv_names[0])
-            if model.lightmap not in (None, ''):
+            if lightmap_flag:
                 lightmap_u_values = MFloatArray()
                 lightmap_v_values = MFloatArray()
                 mesh.getUVs(lightmap_u_values,
@@ -4300,8 +4320,8 @@ class MAPGEO:
                         vertex.normal = Vector(0.0, 0.0, 0.0)
                         for i in range(normal_count):
                             vertex.normal.x += normals[i].x
-                            vertex.normal.y += normals[i].z
-                            vertex.normal.y += normals[i].z
+                            vertex.normal.y += normals[i].y
+                            vertex.normal.z += normals[i].z
                         vertex.normal.x /= normal_count
                         vertex.normal.y /= normal_count
                         vertex.normal.z /= normal_count
@@ -4311,7 +4331,7 @@ class MAPGEO:
                             u_values[uv_index],
                             1.0 - v_values[uv_index]
                         )
-                        if model.lightmap not in (None, ''):
+                        if lightmap_flag:
                             vertex.lightmap_uv = Vector(
                                 lightmap_u_values[uv_index],
                                 1.0 - lightmap_v_values[uv_index]

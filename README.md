@@ -198,7 +198,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
         ![](https://i.imgur.com/8eZIWQU.png)
 4. Shelf buttons:
 
-    ![](https://i.imgur.com/dRiK2Mt.png)
+    ![](https://i.imgur.com/yQ6RkAl.png)
 
     Explain buttons from left to right:
     - Rename path of selected objects with input prefix.
@@ -213,6 +213,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - `assets` folder must be in same location as `materials.py`.
     - Export `materials.json`: export all materials of selected meshes to a json file; all textures will be copied to same export location; if nothing get selected, this button export all materials in scene instead; `materials.json` can be read by `Avatar (made by Killery)` to convert back to `materials.py`.
     - Export `materials.py`: export all materials of selected meshes to a py file; all textures will be copied to same export location; if nothing get selected, this button export all materials in scene instead; only diffuse textures will be exported and only export into `default_env` shader.
+    - Check if materials of selected meshes are not defined in `materials.py`, if nothing get selected, this button will check all materials in scene instead.
     - Extra: League shader <-> Maya shader:
         - Lambert / Other materials:
             - Diffuse Texture -> Color / Transparency

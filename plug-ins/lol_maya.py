@@ -1312,10 +1312,10 @@ class SKL:
                     joint.name = riot_joint.name
                     joint.parent = -1
                     joint.local_translation = Vector(0.0, 0.0, 0.0)
-                    joint.local_rotation = Quaternion(0.0, 0.0, 0.0, 0.0)
+                    joint.local_rotation = Quaternion(0.0, 0.0, 0.0, 1.0)
                     joint.local_scale = Vector(0.0, 0.0, 0.0)
                     joint.iglobal_translation = Vector(0.0, 0.0, 0.0)
-                    joint.iglobal_rotation = Quaternion(0.0, 0.0, 0.0, 0.0)
+                    joint.iglobal_rotation = Quaternion(0.0, 0.0, 0.0, 1.0)
                     joint.iglobal_scale = Vector(0.0, 0.0, 0.0)
                     new_joints.append(joint)
 
@@ -1383,7 +1383,7 @@ class SKL:
             new_joints = [joint for joint in riot_joints if joint]
 
             # add new/bad joints at the end
-            new_joints.extend([joint for joint in other_joints])
+            new_joints.extend(joint for joint in other_joints)
 
             self.joints = new_joints
         # link parent
@@ -2236,7 +2236,7 @@ class SKN:
                 if previous_max_index > 0:
                     previous_max_index += 1
                 combined_submesh.indices.extend(
-                    [index + previous_max_index for index in submesh.indices])
+                    index + previous_max_index for index in submesh.indices)
                 previous_max_index = max(combined_submesh.indices)
             self.submeshes.append(combined_submesh)
 
@@ -4188,6 +4188,21 @@ class MAPGEO:
 
             shader_indices = [[] for i in range(shader_count)]
 
+            # get all UV sets
+            uv_names = []
+            mesh.getUVSetNames(uv_names)
+            # first uv set = diffuse
+            # second uv set = lightmap
+            # ignore other sets
+            lightmap_flag = False
+            if len(uv_names) > 1:
+                if group_name.startswith('riot_'):
+                    model.lightmap = group_name.replace(
+                        'riot_', '').replace('__', '/')+'/'+uv_names[1]
+                else:
+                    model.lightmap = f'ASSETS/Maps/Lightmaps/Maps/MapGeometry/{group_name}/Base/{uv_names[1]}'
+                lightmap_flag = True
+
             # iterator on faces - 1st
             # dump original triangle indices
             # extra checking stuffs
@@ -4212,7 +4227,7 @@ class MAPGEO:
                     if face_index not in bad_faces2:
                         bad_faces2.append(face_index)
                 # check if face has no UVs
-                if not iterator.hasUVs():
+                if not iterator.hasUVs(uv_names[0]):
                     if face_index not in bad_faces3:
                         bad_faces3.append(face_index)
 
@@ -4225,7 +4240,7 @@ class MAPGEO:
                 ptr = util.asIntPtr()
                 map_indices = {}
                 for i in range(vertices.length()):
-                    iterator.getUVIndex(i, ptr)
+                    iterator.getUVIndex(i, ptr, uv_names[0])
                     uv_index = util.getInt(ptr)
                     map_indices[vertices[i]] = uv_index
 
@@ -4265,20 +4280,7 @@ class MAPGEO:
                 raise FunnyError(
                     f'[MAPGEO.dump({mesh.name()})]: Mesh contains {bad_faces3.length()} faces have no UVs assigned, or, those faces UVs are not in first UV set, those faces will be selected in scene.\nBonus: If there is nothing selected (or they are invisible) after this error message, consider to delete history, that might fix the problem.')
 
-            # get all UV sets
-            # first uv set = diffuse
-            # second uv set = lightmap
-            # ignore other sets
-            uv_names = []
-            mesh.getUVSetNames(uv_names)
-            lightmap_flag = False
-            if len(uv_names) > 1:
-                if group_name.startswith('riot_'):
-                    model.lightmap = group_name.replace(
-                        'riot_', '').replace('__', '/')+'/'+uv_names[1]
-                else:
-                    model.lightmap = f'ASSETS/Maps/Lightmaps/Maps/MapGeometry/{group_name}/Base/{uv_names[1]}'
-                lightmap_flag = True
+            # get uv values
             u_values = MFloatArray()
             v_values = MFloatArray()
             mesh.getUVs(u_values, v_values, uv_names[0])
@@ -4287,7 +4289,8 @@ class MAPGEO:
                 lightmap_v_values = MFloatArray()
                 mesh.getUVs(lightmap_u_values,
                             lightmap_v_values, uv_names[1])
-
+                lightmap_uv_count = lightmap_u_values.length()
+                bad_lightmap_mesh = False
             # iterator on vertices
             # to dump all new vertices base on uv_index
             normals = MVectorArray()
@@ -4332,14 +4335,25 @@ class MAPGEO:
                             1.0 - v_values[uv_index]
                         )
                         if lightmap_flag:
-                            vertex.lightmap_uv = Vector(
-                                lightmap_u_values[uv_index],
-                                1.0 - lightmap_v_values[uv_index]
-                            )
+                            if uv_index >= 0 and uv_index < lightmap_uv_count:
+                                if lightmap_u_values[uv_index] != None and lightmap_v_values[uv_index] != None:
+                                    vertex.lightmap_uv = Vector(
+                                        lightmap_u_values[uv_index],
+                                        1.0 - lightmap_v_values[uv_index]
+                                    )
+                                else:
+                                    bad_lightmap_mesh = True
+                            else:
+                                bad_lightmap_mesh = True
                         vertex.uv_index = uv_index
 
                         model.vertices.append(vertex)
                 iterator.next()
+
+            if lightmap_flag:
+                if bad_lightmap_mesh:
+                    MGlobal.displayWarning(
+                        f'[MAPGEO.dump({mesh.name()})]: This mesh contains a vertex that has diffuse UV but no lightmap UV.')
 
             # sort vertices by uv_index
             model.vertices.sort(key=lambda vertex: vertex.uv_index)

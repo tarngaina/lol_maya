@@ -75,8 +75,10 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - New SKL data, no need to update/convert.
 4. ANM:
     - ANM data in Maya scene: 
-        - Translate + Rotate + Scale keyframes of all joints in scene from time 1 to end time on Time Slider.
-        - **Important**: Time Slider playback must have time 0 even though animation start time is 1.
+        - Translate + Rotate + Scale keyframes of all joints in scene from animation start time + 1 to animation end time on Time Slider. 
+
+            **Example**: If the animation time range is -5 to 14 like in the below picture, keyframes will be exported from time -4 (-5+1) to 14.
+            ![](https://i.imgur.com/T44RI0q.png)
         - FPS support: 30/60.
     - Read: 
         - `r3d2canm`

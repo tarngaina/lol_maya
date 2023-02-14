@@ -443,7 +443,7 @@ class MAPGEOTranslator(MPxFileTranslator):
 # plugin register
 def initializePlugin(obj):
     # totally not copied code
-    plugin = MFnPlugin(obj, 'tarngaina', '4.1.2')
+    plugin = MFnPlugin(obj, 'tarngaina', '4.1.4')
     try:
         plugin.registerFileTranslator(
             SKNTranslator.name,
@@ -666,9 +666,10 @@ class Quaternion:
         yield self.z
         yield self.w
 
-
 # for read/write file in a binary way
 # totally not copied code
+
+
 class BinaryStream:
     struct_int16 = Struct('h')
     struct_uint16 = Struct('H')
@@ -1373,14 +1374,14 @@ class SKL:
                     continue
 
                 # if duplicated ID -> bad joint
-                if riot_joints[id]:
+                if riot_joints[id] != None:
                     other_joints.append(joint)
                     continue
 
                 riot_joints[id] = joint
 
             # add good joints first
-            new_joints = [joint for joint in riot_joints if joint]
+            new_joints = [joint for joint in riot_joints if joint != None]
 
             # add new/bad joints at the end
             new_joints.extend(joint for joint in other_joints)
@@ -1618,7 +1619,7 @@ class SKN:
             execmd = ''
             for submesh in self.submeshes:
                 # check duplicate name node
-                if skl:
+                if skl != None:
                     match_joint = next(
                         (joint for joint in skl.joints if joint.name == submesh.name), None)
                     if match_joint != None:
@@ -2651,9 +2652,9 @@ class ANM:
 
         vec_index = 0
         quat_index = 0
-        for time in range(1, self.frame_count+1):
+        for frame in range(self.frame_count):
             for track in self.tracks:
-                pose = track.poses[time]
+                pose = track.poses[frame]
                 translation_key = f'{pose.translation.x:.6f} {pose.translation.y:.6f} {pose.translation.z:.6f}'
                 scale_key = f'{pose.scale.x:.6f} {pose.scale.y:.6f} {pose.scale.z:.6f}'
                 rotation_key = f'{pose.rotation.x:.6f} {pose.rotation.y:.6f} {pose.rotation.z:.6f} {pose.rotation.w:.6f}'
@@ -2722,7 +2723,7 @@ class ANM:
 
             # frames
             frames_offset = bs.tell()
-            for frame in range(1, self.frame_count+1):
+            for frame in range(self.frame_count):
                 for track in self.tracks:
                     bs.write_uint32(track.joint_hash)
                     bs.write_uint16(
@@ -2910,18 +2911,12 @@ class ANM:
 
         # dump from frame 1 to frame end
         # if its not then well, its the ppl fault, not mine. haha suckers
-        start = MAnimControl.animationStartTime().value()
-        if start < 0:
-            raise FunnyError(
-                f'[ANM.dump()]: Animation start time must be greater or equal 0: {start}')
-        end = MAnimControl.animationEndTime().value()
-        if end < 1:
-            raise FunnyError(
-                f'[ANM.dump()]: Animation end time must be greater than 1: {end}')
+        start = int(MAnimControl.animationStartTime().value())
+        end = int(MAnimControl.animationEndTime().value())
+        self.frame_count = abs(end-start)
 
-        self.frame_count = int(end)
-        for frame in range(1, self.frame_count+1):
-            MAnimControl.setCurrentTime(MTime(frame, ui_unit))
+        for frame in range(self.frame_count):
+            MAnimControl.setCurrentTime(MTime(frame+start+1, ui_unit))
             for track in self.tracks:
 
                 pose = ANMPose()
@@ -3589,10 +3584,21 @@ class MAPGEO:
             unpacked_floats = [None]*vb_count
             desc_size = {
                 0: 3,  # position vec3
-                2: 3,  # normal vec3 (pad when read)
-                4: 1,  # color 4bytes=1float (pad)
-                7: 2,  # diffuse uv vec2
-                14: 2  # lightmap uv vec2
+                1: 4,  # pad blendeight vec4
+                2: 3,  # pad normal vec3
+                3: 1,  # pad fog coord float
+                4: 1,  # pad 1st color 4b=float
+                5: 1,  # pad 2nd color 4b=float
+                6: 1,  # pad blendindex 4b=float
+                7: 2,  # diffuse uv vec2, also texcoord 0
+                8: 2,  # pad texcoord 1 vec2
+                9: 2,  # pad texcoord 2 vec2
+                10: 2,  # pad texcoord 3 vec2
+                11: 2,  # pad texcoord 4 vec2
+                12: 2,  # pad texcoord 5 vec2
+                13: 2,  # pad texcoord 6 vec2
+                14: 2,  # lightmap uv vec2, also texcoord 7
+                15: 4  # pad tangent vec4
             }
 
             model_count = bs.read_uint32()

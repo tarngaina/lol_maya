@@ -443,7 +443,7 @@ class MAPGEOTranslator(MPxFileTranslator):
 # plugin register
 def initializePlugin(obj):
     # totally not copied code
-    plugin = MFnPlugin(obj, 'tarngaina', '4.1.4')
+    plugin = MFnPlugin(obj, 'tarngaina', '4.1.5')
     try:
         plugin.registerFileTranslator(
             SKNTranslator.name,
@@ -708,45 +708,45 @@ class BinaryStream:
     def read_bytes(self, length):
         return self.stream.read(length)
 
-    def read_int16(self, count=1):
-        if count > 1:
+    def read_int16(self, count=1, forcetuple=False):
+        if count > 1 or forcetuple:
             return Struct(f'{count}h').unpack(self.stream.read(2*count))
         return BinaryStream.struct_int16.unpack(self.stream.read(2))[0]
 
-    def read_uint16(self, count=1):
-        if count > 1:
+    def read_uint16(self, count=1, forcetuple=False):
+        if count > 1 or forcetuple:
             return Struct(f'{count}H').unpack(self.stream.read(2*count))
         return BinaryStream.struct_uint16.unpack(self.stream.read(2))[0]
 
-    def read_int32(self, count=1):
-        if count > 1:
+    def read_int32(self, count=1, forcetuple=False):
+        if count > 1 or forcetuple:
             return Struct(f'{count}i').unpack(self.stream.read(4*count))
         return BinaryStream.struct_int32.unpack(self.stream.read(4))[0]
 
-    def read_uint32(self, count=1):
-        if count > 1:
+    def read_uint32(self, count=1, forcetuple=False):
+        if count > 1 or forcetuple:
             return Struct(f'{count}I').unpack(self.stream.read(4*count))
         return BinaryStream.struct_uint32.unpack(self.stream.read(4))[0]
 
-    def read_float(self, count=1):
-        if count > 1:
+    def read_float(self, count=1, forcetuple=False):
+        if count > 1 or forcetuple:
             return Struct(f'{count}f').unpack(self.stream.read(4*count))
         return BinaryStream.struct_float.unpack(self.stream.read(4))[0]
 
-    def read_vec2(self, count=1):
-        if count > 1:
+    def read_vec2(self, count=1, forcetuple=False):
+        if count > 1 or forcetuple:
             floats = Struct(f'{count*2}f').unpack(self.stream.read(8*count))
             return [Vector(floats[i], floats[i+1]) for i in range(0, len(floats), 2)]
         return Vector(*BinaryStream.struct_vec2.unpack(self.stream.read(8)))
 
-    def read_vec3(self, count=1):
-        if count > 1:
+    def read_vec3(self, count=1, forcetuple=False):
+        if count > 1 or forcetuple:
             floats = Struct(f'{count*3}f').unpack(self.stream.read(12*count))
             return [Vector(floats[i], floats[i+1], floats[i+2]) for i in range(0, len(floats), 3)]
         return Vector(*BinaryStream.struct_vec3.unpack(self.stream.read(12)))
 
-    def read_quat(self, count=1):
-        if count > 1:
+    def read_quat(self, count=1, forcetuple=False):
+        if count > 1 or forcetuple:
             floats = Struct(f'{count*4}f').unpack(self.stream.read(16*count))
             return [Quaternion(floats[i], floats[i+1], floats[i+2], floats[i+3]) for i in range(0, len(floats), 4)]
         return Quaternion(*BinaryStream.struct_quat.unpack(self.stream.read(16)))
@@ -1074,7 +1074,7 @@ class SKL:
                 # read influences
                 if influences_offset > 0 and influence_count > 0:
                     bs.seek(influences_offset)
-                    self.influences = bs.read_uint16(influence_count)
+                    self.influences = bs.read_uint16(influence_count, True)
 
                 # i think that is all we need, reading joint_indices_offset, name and asset name doesnt help anything
             else:
@@ -1118,7 +1118,7 @@ class SKL:
 
                 if version == 2:
                     influence_count = bs.read_uint32()
-                    self.influences = bs.read_uint32(influence_count)
+                    self.influences = bs.read_uint32(influence_count, True)
 
                 # calculate local matrix
                 for joint in self.joints:
@@ -2416,7 +2416,7 @@ class ANM:
 
                 # read joint hashes
                 bs.seek(joint_hashes_offset + 12)
-                joint_hashes = bs.read_uint32(joint_count)
+                joint_hashes = bs.read_uint32(joint_count, True)
 
                 # create tracks
                 self.tracks = [ANMTrack() for i in range(joint_count)]
@@ -2501,11 +2501,11 @@ class ANM:
                     # read joint hashes
 
                     bs.seek(joint_hashes_offset + 12)
-                    joint_hashes = bs.read_uint32(joint_hash_count)
+                    joint_hashes = bs.read_uint32(joint_hash_count, True)
 
                     # read vecs
                     bs.seek(vecs_offset + 12)
-                    uni_vecs = bs.read_vec3(vec_count)
+                    uni_vecs = bs.read_vec3(vec_count, True)
 
                     # read quats
                     bs.seek(quats_offset + 12)
@@ -2574,10 +2574,10 @@ class ANM:
                     quat_count = (frames_offset - quats_offset) // 16
 
                     bs.seek(vecs_offset + 12)
-                    uni_vecs = bs.read_vec3(vec_count)
+                    uni_vecs = bs.read_vec3(vec_count, True)
 
                     bs.seek(quats_offset + 12)
-                    uni_quats = bs.read_quat(quat_count)
+                    uni_quats = bs.read_quat(quat_count, True)
 
                     bs.seek(frames_offset + 12)
                     frames = [
@@ -3071,7 +3071,7 @@ class SO:
             if major == 3 and minor == 2:
                 vertex_type = bs.read_uint32()
 
-            self.vertices = bs.read_vec3(vertex_count)
+            self.vertices = bs.read_vec3(vertex_count, True)
 
             if vertex_type == 1:
                 bs.pad(4 * vertex_count)  # pad all vertex colors
@@ -3447,8 +3447,8 @@ class SO:
 
 class MAPGEOVertex:
     __slots__ = (
-        'position', 'normal', 'diffuse_uv',
-        'lightmap_uv', 'uv_index', 'new_index'
+        'position', 'normal', 'diffuse_uv', 'lightmap_uv',
+        'color', 'uv_index', 'new_index'
     )
 
     def __init__(self):
@@ -3456,6 +3456,7 @@ class MAPGEOVertex:
         self.normal = None
         self.diffuse_uv = None
         self.lightmap_uv = None
+        self.color = None
 
         self.uv_index = None
         self.new_index = None
@@ -3479,7 +3480,8 @@ class MAPGEOSubmesh:
 class MAPGEOModel:
     __slots__ = (
         'name', 'submeshes', 'vertices', 'indices', 'layer',
-        'bb', 'lightmap', 'lightmap_so'
+        'bb', 'lightmap', 'lightmap_so',
+        'use_color'
     )
 
     def __init__(self):
@@ -3491,6 +3493,7 @@ class MAPGEOModel:
         self.bb = None
         self.lightmap = None
         self.lightmap_so = None
+        self.use_color = None
 
 
 class MAPGEOBucketGrid:
@@ -3578,27 +3581,27 @@ class MAPGEO:
                 if version >= 13:
                     bs.pad(1)  # layer
                 ib_size = bs.read_uint32()
-                ibs[i] = bs.read_uint16(ib_size // 2)
+                ibs[i] = bs.read_uint16(ib_size // 2, True)
 
             # for skip reading same vertex buffer
-            unpacked_floats = [None]*vb_count
-            desc_size = {
-                0: 3,  # position vec3
-                1: 4,  # pad blendeight vec4
-                2: 3,  # pad normal vec3
-                3: 1,  # pad fog coord float
-                4: 1,  # pad 1st color 4b=float
-                5: 1,  # pad 2nd color 4b=float
-                6: 1,  # pad blendindex 4b=float
-                7: 2,  # diffuse uv vec2, also texcoord 0
-                8: 2,  # pad texcoord 1 vec2
-                9: 2,  # pad texcoord 2 vec2
-                10: 2,  # pad texcoord 3 vec2
-                11: 2,  # pad texcoord 4 vec2
-                12: 2,  # pad texcoord 5 vec2
-                13: 2,  # pad texcoord 6 vec2
-                14: 2,  # lightmap uv vec2, also texcoord 7
-                15: 4  # pad tangent vec4
+            unpacked_vbs = [None]*vb_count
+            known_descs = {
+                #desc: (struct_format, byte_size, unpacked_item_size)
+                0: ('3f', 12, 3),  # position 3float
+                1: ('4f', 16, 4),  # pad blendweight 4float
+                2: ('3f', 12, 3),  # pad normal 3float
+                3: ('f', 4, 1),  # pad fog coord float
+                4: ('4B', 4, 4),  # 1st color 4byte
+                5: ('4B', 4, 4),  # pad 2nd color 4byte
+                6: ('4B', 4, 4),  # pad blendindex 4byte
+                7: ('2f', 8, 2),  # diffuse uv 2float, also texcoord 0
+                8: ('2f', 8, 2),  # pad texcoord 1 2float
+                9: ('2f', 8, 2),  # pad texcoord 2 2float
+                10: ('2f', 8, 2),  # pad texcoord 3 2float
+                11: ('2f', 8, 2),  # pad texcoord 4 2float
+                12: ('2f', 8, 2),  # pad texcoord 5 2float
+                13: ('2f', 8, 2),  # pad texcoord 6 2float
+                14: ('2f', 8, 2),  # lightmap uv 2float, also texcoord 7
             }
 
             model_count = bs.read_uint32()
@@ -3612,8 +3615,7 @@ class MAPGEO:
                 vertex_count, vb_count, vd_id = bs.read_uint32(3)
 
                 # read vertex buffer ids
-                vb_ids = [bs.read_int32()] if vb_count == 1 else bs.read_int32(
-                    vb_count)
+                vb_ids = bs.read_int32(vb_count, True)
 
                 # read vertex buffers floats
                 for i in range(vb_count):
@@ -3621,53 +3623,64 @@ class MAPGEO:
                     vd = vds[vd_id+i]
 
                     # skip unpacked vertex buffers
-                    if unpacked_floats[vb_id] != None:
+                    if unpacked_vbs[vb_id] != None:
                         continue
 
-                    unpacked_floats[vb_id] = []
-                    # calculate float size through vertex descriptions
-                    float_size = 0
+                    unpacked_vbs[vb_id] = []
+                    # vertex format & size through vertex descriptions
+                    vertex_size = 0
+                    vertex_format = ''
                     for desc_name, desc_format in vd:
-                        if desc_name not in desc_size:
+                        if desc_name not in known_descs:
                             raise FunnyError(
                                 f'[MAPGEO.read()]: Unknown vertex description name: {desc_name}')
-                        float_size += desc_size[desc_name]
+                        vertex_format += known_descs[desc_name][0]
+                        vertex_size += known_descs[desc_name][1]
 
-                    # read all floats of all vertices
+                    # read all vertices of this buffer
                     return_offset = bs.tell()
                     bs.seek(vbos[vb_id])
-                    unpacked_floats[vb_id] = bs.read_float(
-                        float_size*vertex_count)
+                    unpacked_vbs[vb_id] = Struct(
+                        vertex_format*vertex_count).unpack(bs.read_bytes(vertex_size*vertex_count))
                     bs.seek(return_offset)
 
-                # unpacked floats -> model vertices
+                # unpacked vertex buffers -> model vertices
+                model.use_color = False
                 model.vertices = [MAPGEOVertex() for j in range(vertex_count)]
                 for i in range(vb_count):
                     vb_id = vb_ids[i]
                     vd = vds[vd_id+i]
-                    floats = unpacked_floats[vb_id]
+                    unpacked_vb = unpacked_vbs[vb_id]
 
-                    current_float = 0
+                    current_index = 0
                     for j in range(vertex_count):
                         vertex = model.vertices[j]
                         for desc_name, desc_format in vd:
                             if desc_name == 0:
                                 vertex.position = Vector(
-                                    floats[current_float],
-                                    floats[current_float+1],
-                                    floats[current_float+2]
+                                    unpacked_vb[current_index],
+                                    unpacked_vb[current_index+1],
+                                    unpacked_vb[current_index+2]
                                 )
+                            elif desc_name == 4:
+                                vertex.color = (
+                                    unpacked_vb[current_index],
+                                    unpacked_vb[current_index+1],
+                                    unpacked_vb[current_index+2],
+                                    unpacked_vb[current_index+3],
+                                )
+                                model.use_color = True
                             elif desc_name == 7:
                                 vertex.diffuse_uv = Vector(
-                                    floats[current_float],
-                                    floats[current_float+1]
+                                    unpacked_vb[current_index],
+                                    unpacked_vb[current_index+1]
                                 )
                             elif desc_name == 14:
                                 vertex.lightmap_uv = Vector(
-                                    floats[current_float],
-                                    floats[current_float+1]
+                                    unpacked_vb[current_index],
+                                    unpacked_vb[current_index+1]
                                 )
-                            current_float += desc_size[desc_name]
+                            current_index += known_descs[desc_name][2]
 
                 # model indices
                 bs.pad(4)  # index_count
@@ -3793,23 +3806,35 @@ class MAPGEO:
             vbs = []
             ibs = []
             for model in self.models:
+                vertex_format = ''
                 vb = []
                 min = Vector(float("inf"), float("inf"), float("inf"))
                 max = Vector(float("-inf"), float("-inf"), float("-inf"))
                 for vertex in model.vertices:
                     # flatten float values
                     if vertex.position != None:
+                        vertex_format += '3f'
                         vb.extend((
                             vertex.position.x, vertex.position.y, vertex.position.z))
                     if vertex.normal != None:
+                        vertex_format += '3f'
                         vb.extend((
                             vertex.normal.x, vertex.normal.y, vertex.normal.z))
+                    if model.use_color:
+                        vertex_format += '4B'
+                        if vertex.color != None:
+                            vb.extend(vertex.color)
+                        else:
+                            vb.extend((255, 255, 255, 255))
                     if vertex.diffuse_uv != None:
+                        vertex_format += '2f'
                         vb.extend((
                             vertex.diffuse_uv.x, vertex.diffuse_uv.y))
                     if vertex.lightmap_uv != None:
+                        vertex_format += '2f'
                         vb.extend((
                             vertex.lightmap_uv.x, vertex.lightmap_uv.y))
+
                     # find bounding box
                     if min.x > vertex.position.x:
                         min.x = vertex.position.x
@@ -3824,8 +3849,6 @@ class MAPGEO:
                     if max.z < vertex.position.z:
                         max.z = vertex.position.z
 
-                # bounding box
-                model.bb = (min, max)
                 # vertex descriptions
                 vd = []
                 vertex = model.vertices[0]
@@ -3833,6 +3856,8 @@ class MAPGEO:
                     vd.append((0, 2))
                 if vertex.normal != None:
                     vd.append((2, 2))
+                if model.use_color:
+                    vd.append((4, 4))
                 if vertex.diffuse_uv != None:
                     vd.append((7, 1))
                 if vertex.lightmap_uv != None:
@@ -3841,13 +3866,15 @@ class MAPGEO:
                 # vertex buffers
                 vbs.append((
                     model.layer,
-                    Struct(f'{len(vb)}f').pack(*vb)
+                    Struct(vertex_format).pack(*vb)
                 ))
                 # index buffers
                 ibs.append((
                     model.layer,
                     Struct(f'{len(model.indices)}H').pack(*model.indices)
                 ))
+                # bounding box
+                model.bb = (min, max)
 
             # use identity matrix for all models
             imb = Struct('16f').pack(*(1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
@@ -4084,6 +4111,19 @@ class MAPGEO:
                     poly_count, poly_indices, short_lightmap
                 )
 
+            # color
+            if model.use_color:
+                colors = MColorArray(vertex_count, MColor(1.0, 1.0, 1.0, 1.0))
+                vertex_indices = MIntArray(vertex_count)
+                for i in range(vertex_count):
+                    vertex_indices[i] = i
+                    if vertex.color != None:
+                        colors[i].b = vertex.color[0] / 255.0
+                        colors[i].g = vertex.color[1] / 255.0
+                        colors[i].r = vertex.color[2] / 255.0
+                        colors[i].a = vertex.color[3] / 255.0
+                mesh.setVertexColors(colors, vertex_indices)
+
             for submesh in model.submeshes:
                 submesh_name = submesh.name
                 # shading group
@@ -4157,6 +4197,8 @@ class MAPGEO:
             MGlobal.executeCommand(
                 f'sets -q set{i+1}', layer_models[i])
 
+        # const define
+        NO_COLOR = MColor(-1.0, -1.0, -1.0, -1.0)
         # iterator all meshes in group transform
         mesh_dagpath = MDagPath()
         iteratorMesh = MItDag(MItDag.kDepthFirst, MFn.kMesh)
@@ -4297,6 +4339,7 @@ class MAPGEO:
                             lightmap_v_values, uv_names[1])
                 lightmap_uv_count = lightmap_u_values.length()
                 bad_lightmap_mesh = False
+            model.use_color = False
             # iterator on vertices
             # to dump all new vertices base on uv_index
             normals = MVectorArray()
@@ -4352,6 +4395,18 @@ class MAPGEO:
                             else:
                                 bad_lightmap_mesh = True
                         vertex.uv_index = uv_index
+
+                        # color
+                        color = MColor()
+                        iterator.getColor(color)
+                        if color != NO_COLOR:
+                            vertex.color = (
+                                int(color.b * 255.0),
+                                int(color.g * 255.0),
+                                int(color.r * 255.0),
+                                int(color.a * 255.0)
+                            )
+                            model.use_color = True
 
                         model.vertices.append(vertex)
                 iterator.next()

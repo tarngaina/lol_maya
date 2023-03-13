@@ -83,9 +83,9 @@ An attempt to update RiotFileTranslator to Maya 2023.
     - Read: 
         - `r3d2canm`
         - `r3d2anmd`: V3, V4, V5
-        - To delete Channels/previous animations before load ANM, change ANM import options to:
+        - To delete existing scene animations before load ANM, change ANM import options to:
         
-            ![](https://i.imgur.com/BWnCj2T.png)
+            ![](https://i.imgur.com/U168Hkj.png)
 
         - To ensure importing FPS and animation range from ANM file, change ANM import options to:
             

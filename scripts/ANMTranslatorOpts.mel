@@ -3,7 +3,7 @@ global proc int ANMTranslatorOpts (string $parent, string $action, string $initi
 	if ($action == "post") {
 	    setParent $parent;
 	    formLayout form;
-        checkBox -label "Auto delete channel data before load" delchannel;
+        checkBox -label "Delete existing scene animation before import." delchannel;
         formLayout -e -attachPosition delchannel left 0 0 -attachPosition delchannel right 0 0 -attachPosition delchannel top 0 0 form;
                     
 		string	$temp[];

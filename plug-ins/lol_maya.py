@@ -2771,6 +2771,7 @@ class ANM:
 
         # file's joints that found in scene
         scene_tracks = []
+        # attribute name for getting curve
         attributes = [
             'tx', 'ty', 'tz',
             'rx', 'ry', 'rz',
@@ -2799,9 +2800,10 @@ class ANM:
 
         if len(scene_tracks) == 0:
             raise FunnyError(
-                '[ANM.load()]: No data joints found in scene, please import SKL if joints are not in scene.')
+                '[ANM.load()]: No data joints found in scene, please import SKL first before import ANM.')
 
         # bind current pose to frame 0 - very helpful if its bind pose
+        # this also create the curves so dont need to call MFnAnimCurve.create()
         joint_names = ' '.join([track.joint_name for track in scene_tracks])
         MGlobal.executeCommand(
             f'currentTime 0;setKeyframe -breakdown 0 -hierarchy none -controlPoints 0 -shape 0 -at translateX -at translateY -at translateZ -at scaleX -at scaleY -at scaleZ -at rotateX -at rotateY -at rotateZ {joint_names};')
@@ -2856,35 +2858,32 @@ class ANM:
 
         # set keys on curve
         for track in scene_tracks:
-            # init curves, do this after because it reset transform
             joint_node = track.ik_joint.object()
             dep = MFnDependencyNode(joint_node)
 
             for attr in attributes:
                 # plug=node.attribute: example: tx_plug=Root.tX
                 attr_plug = dep.findPlug(attr)
-
                 # get/create curve for this attribute
-                anim_curve = None
-                if MAnimUtil.isAnimated(attr_plug):
-                    anim_curve = MFnAnimCurve(attr_plug)
-                else:
-                    anim_curve = MFnAnimCurve()
-                    anim_curve.create(
-                        joint_node, attr_plug.attribute())
-                anim_curve.addKeys(
+                MFnAnimCurve(attr_plug).addKeys(
                     track.curve_times[attr],
                     track.curve_values[attr]
                 )
 
-        # slerp all rotation curve
+        # get all rotaion curves
         track_rotate_curves = [
             f' {track.joint_name}.rotateX {track.joint_name}.rotateY {track.joint_name}.rotateZ'
             for track in scene_tracks
         ]
-        rotationInterpolation = 'rotationInterpolation -c quaternionSlerp' + \
-            ''.join(track_rotate_curves)
-        MGlobal.executeCommand(rotationInterpolation)
+        rotate_curves = ''.join(track_rotate_curves)
+        # quat slerp all rotation curve
+        quat_slerp = f'rotationInterpolation -c quaternionSlerp {rotate_curves}'
+        MGlobal.executeCommand(quat_slerp)
+        if not delchannel:
+            # if continous animation, quat slerp will break next anm
+            # so need to roll back
+            rollback = f'rotationInterpolation -c none {rotate_curves}'
+            MGlobal.executeCommand(rollback)
         MAnimControl.setCurrentTime(MAnimControl.animationEndTime())
 
     def dump(self):

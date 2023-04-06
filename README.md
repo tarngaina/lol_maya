@@ -166,6 +166,14 @@ An attempt to update RiotFileTranslator to Maya 2023.
             - Layer 8: Unknown
             - Example in SR: if mesh assigned to `set2` -> that object will appear in layer 2 - Inferno map.
         - Layer in Aram / other maps: objects are always assigned to all 8 layers.
+    
+    - Bushes:
+        - Similar to `set` for Layers, a map also must have `setBushes` to indicated which mesh are bush.
+        
+            ![](https://i.imgur.com/7Gn8C2v.png)
+        
+        - If an object is assigned to `setBushes`, it is bush. (yep)
+
 
     - Lightmap (Optional):
         - 2nd texture & UVs to store light data in, will blend with main texture (diffuse texture) in game.
@@ -195,18 +203,19 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - Vertex: material shared vertex, non UVs assigned vertex.
         - Face: invalid triangulation face, non material assigned face, non UVs assigned face.
     - Diffuse UVs must be in 1st UV set; if model uses Lightmap, Lightmap UVs must be in 2nd UV set.
-    - Freeze all meshes's transform before you export, because mesh's transform values are not supported in MAPGEO.
+    - Freeze all meshes's transform before you export for better organized.
 
         ![](https://i.imgur.com/8eZIWQU.png)
 4. Shelf buttons:
 
-    ![](https://i.imgur.com/yQ6RkAl.png)
+    ![](https://i.imgur.com/O3we0zO.png)
 
     Explain buttons from left to right:
     - Rename path of selected objects with input prefix.
     - Rename selected objects with input prefix. 
     - Toggle on/off all layers on selected mesh.
     - Toggle on/off layer 1 - 8 on selected mesh.
+    - Assigned to / remove from `setBushes` on selected mesh.
     - Select all faces of all meshes that have same assigned material as selected face.
     - Set all black emissions weight to 0.
     - Fix shared vertices on all meshes in scene.

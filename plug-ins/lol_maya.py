@@ -6,6 +6,7 @@ from struct import Struct
 from random import choice
 from cProfile import Profile
 from pstats import Stats
+from random import uniform
 
 
 # profile
@@ -443,7 +444,7 @@ class MAPGEOTranslator(MPxFileTranslator):
 # plugin register
 def initializePlugin(obj):
     # totally not copied code
-    plugin = MFnPlugin(obj, 'tarngaina', '4.1.6')
+    plugin = MFnPlugin(obj, 'tarngaina', '4.2.2')
     try:
         plugin.registerFileTranslator(
             SKNTranslator.name,
@@ -1354,8 +1355,15 @@ class SKL:
             for joint in self.joints:
                 util = MScriptUtil()
                 ptr = util.asIntPtr()
-                MGlobal.executeCommand(
-                    f'attributeQuery -ex -n "{joint.name}" "riotid"', ptr)
+                try:
+                    MGlobal.executeCommand(
+                        f'attributeQuery -ex -n "{joint.name}" "riotid"', ptr)
+                except:
+                    # there are case that we fail to check extra attribute
+                    # ex: 2 same name joints have different parent (or this is rito fault?)
+                    # just count as new joint and move on
+                    other_joints.append(joint)
+                    continue
 
                 # if joint doesnt have attribute -> new joint
                 if util.getInt(ptr) == 0:
@@ -1387,6 +1395,7 @@ class SKL:
             new_joints.extend(joint for joint in other_joints)
 
             self.joints = new_joints
+
         # link parent
         joint_count = len(self.joints)
         for joint in self.joints:
@@ -3447,7 +3456,7 @@ class SO:
 class MAPGEOVertex:
     __slots__ = (
         'position', 'normal', 'diffuse_uv', 'lightmap_uv',
-        'color', 'uv_index', 'new_index'
+        'color', 'uv_index', 'new_index',
     )
 
     def __init__(self):
@@ -3480,7 +3489,7 @@ class MAPGEOModel:
     __slots__ = (
         'name', 'submeshes', 'vertices', 'indices', 'layer',
         'bb', 'lightmap', 'lightmap_so',
-        'use_color'
+        'use_color', 'bush', 'matrix'
     )
 
     def __init__(self):
@@ -3493,6 +3502,8 @@ class MAPGEOModel:
         self.lightmap = None
         self.lightmap_so = None
         self.use_color = None
+        self.matrix = None
+        self.bush = None
 
 
 class MAPGEOBucketGrid:
@@ -3517,6 +3528,18 @@ class MAPGEO:
 
     def flip(self):
         for model in self.models:
+
+            # flip transfom matrix
+            matrix = MMatrix()
+            MScriptUtil.createMatrixFromList(model.matrix, matrix)
+            position, scale, rotation = MTransform.decompose(
+                MTransformationMatrix(matrix), MSpace.kWorld)
+            position.x = -position.x
+            rotation.y = -rotation.y
+            rotation.z = -rotation.z
+            matrix = MTransform.compose(
+                position, scale, rotation, MSpace.kWorld).asMatrix()
+            model.matrix = [matrix(i, j) for i in range(4) for j in range(4)]
             for vertex in model.vertices:
                 vertex.position.x = -vertex.position.x
                 if vertex.normal != None:
@@ -3533,7 +3556,7 @@ class MAPGEO:
                     f'[MAPGEO.read()]: Wrong file signature: {magic}')
 
             version = bs.read_uint32()
-            if version not in (5, 6, 7, 9, 11, 12, 13):
+            if version not in (5, 6, 7, 9, 11, 12, 13, 14):
                 raise FunnyError(
                     f'[MAPGEO.read()]: Unsupported file version: {version}')
 
@@ -3585,7 +3608,7 @@ class MAPGEO:
             # for skip reading same vertex buffer
             unpacked_vbs = [None]*vb_count
             known_descs = {
-                #desc: (struct_format, byte_size, unpacked_item_size)
+                # desc: (struct_format, byte_size, unpacked_item_size)
                 0: ('3f', 12, 3),  # position 3float
                 1: ('4f', 16, 4),  # pad blendweight 4float
                 2: ('3f', 12, 3),  # pad normal 3float
@@ -3598,9 +3621,10 @@ class MAPGEO:
                 9: ('2f', 8, 2),  # pad texcoord 2 2float
                 10: ('2f', 8, 2),  # pad texcoord 3 2float
                 11: ('2f', 8, 2),  # pad texcoord 4 2float
-                12: ('2f', 8, 2),  # pad texcoord 5 2float
+                12: ('3f', 12, 3),  # come with version 14? what is this
                 13: ('2f', 8, 2),  # pad texcoord 6 2float
                 14: ('2f', 8, 2),  # lightmap uv 2float, also texcoord 7
+                15: ('4f', 16, 4),  # pad tangent
             }
 
             model_count = bs.read_uint32()
@@ -3616,7 +3640,6 @@ class MAPGEO:
                 # read vertex buffer ids
                 vb_ids = bs.read_int32(vb_count, True)
 
-                # read vertex buffers floats
                 for i in range(vb_count):
                     vb_id = vb_ids[i]
                     vd = vds[vd_id+i]
@@ -3643,7 +3666,6 @@ class MAPGEO:
                         vertex_format*vertex_count).unpack(bs.read_bytes(vertex_size*vertex_count))
                     bs.seek(return_offset)
 
-                # unpacked vertex buffers -> model vertices
                 model.use_color = False
                 model.vertices = [MAPGEOVertex() for j in range(vertex_count)]
                 for i in range(vb_count):
@@ -3715,8 +3737,7 @@ class MAPGEO:
                 bs.pad(24)
 
                 # transform matrix
-                # its all identity matrix + we freeze when export anyway
-                bs.pad(64)
+                model.matrix = list(bs.read_float(16))
 
                 # quality: 1, 2, 4, 8, 16
                 # all quality = 1|2|4|8|16 = 31
@@ -3725,6 +3746,10 @@ class MAPGEO:
                 # layer - below version 13
                 if version >= 7 and version <= 12:
                     model.layer = bs.read_byte()
+
+                # bush - version 14
+                if version >= 14:
+                    model.bush = bs.read_byte()[0]
 
                 if version >= 11:
                     # render flag
@@ -3764,7 +3789,7 @@ class MAPGEO:
                 return
 
             # there is no reason to read bucket grid below v13
-            if version >= 13:
+            if version >= 14:
                 # bucket grid
                 self.bucket_grid = MAPGEOBucketGrid()
                 # min/max x/z(16), max out stick x/z(8), bucket size x/z(8)
@@ -3829,6 +3854,15 @@ class MAPGEO:
                         vertex_format += '2f'
                         vb.extend((
                             vertex.diffuse_uv.x, vertex.diffuse_uv.y))
+                    if model.bush != 0:
+                        vertex_format += '3f'
+                        x = uniform(-0.005, 0.005) * \
+                            vertex.position.x + vertex.position.x
+                        y = uniform(-0.005, 0.005) * \
+                            vertex.position.y + vertex.position.y
+                        z = uniform(-0.005, 0.005) * \
+                            vertex.position.z + vertex.position.z
+                        vb.extend((x, y, z))
                     if vertex.lightmap_uv != None:
                         vertex_format += '2f'
                         vb.extend((
@@ -3859,8 +3893,11 @@ class MAPGEO:
                     vd.append((4, 4))
                 if vertex.diffuse_uv != None:
                     vd.append((7, 1))
+                if model.bush != 0:
+                    vd.append((12, 2))
                 if vertex.lightmap_uv != None:
                     vd.append((14, 1))
+
                 vds.append(vd)
                 # vertex buffers
                 vbs.append((
@@ -3875,22 +3912,18 @@ class MAPGEO:
                 # bounding box
                 model.bb = (min, max)
 
-            # use identity matrix for all models
-            imb = Struct('16f').pack(*(1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-                                       0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0))
-
-            return vds, vbs, ibs, imb
+            return vds, vbs, ibs
 
         with open(path, 'wb+') as f:
             bs = BinaryStream(f)
 
             bs.write_ascii('OEGM')
             bs.write_uint32(
-                13,  # version
+                14,  # version
                 0, 0  # baked terrain sampler 1 and 2
             )
 
-            vds, vbs, ibs, imb = prepare()
+            vds, vbs, ibs = prepare()
 
             # vertex descriptions
             bs.write_uint32(len(vds))
@@ -3956,10 +3989,13 @@ class MAPGEO:
                 bs.write_vec3(*model.bb)
 
                 # transform
-                bs.write_bytes(imb)
+                bs.write_float(*model.matrix)
 
                 # quality, 31 = all quality
                 bs.write_bytes(bytes([31]))
+
+                # bush
+                bs.write_bytes(bytes([model.bush]))
 
                 # render flag
                 bs.write_bytes(bytes([0]))
@@ -4014,10 +4050,12 @@ class MAPGEO:
         # render with alpha cut
         execmd += 'setAttr "hardwareRenderingGlobals.transparencyAlgorithm" 5;'
 
-        # init 8 layers
+        # layers
         layer_models = {}
         for i in range(8):
             layer_models[i] = []
+        # bushes
+        bush_models = []
 
         # map submeshes by name
         submesh_names = []
@@ -4040,7 +4078,6 @@ class MAPGEO:
         group_transform = MFnTransform()
         group_transform.create()
         group_name = 'MapID'
-
         for model in self.models:
             MGlobal.displayInfo(f'[MAPGEO.load()]: Loading {model.name}')
 
@@ -4084,6 +4121,9 @@ class MAPGEO:
             transform = MFnTransform(mesh.parent(0))
             transform.setName(model.name)
             transform_name = transform.name()
+            matrix = MMatrix()
+            MScriptUtil.createMatrixFromList(model.matrix, matrix)
+            transform.set(MTransformationMatrix(matrix))
 
             lightmap_flag = model.lightmap not in (None, '')
             # lightmap uv
@@ -4143,6 +4183,10 @@ class MAPGEO:
                 if model.layer[i] == '1':
                     layer_models[i].append(transform_name)
 
+            # sets bush
+            if model.bush:
+                bush_models.append(transform_name)
+
             group_transform.addChild(transform.object())
 
         group_transform.setName(group_name)
@@ -4156,6 +4200,16 @@ class MAPGEO:
             if util.getInt(ptr) == 0:
                 execmd += f'sets -name "set{i+1}";'
             execmd += f'sets -addElement set{i+1} {model_names};'
+
+        # create bush set
+        model_names = ' '.join(bush_models)
+        util = MScriptUtil()
+        ptr = util.asIntPtr()
+        MGlobal.executeCommand(f'objExists setBushes', ptr)
+        if util.getInt(ptr) == 0:
+            execmd += f'sets -name "setBushes";'
+        execmd += f'sets -addElement setBushes {model_names};'
+
         execmd += 'select -cl;'
         MGlobal.executeCommand(execmd)
 
@@ -4180,6 +4234,7 @@ class MAPGEO:
         MGlobal.executeCommand(
             f'makeIdentity -apply true -t 1 -r 1 -s 1 -n 0 -pn 1 -jointOrient;')
 
+        # layer
         layer_models = {}
         for i in range(8):
             util = MScriptUtil()
@@ -4195,6 +4250,21 @@ class MAPGEO:
             layer_models[i] = []
             MGlobal.executeCommand(
                 f'sets -q set{i+1}', layer_models[i])
+
+        # bush
+        util = MScriptUtil()
+        ptr = util.asIntPtr()
+        MGlobal.executeCommand(f'objExists setBushes', ptr)
+        if util.getInt(ptr) == 0:
+            raise FunnyError(
+                f'[MAPGEO.dump()]: There is no setBushes found in scene. Please create 8 sets as 8 layers of mapgeo and set up objects with them.\n'
+                'How to create a set:\n'
+                '1. [recommended] Use create setBushes buttons on the shelf.\n'
+                '2. Maya toolbar -> Create -> Sets -> Set.'
+            )
+        bush_models = []
+        MGlobal.executeCommand(
+            f'sets -q setBushes', bush_models)
 
         # const define
         NO_COLOR = MColor(-1.0, -1.0, -1.0, -1.0)
@@ -4217,11 +4287,14 @@ class MAPGEO:
             transform = MFnTransform(mesh.parent(0))
             model.name = transform.name()
             MGlobal.displayInfo(f'[MAPGEO.dump()]: Dumping {model.name}')
+            matrix = transform.transformationMatrix()
+            model.matrix = [matrix(i, j) for i in range(4) for j in range(4)]
 
             # layer
             model.layer = ''.join(
                 ['1' if model.name in layer_models[7-i] else '0' for i in range(8)])
             model.layer = bytes([int(model.layer, 2)])  # bin str to byte
+            model.bush = 1 if model.name in bush_models else 0
 
             # get shader/materials
             shaders = MObjectArray()
@@ -4361,7 +4434,7 @@ class MAPGEO:
                         vertex = MAPGEOVertex()
 
                         # position
-                        position = iterator.position(MSpace.kWorld)
+                        position = iterator.position(MSpace.kTransform)
                         vertex.position = Vector(
                             position.x, position.y, position.z)
 

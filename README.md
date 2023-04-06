@@ -168,7 +168,7 @@ An attempt to update RiotFileTranslator to Maya 2023.
         - Layer in Aram / other maps: objects are always assigned to all 8 layers.
     
     - Bushes:
-        - Similar to `set` for Layers, a map also must have `setBushes` to indicated which mesh are bush.
+        - Similar to `set` for Layers, a map also must have `setBushes` to indicated which mesh is bush.
         
             ![](https://i.imgur.com/7Gn8C2v.png)
         

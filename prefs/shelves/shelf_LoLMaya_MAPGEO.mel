@@ -550,6 +550,19 @@ global proc shelf_LoLMaya_MAPGEO () {
         -commandRepeatable 1
         -flat 1
     ;
+    separator
+        -enable 1
+        -width 12
+        -height 35
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -style "shelf" 
+        -horizontal 0
+    ;
     shelfButton
         -enableCommandRepeat 1
         -flexibleWidthType 3
@@ -579,7 +592,41 @@ global proc shelf_LoLMaya_MAPGEO () {
         -style "iconOnly" 
         -marginWidth 0
         -marginHeight 1
-        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\ni = 8\nif not cmds.objExists(f'setBushes'):\n    cmds.sets(name=f'setBushes')\n    MGlobal.displayInfo('Created setBushes.')\nelse:\n    if cmds.sets(im=f'setBushes'):\n        cmds.sets(remove=f'setBushes')\n        MGlobal.displayInfo('Removed selected from setBushes.')\n    else:\n        cmds.sets(addElement=f'setBushes')\n        MGlobal.displayInfo('Assigned selected to setBushes.')" 
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\nif not cmds.objExists(f'setBushes'):\n    cmds.sets(name=f'setBushes')\n    MGlobal.displayInfo('Created setBushes.')\nelse:\n    if cmds.sets(im=f'setBushes'):\n        cmds.sets(remove=f'setBushes')\n        MGlobal.displayInfo('Removed selected from setBushes.')\n    else:\n        cmds.sets(addElement=f'setBushes')\n        MGlobal.displayInfo('Assigned selected to setBushes.')" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 34
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "User Script" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "setBaron" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 1 1 1 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "C:/Users/tarng/Documents/maya/2024/prefs/icons/baron.png" 
+        -image1 "C:/Users/tarng/Documents/maya/2024/prefs/icons/baron.png" 
+        -style "iconOnly" 
+        -marginWidth 0
+        -marginHeight 1
+        -command "from maya import cmds\nfrom maya.OpenMaya import MGlobal\n\nselected = cmds.ls(sl = True)\nif not cmds.objExists(f'setBaron'):\n    cmds.sets(name=f'setBaron')\n    MGlobal.displayInfo('Created setBaron.')\nelse:\n    if cmds.sets(im=f'setBaron'):\n        for obj in selected:\n            flag = cmds.attributeQuery('buckethash', node=obj, ex=True)\n            if not flag:\n                cmds.addAttr(longName='buckethash', niceName='Bucket Hash', dataType='string')\n                cmds.setAttr(f'{obj}.buckethash', '00000000', type='string')\n        cmds.sets(remove=f'setBaron')\n        MGlobal.displayInfo('Removed selected from setBushes.')\n    else:\n        for obj in selected:\n            flag = cmds.attributeQuery('buckethash', node=obj, ex=True)\n            if not flag:\n                cmds.addAttr(longName='buckethash', niceName='Bucket Hash', dataType='string')\n                cmds.setAttr(f'{obj}.buckethash', '00000000', type='string')\n        cmds.sets(addElement=f'setBaron')\n        MGlobal.displayInfo('Assigned selected to setBaron.')" 
         -sourceType "python" 
         -commandRepeatable 1
         -flat 1

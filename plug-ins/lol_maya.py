@@ -444,7 +444,7 @@ class MAPGEOTranslator(MPxFileTranslator):
 # plugin register
 def initializePlugin(obj):
     # totally not copied code
-    plugin = MFnPlugin(obj, 'tarngaina', '4.2.2')
+    plugin = MFnPlugin(obj, 'tarngaina', '4.2.5')
     try:
         plugin.registerFileTranslator(
             SKNTranslator.name,
@@ -3488,7 +3488,7 @@ class MAPGEOSubmesh:
 class MAPGEOModel:
     __slots__ = (
         'name', 'submeshes', 'vertices', 'indices', 'layer',
-        'bb', 'lightmap', 'lightmap_so',
+        'bucket_hash', 'bb', 'lightmap', 'lightmap_so',
         'use_color', 'bush', 'matrix'
     )
 
@@ -3498,6 +3498,7 @@ class MAPGEOModel:
         self.vertices = []
         self.indices = []
         self.layer = None
+        self.bucket_hash = None
         self.bb = None
         self.lightmap = None
         self.lightmap_so = None
@@ -3508,6 +3509,7 @@ class MAPGEOModel:
 
 class MAPGEOBucketGrid:
     def __init__(self):
+        self.hash = None
         self.header = None
         self.vertices = []
         self.indices = []
@@ -3523,7 +3525,7 @@ class MAPGEOPlanarReflector:  # hope its the last name
 class MAPGEO:
     def __init__(self):
         self.models = []
-        self.bucket_grid = None
+        self.bucket_grids = []
         self.planar_reflector = None
 
     def flip(self):
@@ -3556,7 +3558,7 @@ class MAPGEO:
                     f'[MAPGEO.read()]: Wrong file signature: {magic}')
 
             version = bs.read_uint32()
-            if version not in (5, 6, 7, 9, 11, 12, 13, 14):
+            if version not in (5, 6, 7, 9, 11, 12, 13, 14, 15):
                 raise FunnyError(
                     f'[MAPGEO.read()]: Unsupported file version: {version}')
 
@@ -3579,8 +3581,7 @@ class MAPGEO:
                 desc_count = bs.read_uint32()
                 vds[i] = [
                     # desc=(name, format)
-                    # pad format cuz dont need
-                    (bs.read_uint32(), bs.pad(4))
+                    (bs.read_uint32(), bs.read_uint32())
                     for j in range(desc_count)
                 ]
                 bs.pad(8 * (15 - desc_count))  # pad empty vertex descriptions
@@ -3607,26 +3608,35 @@ class MAPGEO:
 
             # for skip reading same vertex buffer
             unpacked_vbs = [None]*vb_count
-            known_descs = {
-                # desc: (struct_format, byte_size, unpacked_item_size)
-                0: ('3f', 12, 3),  # position 3float
-                1: ('4f', 16, 4),  # pad blendweight 4float
-                2: ('3f', 12, 3),  # pad normal 3float
-                3: ('f', 4, 1),  # pad fog coord float
-                4: ('4B', 4, 4),  # 1st color 4byte
-                5: ('4B', 4, 4),  # pad 2nd color 4byte
-                6: ('4B', 4, 4),  # pad blendindex 4byte
-                7: ('2f', 8, 2),  # diffuse uv 2float, also texcoord 0
-                8: ('2f', 8, 2),  # pad texcoord 1 2float
-                9: ('2f', 8, 2),  # pad texcoord 2 2float
-                10: ('2f', 8, 2),  # pad texcoord 3 2float
-                11: ('2f', 8, 2),  # pad texcoord 4 2float
-                12: ('3f', 12, 3),  # come with version 14? what is this
-                13: ('2f', 8, 2),  # pad texcoord 6 2float
-                14: ('2f', 8, 2),  # lightmap uv 2float, also texcoord 7
-                15: ('4f', 16, 4),  # pad tangent
+            known_formats = {
+                0: ('f', 4, 1),  # 1 float32
+                1: ('2f', 8, 2),  # 2 float32
+                2: ('3f', 12, 3),  # 3 float32
+                3: ('4f', 16, 4),  # 4 float 32
+                4: ('4B', 4, 4),  # 4 byte BGRA
+                5: ('4B', 4, 4),  # 4 byte ZYXW
+                6: ('4B', 4, 4),  # 4 byte RGBA
+                7: ('4B', 4, 4),  # 4 byte XYZW
+                8: ('2f', 8, 2)  # unknown 8 bytes
             }
-
+            known_descs = [
+                0,  # position
+                1,  # blendweight
+                2,  # normal
+                3,  # fog coord
+                4,  # 1st color
+                5,  # 2nd color
+                6,  # blendindex
+                7,  # diffuse uv, also texcoord 0
+                8,  # texcoord 1
+                9,  # texcoord 2
+                10,  # texcoord 3
+                11,  # texcoord 4
+                12,  # come with version 14? what is this
+                13,  # texcoord 6
+                14,  # lightmap uv, also texcoord 7
+                15,  # tangent
+            ]
             model_count = bs.read_uint32()
             self.models = [MAPGEOModel() for i in range(model_count)]
             for model_id in range(model_count):
@@ -3656,8 +3666,8 @@ class MAPGEO:
                         if desc_name not in known_descs:
                             raise FunnyError(
                                 f'[MAPGEO.read()]: Unknown vertex description name: {desc_name}')
-                        vertex_format += known_descs[desc_name][0]
-                        vertex_size += known_descs[desc_name][1]
+                        vertex_format += known_formats[desc_format][0]
+                        vertex_size += known_formats[desc_format][1]
 
                     # read all vertices of this buffer
                     return_offset = bs.tell()
@@ -3701,7 +3711,7 @@ class MAPGEO:
                                     unpacked_vb[current_index],
                                     unpacked_vb[current_index+1]
                                 )
-                            current_index += known_descs[desc_name][2]
+                            current_index += known_formats[desc_format][2]
 
                 # model indices
                 bs.pad(4)  # index_count
@@ -3712,6 +3722,8 @@ class MAPGEO:
                 model.layer = bytes([255])
                 if version >= 13:
                     model.layer = bs.read_byte()
+                if version >= 15:
+                    model.bucket_hash = bs.read_uint32()
 
                 # submeshes
                 submesh_count = bs.read_uint32()
@@ -3788,28 +3800,32 @@ class MAPGEO:
             if current == end:
                 return
 
-            # there is no reason to read bucket grid below v13
-            if version >= 14:
-                # bucket grid
-                self.bucket_grid = MAPGEOBucketGrid()
-                # min/max x/z(16), max out stick x/z(8), bucket size x/z(8)
-                self.bucket_grid.header = bs.read_bytes(32)
-                bucket_size = bs.read_uint16()
-                self.bucket_grid.no_bucket = bs.read_byte()[0]
-                self.bucket_grid.bucket_flag = bs.read_byte()[0]
-                vertex_count, index_count = bs.read_uint32(2)
-                if self.bucket_grid.no_bucket == 0:
-                    self.bucket_grid.vertices = bs.read_bytes(12*vertex_count)
-                    self.bucket_grid.indices = bs.read_bytes(2*index_count)
-                    # max stick out x/z(8)
-                    # start index + base vertex(8)
-                    # inside face count + sticking out face count(4)
-                    self.bucket_grid.buckets = bs.read_bytes(
-                        20*bucket_size*bucket_size)
-                    if self.bucket_grid.bucket_flag >= 1:
-                        # if first bit = 1, read face flags
-                        self.bucket_grid.face_flags = bs.read_bytes(
-                            index_count//3)
+            # there is no reason to read bucket grids below suporting version
+            if version >= 15:
+                # bucket grids
+                bucket_grid_count = bs.read_uint32()
+                self.bucket_grids = [MAPGEOBucketGrid() for i in range(bucket_grid_count)]
+                for i in range(bucket_grid_count):
+                    # hash
+                    self.bucket_grids[i].hash = bs.read_uint32()
+                    # min/max x/z(16), max out stick x/z(8), bucket size x/z(8)
+                    self.bucket_grids[i].header = bs.read_bytes(32)
+                    bucket_size = bs.read_uint16()
+                    self.bucket_grids[i].no_bucket = bs.read_byte()[0]
+                    self.bucket_grids[i].bucket_flag = bs.read_byte()[0]
+                    vertex_count, index_count = bs.read_uint32(2)
+                    if self.bucket_grids[i].no_bucket == 0:
+                        self.bucket_grids[i].vertices = bs.read_bytes(12*vertex_count)
+                        self.bucket_grids[i].indices = bs.read_bytes(2*index_count)
+                        # max stick out x/z(8)
+                        # start index + base vertex(8)
+                        # inside face count + sticking out face count(4)
+                        self.bucket_grids[i].buckets = bs.read_bytes(
+                            20*bucket_size*bucket_size)
+                        if self.bucket_grids[i].bucket_flag >= 1:
+                            # if first bit = 1, read face flags
+                            self.bucket_grids[i].face_flags = bs.read_bytes(
+                                index_count//3)
 
                 self.planar_reflector = MAPGEOPlanarReflector()
                 pr_count = bs.read_uint32()
@@ -3919,7 +3935,7 @@ class MAPGEO:
 
             bs.write_ascii('OEGM')
             bs.write_uint32(
-                14,  # version
+                15,  # version
                 0, 0  # baked terrain sampler 1 and 2
             )
 
@@ -3967,6 +3983,9 @@ class MAPGEO:
 
                 # layer
                 bs.write_bytes(model.layer)
+
+                # bucket hash (baron)
+                bs.write_uint32(model.bucket_hash) 
 
                 # submeshes
                 bs.write_uint32(len(model.submeshes))
@@ -4019,20 +4038,23 @@ class MAPGEO:
                 bs.write_float(0.0, 0.0, 0.0, 0.0)
 
             # bucket grid
-            if self.bucket_grid != None:
-                bs.write_bytes(self.bucket_grid.header)
-                # bucket size
-                bs.write_uint16(int(sqrt(len(self.bucket_grid.buckets)//20)))
-                bs.write_bytes(bytes([self.bucket_grid.no_bucket]))
-                bs.write_bytes(bytes([self.bucket_grid.bucket_flag]))
-                bs.write_uint32(len(self.bucket_grid.vertices)//12)
-                bs.write_uint32(len(self.bucket_grid.indices)//2)
-                if self.bucket_grid.no_bucket == 0:
-                    bs.write_bytes(self.bucket_grid.vertices)
-                    bs.write_bytes(self.bucket_grid.indices)
-                    bs.write_bytes(self.bucket_grid.buckets)
-                    if self.bucket_grid.bucket_flag >= 1:
-                        bs.write_bytes(self.bucket_grid.face_flags)
+            bucket_grid_count = len(self.bucket_grids)
+            if bucket_grid_count > 0:
+                bs.write_uint32(bucket_grid_count)
+                for i in range(bucket_grid_count):
+                    bs.write_uint32(self.bucket_grids[i].hash)
+                    bs.write_bytes(self.bucket_grids[i].header)
+                    bs.write_uint16(int(sqrt(len(self.bucket_grids[i].buckets)//20))) # bucket size
+                    bs.write_bytes(bytes([self.bucket_grids[i].no_bucket]))
+                    bs.write_bytes(bytes([self.bucket_grids[i].bucket_flag]))
+                    bs.write_uint32(len(self.bucket_grids[i].vertices)//12)
+                    bs.write_uint32(len(self.bucket_grids[i].indices)//2)
+                    if self.bucket_grids[i].no_bucket == 0:
+                        bs.write_bytes(self.bucket_grids[i].vertices)
+                        bs.write_bytes(self.bucket_grids[i].indices)
+                        bs.write_bytes(self.bucket_grids[i].buckets)
+                        if self.bucket_grids[i].bucket_flag >= 1:
+                            bs.write_bytes(self.bucket_grids[i].face_flags)
 
             if self.planar_reflector != None:
                 bs.write_uint32(len(self.planar_reflector.prs))
@@ -4056,6 +4078,8 @@ class MAPGEO:
             layer_models[i] = []
         # bushes
         bush_models = []
+        # baron models
+        baron_models = []
 
         # map submeshes by name
         submesh_names = []
@@ -4187,6 +4211,18 @@ class MAPGEO:
             if model.bush:
                 bush_models.append(transform_name)
 
+            # extra attributes
+            # create bucket hash attribute (for baron related stuff)
+            util = MScriptUtil()
+            ptr = util.asIntPtr()
+            MGlobal.executeCommand(
+                f'attributeQuery -ex -n "{transform_name}" "buckethash"', ptr)
+            if util.getInt(ptr) == 0:
+                execmd += f'addAttr -ln "buckethash" -nn "Bucket Hash" -dt "string" "{transform_name}";'
+                execmd += f'setAttr -type "string" {transform_name}.buckethash "{model.bucket_hash:08x}";'
+            # baron models
+            if model.bucket_hash > 0:
+                baron_models.append(transform_name)
             group_transform.addChild(transform.object())
 
         group_transform.setName(group_name)
@@ -4209,6 +4245,15 @@ class MAPGEO:
         if util.getInt(ptr) == 0:
             execmd += f'sets -name "setBushes";'
         execmd += f'sets -addElement setBushes {model_names};'
+        
+        # create baron set
+        model_names = ' '.join(baron_models)
+        util = MScriptUtil()
+        ptr = util.asIntPtr()
+        MGlobal.executeCommand(f'objExists setBaron', ptr)
+        if util.getInt(ptr) == 0:
+            execmd += f'sets -name "setBaron";'
+        execmd += f'sets -addElement setBaron {model_names};'
 
         execmd += 'select -cl;'
         MGlobal.executeCommand(execmd)
@@ -4294,8 +4339,21 @@ class MAPGEO:
             model.layer = ''.join(
                 ['1' if model.name in layer_models[7-i] else '0' for i in range(8)])
             model.layer = bytes([int(model.layer, 2)])  # bin str to byte
+            # bush
             model.bush = 1 if model.name in bush_models else 0
-
+            # baron bucket hash
+            try:
+                MGlobal.executeCommand(
+                    f'attributeQuery -ex -n "{model.name}" "buckethash"', ptr)
+            except:
+                model.bucket_hash = 0
+            if util.getInt(ptr) == 0:
+                model.bucket_hash = 0
+            else:
+                try:
+                    model.bucket_hash = int(MGlobal.executeCommandStringResult(f'getAttr {model.name}.buckethash'), 16)
+                except:
+                    model.bucket_hash = 0
             # get shader/materials
             shaders = MObjectArray()
             face_shader = MIntArray()
@@ -4536,7 +4594,7 @@ class MAPGEO:
         if riot != None:
             MGlobal.displayInfo(
                 '[MAPGEO.dump(riot.mapgeo)]: Found riot.mapgeo, copying bucket grids...')
-            self.bucket_grid = riot.bucket_grid
+            self.bucket_grids = riot.bucket_grids
             self.planar_reflector = riot.planar_reflector
         else:
             MGlobal.displayWarning(

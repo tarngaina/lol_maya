@@ -437,14 +437,20 @@ class MAPGEOTranslator(MPxFileTranslator):
         mg = MAPGEO()
         mg.dump(riot=riot_mapgeo)
         mg.flip()
-        mg.write(path)
+        version_choices = ('Version 15 (Latest)', 'Version 13 (Aram)')
+        version_choosed = MGlobal.executeCommandStringResult(
+            f'confirmDialog -title "Export MAPGEO" -message "Choose .mapgeo file version to export:" -button "{version_choices[0]}" -button "{version_choices[1]}" -icon "question"')
+        if version_choosed ==  version_choices[0]:
+            mg.write(path, version=15)
+        else:
+            mg.write(path, version=13)
         return True
 
 
 # plugin register
 def initializePlugin(obj):
     # totally not copied code
-    plugin = MFnPlugin(obj, 'tarngaina', '4.2.5')
+    plugin = MFnPlugin(obj, 'tarngaina', '4.2.7')
     try:
         plugin.registerFileTranslator(
             SKNTranslator.name,
@@ -3706,6 +3712,8 @@ class MAPGEO:
                                     unpacked_vb[current_index],
                                     unpacked_vb[current_index+1]
                                 )
+                            elif desc_name == 12 and version >= 13:
+                                model.bush = True
                             elif desc_name == 14:
                                 vertex.lightmap_uv = Vector(
                                     unpacked_vb[current_index],
@@ -3798,16 +3806,21 @@ class MAPGEO:
             current = bs.tell()
             end = bs.end()
             if current == end:
+                print('No bucket grid')
                 return
 
             # there is no reason to read bucket grids below suporting version
-            if version >= 15:
-                # bucket grids
-                bucket_grid_count = bs.read_uint32()
+            if version in (13, 15):
+                if version > 13:
+                    # bucket grids
+                    bucket_grid_count = bs.read_uint32()
+                else:
+                    bucket_grid_count = 1
                 self.bucket_grids = [MAPGEOBucketGrid() for i in range(bucket_grid_count)]
                 for i in range(bucket_grid_count):
-                    # hash
-                    self.bucket_grids[i].hash = bs.read_uint32()
+                    if version > 13:
+                        # hash
+                        self.bucket_grids[i].hash = bs.read_uint32()
                     # min/max x/z(16), max out stick x/z(8), bucket size x/z(8)
                     self.bucket_grids[i].header = bs.read_bytes(32)
                     bucket_size = bs.read_uint16()
@@ -3840,7 +3853,7 @@ class MAPGEO:
                         bs.read_bytes(12)
                     )
 
-    def write(self, path):
+    def write(self, path, version):
         def prepare():
             vds = []
             vbs = []
@@ -3872,13 +3885,16 @@ class MAPGEO:
                             vertex.diffuse_uv.x, vertex.diffuse_uv.y))
                     if model.bush != 0:
                         vertex_format += '3f'
-                        x = uniform(-0.005, 0.005) * \
-                            vertex.position.x + vertex.position.x
-                        y = uniform(-0.005, 0.005) * \
-                            vertex.position.y + vertex.position.y
-                        z = uniform(-0.005, 0.005) * \
-                            vertex.position.z + vertex.position.z
-                        vb.extend((x, y, z))
+                        if version > 13:
+                            x = uniform(-0.005, 0.005) * \
+                                vertex.position.x + vertex.position.x
+                            y = uniform(-0.005, 0.005) * \
+                                vertex.position.y + vertex.position.y
+                            z = uniform(-0.005, 0.005) * \
+                                vertex.position.z + vertex.position.z
+                            vb.extend((x, y, z))
+                        else:
+                            vb.extend((vertex.position.x, vertex.position.y, vertex.position.z))
                     if vertex.lightmap_uv != None:
                         vertex_format += '2f'
                         vb.extend((
@@ -3935,7 +3951,7 @@ class MAPGEO:
 
             bs.write_ascii('OEGM')
             bs.write_uint32(
-                15,  # version
+                version,  # version
                 0, 0  # baked terrain sampler 1 and 2
             )
 
@@ -3985,7 +4001,8 @@ class MAPGEO:
                 bs.write_bytes(model.layer)
 
                 # bucket hash (baron)
-                bs.write_uint32(model.bucket_hash) 
+                if version > 13:
+                    bs.write_uint32(model.bucket_hash) 
 
                 # submeshes
                 bs.write_uint32(len(model.submeshes))
@@ -4014,7 +4031,8 @@ class MAPGEO:
                 bs.write_bytes(bytes([31]))
 
                 # bush
-                bs.write_bytes(bytes([model.bush]))
+                if version > 13:
+                    bs.write_bytes(bytes([model.bush]))
 
                 # render flag
                 bs.write_bytes(bytes([0]))
@@ -4040,9 +4058,11 @@ class MAPGEO:
             # bucket grid
             bucket_grid_count = len(self.bucket_grids)
             if bucket_grid_count > 0:
-                bs.write_uint32(bucket_grid_count)
+                if version > 13:
+                    bs.write_uint32(bucket_grid_count)
                 for i in range(bucket_grid_count):
-                    bs.write_uint32(self.bucket_grids[i].hash)
+                    if version > 13:
+                        bs.write_uint32(self.bucket_grids[i].hash)
                     bs.write_bytes(self.bucket_grids[i].header)
                     bs.write_uint16(int(sqrt(len(self.bucket_grids[i].buckets)//20))) # bucket size
                     bs.write_bytes(bytes([self.bucket_grids[i].no_bucket]))
@@ -4218,6 +4238,8 @@ class MAPGEO:
             MGlobal.executeCommand(
                 f'attributeQuery -ex -n "{transform_name}" "buckethash"', ptr)
             if util.getInt(ptr) == 0:
+                if model.bucket_hash == None:
+                    model.bucket_hash = 0
                 execmd += f'addAttr -ln "buckethash" -nn "Bucket Hash" -dt "string" "{transform_name}";'
                 execmd += f'setAttr -type "string" {transform_name}.buckethash "{model.bucket_hash:08x}";'
             # baron models
@@ -4226,6 +4248,9 @@ class MAPGEO:
             group_transform.addChild(transform.object())
 
         group_transform.setName(group_name)
+        
+        # clear select before create setss
+        execmd += 'select -cl;' 
 
         # check/create set and assign mesh to set
         for i in range(8):

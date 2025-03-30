@@ -1,3 +1,5 @@
+This plugin is moved into [LtMAO.lemon3d](https://github.com/tarngaina/LtMAO?tab=readme-ov-file#lemon3d), this repo no longer get updates.
+
 # LoL Maya 2023
 An attempt to update RiotFileTranslator to Maya 2023.
 
